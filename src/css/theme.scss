@@ -1,0 +1,299 @@
+:root {
+  // Brand accents (same across themes)
+  --primary-color: #0d6efd;
+  --primary-dark: #0b5ed7;
+  --success-color: #198754;
+  --danger-color: #dc3545;
+  --warning-color: #ffc107;
+  --info-color: #0dcaf0;
+}
+
+/* ------------------ DARK THEME ------------------ */
+[data-theme="dark"] {
+  // Bootstrap CSS variables override
+  --bs-body-bg: #1a1a1a;
+  --bs-body-color: #e0e0e0;
+  --bs-secondary-bg: #242424;
+  --bs-secondary-color: #a0a0a0;
+  --bs-border-color: #404040;
+  --bs-border-color-translucent: rgba(255, 255, 255, 0.175);
+  
+  // Base colors
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #242424;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --border-color: #333;
+
+  // Components
+  --navbar-bg: #1f1f1f;
+  --navbar-text: #ffffff;
+  --card-bg: #2a2a2a;
+  --card-border: #404040;
+
+  // Form elements
+  --input-bg: #333333;
+  --input-border: #404040;
+  --input-text: #e0e0e0;
+
+  // States
+  --hover-bg: #2c2c2c;
+  --active-bg: #3a3a3a;
+}
+
+body[data-theme="dark"] {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  input,
+  label,
+  textarea {
+    color: var(--input-text);
+  }
+  
+  // Bootstrap overrides for dark mode
+  .form-control,
+  .form-select {
+    color: var(--input-text);
+    border-color: var(--input-border);
+    
+    &:focus {
+      color: var(--input-text);
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    
+    &::placeholder {
+      color: var(--text-secondary);
+    }
+    
+    &:disabled {
+      background-color: var(--hover-bg);
+      color: var(--text-secondary);
+      border-color: var(--border-color);
+    }
+  }
+  
+  // Fix form labels
+  .form-label {
+    color: #fff;
+    background-color: transparent;
+  }
+  
+  // Fix floating labels
+  .form-floating {
+    > .form-control,
+    > .form-select {
+      background-color: var(--input-bg);
+    }
+
+    > label {
+      color: var(--text-secondary);
+      background-color: transparent;
+    }
+
+    > .form-control:focus ~ label,
+    > .form-control:not(:placeholder-shown) ~ label,
+    > .form-select ~ label {
+      color: white;
+      background-color: transparent;
+      padding: 0 0.25rem;
+    }
+  }
+  
+  // Input groups
+  .input-group {
+    .input-group-text {
+      background-color: var(--hover-bg);
+      border-color: var(--input-border);
+      color: var(--text-primary);
+    }
+    
+    .btn-outline-secondary {
+      border-color: var(--input-border);
+      color: var(--text-primary);
+      
+      &:hover {
+        background-color: var(--hover-bg);
+        border-color: var(--border-color);
+        color: var(--text-primary);
+      }
+    }
+  }
+  
+  .btn-outline-secondary {
+    color: var(--text-primary);
+    border-color: var(--border-color);
+    
+    &:hover {
+      background-color: var(--hover-bg);
+      color: var(--text-primary);
+      border-color: var(--border-color);
+    }
+  }
+  
+  .card {
+    background-color: var(--card-bg);
+    color: var(--text-primary);
+    border-color: var(--card-border);
+    
+    .card-header {
+      background-color: var(--hover-bg);
+      border-bottom-color: var(--border-color);
+      color: var(--text-primary);
+    }
+    
+    .card-footer {
+      background-color: var(--hover-bg);
+      border-top-color: var(--border-color);
+    }
+  }
+  
+  // Bootstrap modal fixes
+  .modal {
+    .modal-content {
+      background-color: var(--card-bg);
+      border-color: var(--border-color);
+      color: var(--text-primary);
+    }
+    
+    .modal-header {
+      border-bottom-color: var(--border-color);
+      
+      .modal-title {
+        color: var(--text-primary);
+      }
+      
+      .btn-close {
+        filter: invert(1) grayscale(100%) brightness(200%);
+      }
+    }
+    
+    .modal-footer {
+      border-top-color: var(--border-color);
+    }
+  }
+  
+  // Dropdown fixes
+  .dropdown-menu {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+    
+    .dropdown-item {
+      color: var(--text-primary);
+      
+      &:hover,
+      &:focus {
+        background-color: var(--hover-bg);
+        color: var(--text-primary);
+      }
+      
+      &.active,
+      &:active {
+        background-color: var(--primary-color);
+        color: white;
+      }
+    }
+    
+    .dropdown-divider {
+      border-color: var(--border-color);
+    }
+  }
+  
+  // Alert fixes
+  .alert {
+    background-color: var(--hover-bg);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+    
+    &.alert-success {
+      background-color: rgba(25, 135, 84, 0.1);
+      border-color: var(--success-color);
+      color: #75b798;
+    }
+    
+    &.alert-danger {
+      background-color: rgba(220, 53, 69, 0.1);
+      border-color: var(--danger-color);
+      color: #f1aeb5;
+    }
+    
+    &.alert-warning {
+      background-color: rgba(255, 193, 7, 0.1);
+      border-color: var(--warning-color);
+      color: #ffda6a;
+    }
+    
+    &.alert-info {
+      background-color: rgba(13, 202, 240, 0.1);
+      border-color: var(--info-color);
+      color: #6edff6;
+    }
+  }
+  
+  .nav-tabs {
+    .nav-link {
+      color: var(--text-secondary);
+      
+      &.active {
+        color: var(--text-primary);
+        background-color: var(--card-bg);
+        border-color: var(--border-color) var(--border-color) var(--card-bg);
+      }
+      
+      &:hover:not(.active) {
+        border-color: var(--border-color);
+        color: var(--text-primary);
+      }
+    }
+    
+    border-bottom: 1px solid var(--border-color);
+  }
+}
+
+/* ------------------ LIGHT THEME ------------------ */
+[data-theme="light"] {
+  // Bootstrap CSS variables override
+  --bs-body-bg: #ffffff;
+  --bs-body-color: #212529;
+  --bs-secondary-bg: #f8f9fa;
+  --bs-secondary-color: #6c757d;
+  --bs-border-color: #dee2e6;
+  --bs-border-color-translucent: rgba(0, 0, 0, 0.175);
+  
+  // Base colors
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --text-primary: #212529;
+  --text-secondary: #495057;
+  --border-color: #dee2e6;
+
+  // Components
+  --navbar-bg: #f1f3f5;
+  --navbar-text: #212529;
+  --card-bg: #ffffff;
+  --card-border: #dee2e6;
+
+  // Form elements
+  --input-bg: #ffffff;
+  --input-border: #ced4da;
+  --input-text: #212529;
+
+  // States
+  --hover-bg: #f1f3f5;
+  --active-bg: #e9ecef;
+}
+
+body[data-theme="light"] {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  
+  .form-control,
+  .form-select {
+    color: var(--input-text);
+    border-color: var(--input-border);
+    
+    &::placeholder {
+      color: var(--text-secondary);
+    }
+  }
+}

@@ -1,0 +1,114 @@
+.emoji-picker-wrapper {
+  position: absolute;
+  bottom: 100px;
+  left: 50px;
+  z-index: 2000;
+  display: flex;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.emoji-categories {
+  display: flex;
+  flex-direction: column;
+  background: var(--sidebar-bg, #222);
+  padding: 4px;
+  border-right: 1px solid var(--border-color);
+
+  .category-button {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 6px;
+    margin: 2px 0;
+    border-radius: 4px;
+    font-size: 0.85rem;
+
+    &.active {
+      background: var(--accent-bg, #444);
+      color: var(--text-primary, #fff);
+    }
+
+    &:hover {
+      background: var(--hover-bg, #333);
+    }
+  }
+}
+
+.emoji-picker-container {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  max-height: 20em;
+  width: 22em;
+}
+
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 2rem);
+  gap: 6px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  padding-right: 4px;
+}
+
+.emoji-button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+
+  .emoji-icon {
+    width: 1.5em;
+    height: 1.5em;
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  .emoji-name {
+    position: absolute;
+    bottom: -1.2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--tooltip-bg, rgba(0, 0, 0, 0.75));
+    color: #fff;
+    font-size: 0.65rem;
+    padding: 2px 4px;
+    border-radius: 4px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+  }
+
+  &:hover .emoji-name {
+    opacity: 1;
+    z-index: 5;
+  }
+}
+
+.emoji-search {
+  margin-top: 6px;
+
+  input {
+    width: 100%;
+    padding: 4px 6px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--input-bg, #111);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+
+    &:focus {
+      outline: none;
+      border-color: var(--accent-color, #666);
+    }
+  }
+}

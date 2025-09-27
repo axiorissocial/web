@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(uuid()) // UUID primary key
+  username    String   @unique
+  email       String   @unique
+  password    String
+  bio         String?  // optional bio
+  level       Int      @default(1) // XP/level system
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lastLogin   DateTime? 
+  isVerified  Boolean  @default(false)
+  isPrivate   Boolean  @default(false)
+
+  posts       Post[]    // relation to posts
+  likes       Like[]    // relation to post likes
+  commentLikes CommentLike[] // relation to comment likes
+  comments    Comment[] // relation to comments
+  settings    UserSettings?
+  profile     Profile?
+  
+  // Following system
+  following   Follow[] @relation("UserFollowing")
+  followers   Follow[] @relation("UserFollowers")
+}
+
+model Profile {
+  id          String   @id @default(uuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String   @unique
+  displayName String?
+  avatar      String?  // URL to profile picture
+  banner      String?  // URL to banner image
+  location    String?
+  website     String?
+  bio         String?  // Extended bio
+  birthDate   DateTime?
+  joinedAt    DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Follow {
+  id          String   @id @default(uuid())
+  follower    User     @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  followerId  String
+  following   User     @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+  followingId String
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+}
+
+model Post {
+  id         String   @id @default(uuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  title      String?
+  slug       String?  @unique
+  content    String   // can be base64 if needed
+  media      Json?    // optional JSON field for images/videos
+  likesCount Int      @default(0)
+  viewsCount Int      @default(0)
+  isPinned   Boolean  @default(false)
+  isPrivate  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  likes      Like[]
+  comments   Comment[]
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    String
+  content   String
+  likesCount Int     @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Reply system
+  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  parentId  String?
+  replies   Comment[] @relation("CommentReplies")
+  
+  // Likes relationship
+  likes     CommentLike[]
+}
+
+model Like {
+  user   User  @relation(fields: [userId], references: [id])
+  userId String
+  post   Post  @relation(fields: [postId], references: [id])
+  postId String
+  createdAt DateTime @default(now())
+
+  @@id([userId, postId]) // composite primary key
+}
+
+model CommentLike {
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  comment   Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  commentId String
+  createdAt DateTime @default(now())
+
+  @@id([userId, commentId]) // composite primary key
+}
+
+model UserSettings {
+  id          String   @id @default(uuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String   @unique
+  theme       String   @default("dark")
+  notifications Json?  // JSON for notification preferences
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

@@ -1,0 +1,77 @@
+.modal-content {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+.modal-header {
+  border-bottom: 1px solid var(--border-color);
+
+  .modal-title {
+    color: var(--text-primary);
+  }
+
+  .btn-close {
+    filter: brightness(0.8);
+  }
+}
+
+.modal-body {
+  color: var(--text-primary);
+
+  textarea.form-control {
+    background-color: var(--input-bg);
+    color: var(--input-text);
+    border: 1px solid var(--input-border);
+  }
+
+  .markdown-content {
+    background-color: var(--card-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--card-border);
+  }
+}
+
+.modal-footer {
+  border-top: 1px solid var(--border-color);
+
+  button.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+
+    &:hover {
+      background-color: var(--primary-dark);
+      border-color: var(--primary-dark);
+    }
+  }
+
+  button.btn-secondary {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+
+    &:hover {
+      background-color: var(--hover-bg);
+    }
+  }
+}
+
+.nav-tabs {
+  border-bottom: 1px solid var(--border-color);
+
+  .nav-link {
+    color: var(--text-secondary);
+
+    &.active {
+      color: var(--text-primary);
+      border-color: var(--border-color) var(--border-color) var(--bg-primary);
+      background-color: var(--bg-primary);
+    }
+  }
+}
+
+.twemoji-emoji {
+  height: 1em;
+  width: 1em;
+  vertical-align: -0.1em;
+}

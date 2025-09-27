@@ -1,0 +1,47 @@
+html,
+body {
+  height: 100%;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.err-container {
+  text-align: center;
+  width: 100%;
+  max-width: 600px;
+  padding: 20px;
+
+  .err-axioris-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5em;
+    margin-top: 10%;
+    margin-bottom: 30px;
+
+    .logo {
+      height: 1.5em;
+      width: auto;
+      margin-right: 10px;
+    }
+
+    span {
+      font-weight: bold;
+      font-size: 2em;
+    }
+  }
+
+  .error-code {
+    font-size: 4em;
+    margin-top: 40%;
+    margin-bottom: 10px;
+  }
+
+  .error-msg {
+    font-size: 1.5em;
+    margin-top: 5%;
+  }
+}

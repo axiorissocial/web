@@ -1,0 +1,263 @@
+.search-main {
+  padding: 2rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.search-header {
+  h1 {
+    font-size: 2.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+  }
+
+  p {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+  }
+}
+
+.search-input-container {
+  margin-bottom: 2rem;
+  
+  .input-group {
+    .input-group-text {
+      background-color: var(--input-bg);
+      border-color: var(--input-border);
+      color: var(--text-primary);
+    }
+
+    .form-control {
+      border-color: var(--input-border);
+      background-color: var(--input-bg);
+      color: var(--input-text);
+      
+      &:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+      }
+
+      &::placeholder {
+        color: var(--text-secondary);
+      }
+    }
+  }
+}
+
+.search-tabs {
+  .nav-link {
+    color: var(--text-primary);
+    border-color: transparent;
+    font-weight: 500;
+    padding: 1rem 1.5rem;
+
+    &:hover {
+      background-color: var(--hover-bg);
+      border-color: transparent;
+      color: var(--text-primary);
+    }
+
+    &.active {
+      background-color: var(--primary-color);
+      border-color: var(--primary-color);
+      color: white;
+
+      &:hover {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+        color: white;
+      }
+    }
+  }
+}
+
+.search-results {
+  min-height: 300px;
+}
+
+.search-empty {
+  svg {
+    opacity: 0.5;
+  }
+
+  h3 {
+    color: var(--text-primary);
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+  }
+  
+  p {
+    color: var(--text-secondary);
+  }
+}
+
+.user-card {
+  border: 1px solid var(--card-border);
+  background-color: var(--card-bg);
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+  }
+
+  .card-body {
+    padding: 1.5rem;
+  }
+}
+
+[data-theme="dark"] .user-card {
+  &:hover {
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+  }
+}
+
+.user-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+
+  .user-info {
+    display: flex;
+    gap: 1rem;
+    flex: 1;
+  }
+
+  .user-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.5rem;
+    
+    .stat {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+  }
+}
+
+.user-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--border-color);
+}
+
+.user-avatar-placeholder {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary-color), var(--info-color));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.user-details {
+  flex: 1;
+  
+  .user-name {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+  }
+
+  .user-username {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .user-bio {
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin-top: 0.5rem;
+  }
+}
+
+.user-actions {
+  border-top: 1px solid var(--card-border);
+  padding-top: 1rem;
+  
+  .btn {
+    transition: all 0.2s ease;
+    
+    &:hover {
+      transform: translateY(-1px);
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .search-main {
+    padding: 1rem;
+  }
+
+  .search-header {
+    h1 {
+      font-size: 2rem;
+    }
+    
+    p {
+      font-size: 1rem;
+    }
+  }
+
+  .search-tabs {
+    .nav-link {
+      padding: 0.75rem 1rem;
+      font-size: 0.9rem;
+    }
+  }
+
+  .user-header {
+    flex-direction: column;
+    gap: 1rem;
+
+    .user-stats {
+      align-self: flex-start;
+      flex-direction: row;
+      gap: 1rem;
+    }
+  }
+
+  .user-info {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 1rem;
+  }
+
+  .user-avatar,
+  .user-avatar-placeholder {
+    width: 50px;
+    height: 50px;
+    font-size: 1.2rem;
+  }
+
+  .user-details {
+    .user-name {
+      font-size: 1.1rem;
+      justify-content: center;
+    }
+  }
+
+  .user-actions {
+    text-align: center;
+  }
+}
