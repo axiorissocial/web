@@ -107,7 +107,7 @@ const ProfilePage: React.FC = () => {
       setFollowing(data.isFollowing || false);
       document.title = `${data.profile?.displayName || data.username} - Axioris`;
     } catch (err) {
-      console.error(`Error fetching profile for ${username}:`, err);
+      console.error('Error fetching profile for %s:', username, err);
       setError('Failed to load profile');
     } finally {
       setLoading(false);
