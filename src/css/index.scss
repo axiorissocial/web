@@ -27,3 +27,43 @@ main {
   color: var(--text-primary);
   overflow-y: auto;
 }
+
+// Mobile specific fixes
+@media (orientation: portrait) {
+  .app-container {
+    flex-direction: column;
+  }
+  
+  main {
+    padding: 1rem; // Reduced padding on mobile
+    padding-bottom: 80px; // Space for mobile navbar
+    height: calc(100vh - 60px); // Account for navbar
+    overflow-y: auto;
+  }
+}
+
+/* Mobile Floating Action Button */
+.mobile-fab {
+  position: fixed;
+  bottom: 80px; /* Above mobile nav bar */
+  right: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  border: none;
+  transition: all 0.2s ease;
+
+  &:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+}

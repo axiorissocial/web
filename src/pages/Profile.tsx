@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Navigate } from 'react-router-dom';
+import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { Card, Button, Spinner, Tabs, Tab, Badge, Row, Col } from 'react-bootstrap';
-import { Calendar, GeoAlt, Link45deg, PersonPlus, PersonDash, Envelope, ChatSquareText } from 'react-bootstrap-icons';
+import { Calendar, GeoAlt, Link45deg, PersonPlus, PersonDash, Envelope, ChatSquareText, Plus } from 'react-bootstrap-icons';
 import Sidebar from '../components/singles/Navbar';
 import Feed from '../components/Feed';
 import { useAuth } from '../contexts/AuthContext';
@@ -38,47 +38,76 @@ interface UserProfile {
 
 const ProfilePage: React.FC = () => {
   const { username } = useParams<{ username: string }>();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'posts' | 'about'>('posts');
+  const [isMobile, setIsMobile] = useState(window.innerHeight > window.innerWidth);
+
+  // Handle /user/me route - redirect to user's profile when auth is loaded
+  useEffect(() => {
+    if (!username && !authLoading && currentUser) {
+      navigate(`/profile/@${currentUser.username}`, { replace: true });
+    }
+  }, [username, currentUser, authLoading, navigate]);
 
   useEffect(() => {
     if (username) {
       fetchProfile();
-    } else if (currentUser) {
-      window.location.href = `/profile/${currentUser.username}`;
     }
-  }, [username, currentUser]);
+  }, [username]);
+
+  // Mobile detection
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerHeight > window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleCreatePost = () => {
+    navigate('/create-post');
+  };
 
   const fetchProfile = async () => {
     if (!username) return;
+    
+    // Remove @ symbol if present
+    const cleanUsername = username.startsWith('@') ? username.slice(1) : username;
     
     setLoading(true);
     setError('');
 
     try {
-      const response = await fetch(`/api/users/${username}/profile`, {
+      console.log(`Fetching profile for username: ${cleanUsername}`);
+      const response = await fetch(`/api/users/${cleanUsername}/profile`, {
         credentials: 'include'
       });
+      
+      console.log(`Profile API response status: ${response.status}`);
       
       if (!response.ok) {
         if (response.status === 404) {
           setError('User not found');
+          console.error(`User not found: ${cleanUsername}`);
         } else {
+          const errorText = await response.text();
           setError('Failed to load profile');
+          console.error(`Profile fetch failed: ${response.status} - ${errorText}`);
         }
         return;
       }
 
       const data = await response.json();
+      console.log(`Profile data loaded for ${username}:`, data);
       setProfile(data);
       setFollowing(data.isFollowing || false);
       document.title = `${data.profile?.displayName || data.username} - Axioris`;
     } catch (err) {
+      console.error(`Error fetching profile for ${username}:`, err);
       setError('Failed to load profile');
     } finally {
       setLoading(false);
@@ -124,7 +153,8 @@ const ProfilePage: React.FC = () => {
     return <Navigate to="/account/login" replace />;
   }
 
-  if (loading) {
+  // Show loading while waiting for redirect or profile data
+  if ((!username && authLoading) || loading) {
     return (
       <div className="app-container">
         <Sidebar activeId="profile" />
@@ -132,6 +162,21 @@ const ProfilePage: React.FC = () => {
           <div className="text-center py-5">
             <Spinner animation="border" />
             <div className="mt-2">Loading profile...</div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // If we don't have a username and we're not loading auth, we're redirecting
+  if (!username) {
+    return (
+      <div className="app-container">
+        <Sidebar activeId="profile" />
+        <main>
+          <div className="text-center py-5">
+            <Spinner animation="border" />
+            <div className="mt-2">Redirecting...</div>
           </div>
         </main>
       </div>
@@ -163,6 +208,34 @@ const ProfilePage: React.FC = () => {
     year: 'numeric',
     month: 'long'
   });
+
+  const handleMessage = async () => {
+    if (!profile || !currentUser) return;
+
+    try {
+      // Create or find existing conversation
+      const response = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          participantIds: [profile.id]
+        })
+      });
+
+      if (response.ok) {
+        await response.json();
+        // Navigate to messages page
+        navigate('/messages');
+      } else {
+        console.error('Failed to create conversation');
+      }
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+    }
+  };
 
   return (
     <div className="app-container">
@@ -211,12 +284,22 @@ const ProfilePage: React.FC = () => {
                 
                 <div className="profile-actions">
                   {isOwn ? (
-                    <Button 
-                      variant="outline-primary"
-                      onClick={() => window.location.href = '/settings'}
-                    >
-                      Edit Profile
-                    </Button>
+                    <>
+                      <Button 
+                        variant="primary"
+                        onClick={handleCreatePost}
+                        className="me-2"
+                      >
+                        <Plus className="me-1" />
+                        Create Post
+                      </Button>
+                      <Button 
+                        variant="outline-primary"
+                        onClick={() => window.location.href = '/settings'}
+                      >
+                        Edit Profile
+                      </Button>
+                    </>
                   ) : (
                     <>
                       <Button
@@ -234,7 +317,12 @@ const ProfilePage: React.FC = () => {
                         )}
                         {following ? 'Unfollow' : 'Follow'}
                       </Button>
-                      <Button variant="outline-secondary" className="message-btn">
+                      <Button 
+                        variant="outline-secondary" 
+                        className="message-btn"
+                        onClick={handleMessage}
+                        title="Send Message"
+                      >
                         <Envelope />
                       </Button>
                     </>
@@ -356,6 +444,18 @@ const ProfilePage: React.FC = () => {
           </Tabs>
         </div>
       </main>
+      
+      {/* Mobile Floating Action Button - Only show on own profile */}
+      {isMobile && currentUser && profile?.isOwn && (
+        <Button
+          variant="primary"
+          className="mobile-fab"
+          onClick={handleCreatePost}
+          size="lg"
+        >
+          <Plus size={24} />
+        </Button>
+      )}
     </div>
   );
 };

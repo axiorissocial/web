@@ -8,6 +8,8 @@ import authRoutes from './routes/auth.js';
 import postRoutes from './routes/posts.js';
 import accountRoutes from './routes/account.js';
 import profileRoutes from './routes/profiles.js';
+import messageRoutes from './routes/messages.js';
+import notificationRoutes from './routes/notifications.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -50,6 +52,8 @@ app.use('/api', authRoutes);
 app.use('/api', postRoutes);
 app.use('/api', accountRoutes);
 app.use('/api/users', profileRoutes);
+app.use('/api', messageRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', message: 'Server is running' });

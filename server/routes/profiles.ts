@@ -3,6 +3,7 @@ import { PrismaClient } from '../../src/generated/prisma/index.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { createNotification } from './notifications.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -45,8 +46,18 @@ const upload = multer({
 
 router.get('/:username/profile', async (req: Request, res: Response) => {
   try {
-    const { username } = req.params;
+    const { username: rawUsername } = req.params;
     const currentUserId = (req.session as any)?.userId;
+    
+    // Decode the username in case it's URL encoded
+    const username = decodeURIComponent(rawUsername).trim();
+
+    console.log(`Fetching profile for username: "${username}" (raw: "${rawUsername}"), currentUserId: ${currentUserId}`);
+
+    if (!username || username.length === 0) {
+      console.log('Empty username provided');
+      return res.status(400).json({ error: 'Username is required' });
+    }
 
     const user = await prisma.user.findUnique({
       where: { username },
@@ -63,8 +74,11 @@ router.get('/:username/profile', async (req: Request, res: Response) => {
     });
 
     if (!user) {
+      console.log(`User not found: "${username}"`);
       return res.status(404).json({ error: 'User not found' });
     }
+
+    console.log(`User found: ${user.username} (${user.id})`);
 
     let isFollowing = false;
     if (currentUserId && currentUserId !== user.id) {
@@ -77,6 +91,7 @@ router.get('/:username/profile', async (req: Request, res: Response) => {
         }
       });
       isFollowing = !!followRelation;
+      console.log(`Follow status: ${isFollowing}`);
     }
 
     const { password, email, ...safeUser } = user;
@@ -87,6 +102,13 @@ router.get('/:username/profile', async (req: Request, res: Response) => {
       isOwn: currentUserId === user.id
     };
 
+    console.log(`Returning profile data for ${username}:`, { 
+      username: profileData.username, 
+      hasProfile: !!profileData.profile,
+      isOwn: profileData.isOwn,
+      isFollowing 
+    });
+    
     res.json(profileData);
   } catch (error) {
     console.error('Error fetching user profile:', error);
@@ -131,10 +153,41 @@ router.post('/:userId/follow', requireAuth, async (req: any, res: Response) => {
       }
     });
 
+    // Create follow notification
+    await createNotification(
+      'FOLLOW',
+      currentUserId,
+      userId
+    );
+
     res.json({ message: 'Successfully followed user' });
   } catch (error) {
     console.error('Error following user:', error);
     res.status(500).json({ error: 'Failed to follow user' });
+  }
+});
+
+// POST unfollow endpoint (for easier frontend integration)
+router.post('/:userId/unfollow', requireAuth, async (req: any, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const currentUserId = req.session.userId;
+
+    const deletedFollow = await prisma.follow.deleteMany({
+      where: {
+        followerId: currentUserId,
+        followingId: userId
+      }
+    });
+
+    if (deletedFollow.count === 0) {
+      return res.status(400).json({ error: 'Not following this user' });
+    }
+
+    res.json({ message: 'Successfully unfollowed user' });
+  } catch (error) {
+    console.error('Error unfollowing user:', error);
+    res.status(500).json({ error: 'Failed to unfollow user' });
   }
 });
 
@@ -257,6 +310,84 @@ router.get('/me/profile', requireAuth, async (req: any, res: Response) => {
   } catch (error) {
     console.error('Error fetching current user profile:', error);
     res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// Get user settings
+router.get('/me/settings', requireAuth, async (req: any, res: Response) => {
+  try {
+    const currentUserId = req.session.userId;
+    
+    const userSettings = await prisma.userSettings.findUnique({
+      where: { userId: currentUserId }
+    });
+    
+    if (userSettings) {
+      res.json({
+        settings: {
+          theme: userSettings.theme,
+          notifications: userSettings.notifications || {
+            likes: true,
+            comments: true,
+            follows: true,
+            mentions: true,
+            replies: true,
+            commentLikes: true
+          }
+        }
+      });
+    } else {
+      // Return default settings if none exist
+      res.json({
+        settings: {
+          theme: 'dark',
+          notifications: {
+            likes: true,
+            comments: true,
+            follows: true,
+            mentions: true,
+            replies: true,
+            commentLikes: true
+          }
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching user settings:', error);
+    res.status(500).json({ error: 'Failed to fetch settings' });
+  }
+});
+
+// Update user settings
+router.put('/me/settings', requireAuth, async (req: any, res: Response) => {
+  try {
+    const currentUserId = req.session.userId;
+    const { notifications, theme } = req.body;
+    
+    const updateData: any = {};
+    if (notifications) {
+      updateData.notifications = notifications;
+    }
+    if (theme) {
+      updateData.theme = theme;
+    }
+    
+    const userSettings = await prisma.userSettings.upsert({
+      where: { userId: currentUserId },
+      update: updateData,
+      create: {
+        userId: currentUserId,
+        ...updateData
+      }
+    });
+    
+    res.json({
+      message: 'Settings updated successfully',
+      settings: userSettings
+    });
+  } catch (error) {
+    console.error('Error updating user settings:', error);
+    res.status(500).json({ error: 'Failed to update settings' });
   }
 });
 

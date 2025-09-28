@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Form, InputGroup, Tabs, Tab, Card, Badge, Button, Spinner } from 'react-bootstrap';
-import { Search as SearchIcon, Person, ChatSquareText } from 'react-bootstrap-icons';
+import { Search as SearchIcon, Person, ChatSquareText, PersonPlus, PersonDash } from 'react-bootstrap-icons';
+import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/singles/Navbar';
 import Feed from '../components/Feed';
+import { useAuth } from '../contexts/AuthContext';
 import '../css/search.scss';
 
 interface User {
@@ -10,12 +12,14 @@ interface User {
   username: string;
   bio?: string;
   isVerified: boolean;
+  isFollowing?: boolean;
   profile?: {
     displayName?: string;
     avatar?: string;
   };
   _count: {
     posts: number;
+    followers: number;
   };
 }
 
@@ -24,6 +28,43 @@ const SearchPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'posts' | 'users'>('posts');
   const [users, setUsers] = useState<User[]>([]);
   const [userLoading, setUserLoading] = useState(false);
+  const navigate = useNavigate();
+  const { user: currentUser } = useAuth();
+
+  const handleFollowToggle = async (userId: string, isFollowing: boolean) => {
+    try {
+      const response = await fetch(`/api/users/${userId}/${isFollowing ? 'unfollow' : 'follow'}`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        setUsers(prevUsers => 
+          prevUsers.map(user => 
+            user.id === userId 
+              ? { 
+                  ...user, 
+                  isFollowing: !isFollowing,
+                  _count: {
+                    ...user._count,
+                    followers: user._count.followers + (isFollowing ? -1 : 1)
+                  }
+                }
+              : user
+          )
+        );
+      } else {
+        const errorData = await response.json();
+        console.error('Follow toggle failed:', errorData);
+      }
+    } catch (error) {
+      console.error('Error toggling follow:', error);
+    }
+  };
+
+  const handleUserClick = (username: string) => {
+    navigate(`/profile/${username}`);
+  };
   const [userError, setUserError] = useState('');
   const [userPage, setUserPage] = useState(1);
   const [hasMoreUsers, setHasMoreUsers] = useState(true);
@@ -89,52 +130,91 @@ const SearchPage: React.FC = () => {
 
   const UserCard: React.FC<{ user: User }> = ({ user }) => {
     const displayName = user.profile?.displayName || user.username;
+    const isCurrentUser = currentUser?.id === user.id;
     
     return (
       <Card className="user-card mb-3">
         <Card.Body>
-          <div className="user-header">
-            <div className="user-info">
-              {user.profile?.avatar ? (
-                <img 
-                  src={user.profile.avatar} 
-                  alt={`${displayName}'s avatar`}
-                  className="user-avatar"
-                />
-              ) : (
-                <div className="user-avatar-placeholder">
-                  {displayName.charAt(0).toUpperCase()}
-                </div>
-              )}
-              <div className="user-details">
-                <div className="user-name">
-                  {displayName}
-                  {user.isVerified && (
-                    <Badge bg="primary" className="ms-2">✓</Badge>
+          <div className="user-container">
+            <div 
+              className="user-header cursor-pointer" 
+              onClick={() => handleUserClick(user.username)}
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="user-info">
+                {user.profile?.avatar ? (
+                  <img 
+                    src={user.profile.avatar} 
+                    alt={`${displayName}'s avatar`}
+                    className="user-avatar"
+                  />
+                ) : (
+                  <div className="user-avatar-placeholder">
+                    {displayName.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="user-details">
+                  <div className="user-name">
+                    {displayName}
+                    {user.isVerified && (
+                      <Badge bg="primary" className="ms-2">✓</Badge>
+                    )}
+                  </div>
+                  <div className="user-username">@{user.username}</div>
+                  {user.bio && (
+                    <div className="user-bio">{user.bio}</div>
                   )}
                 </div>
-                <div className="user-username">@{user.username}</div>
-                {user.bio && (
-                  <div className="user-bio">{user.bio}</div>
-                )}
+              </div>
+              <div className="user-stats">
+                <div className="stat">
+                  <ChatSquareText size={16} />
+                  <span className="ms-1">{user._count.posts} posts</span>
+                </div>
+                <div className="stat">
+                  <Person size={16} />
+                  <span className="ms-1">{user._count.followers} followers</span>
+                </div>
               </div>
             </div>
-            <div className="user-stats">
-              <div className="stat">
-                <ChatSquareText size={16} />
-                <span className="ms-1">{user._count.posts} posts</span>
+            {!isCurrentUser && (
+              <div className="user-actions mt-3">
+                <Button 
+                  variant={user.isFollowing ? "outline-danger" : "outline-primary"} 
+                  size="sm"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleFollowToggle(user.id, user.isFollowing || false);
+                  }}
+                  className="me-2"
+                >
+                  {user.isFollowing ? (
+                    <>
+                      <PersonDash size={16} className="me-1" />
+                      Unfollow
+                    </>
+                  ) : (
+                    <>
+                      <PersonPlus size={16} className="me-1" />
+                      Follow
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  variant="outline-primary" 
+                  size="sm"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleUserClick(user.username);
+                  }}
+                >
+                  <Person size={16} className="me-1" />
+                  View Profile
+                </Button>
               </div>
-            </div>
-          </div>
-          <div className="user-actions mt-3">
-            <Button 
-              variant="outline-primary" 
-              size="sm"
-              onClick={() => window.location.href = `/user/${user.username}`}
-            >
-              <Person size={16} className="me-1" />
-              View Profile
-            </Button>
+            )}
           </div>
         </Card.Body>
       </Card>

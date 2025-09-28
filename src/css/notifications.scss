@@ -1,0 +1,44 @@
+// Notifications layout
+.notifications-main {
+  padding: 2rem;
+  
+  // Add margin for desktop sidebar  
+  @media (min-width: 769px) {
+    margin-left: 20vw;
+    padding: 2rem 2rem 2rem 1rem;
+  }
+}
+
+// Notification cards
+.notification-card {
+  transition: all 0.2s ease;
+}
+
+.notification-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.notification-card.border-primary {
+  background: rgba(13, 110, 253, 0.05);
+}
+
+[data-theme="dark"] .notification-card {
+  background: var(--card-bg);
+  border-color: var(--card-border);
+}
+
+[data-theme="dark"] .notification-card:hover {
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .notification-card.border-primary {
+  background: rgba(13, 110, 253, 0.1);
+}
+
+.unread-indicator {
+  width: 8px;
+  height: 8px;
+  background: var(--primary-color);
+  border-radius: 50%;
+}

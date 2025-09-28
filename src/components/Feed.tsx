@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Spinner, Alert } from 'react-bootstrap';
 import { ChatSquareText, Plus } from 'react-bootstrap-icons';
+import { useNavigate } from 'react-router-dom';
 import Post from './Post';
 import { useAuth } from '../contexts/AuthContext';
 import '../css/post.scss';
@@ -42,6 +43,7 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const fetchPosts = useCallback(async (pageNum = 1, reset = false) => {
     try {
@@ -87,12 +89,26 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
     fetchPosts(1, true);
   }, [fetchPosts]);
 
+  // Listen for post creation events from the modal
+  useEffect(() => {
+    const handlePostCreated = () => {
+      fetchPosts(1, true); // Refresh the feed
+    };
+    
+    window.addEventListener('postCreated', handlePostCreated);
+    return () => window.removeEventListener('postCreated', handlePostCreated);
+  }, [fetchPosts]);
+
   const handleLikeToggle = (postId: string, isLiked: boolean) => {
     setPosts(prev => prev.map(post => 
       post.id === postId 
         ? { ...post, isLiked, likesCount: isLiked ? post.likesCount + 1 : post.likesCount - 1 }
         : post
     ));
+  };
+
+  const handlePostDelete = (postId: string) => {
+    setPosts(prev => prev.filter(post => post.id !== postId));
   };
 
   const handleLoadMore = () => {
@@ -147,7 +163,7 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
         {!searchQuery && !userId && user && (
           <Button 
             variant="primary"
-            onClick={() => window.dispatchEvent(new CustomEvent('openCreateModal'))}
+            onClick={() => navigate('/create-post')}
           >
             <Plus size={20} className="me-2" />
             Create Post
@@ -164,6 +180,7 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
           key={post.id}
           post={post}
           onLikeToggle={handleLikeToggle}
+          onDelete={handlePostDelete}
           showFullContent={false}
         />
       ))}

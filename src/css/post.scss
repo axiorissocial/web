@@ -413,9 +413,12 @@
 }
 
 .twemoji-emoji {
-  height: 1.2em;
-  width: 1.2em;
-  vertical-align: -0.1em;
+  height: 1.1em;
+  width: 1.1em;
+  vertical-align: -0.2em;
+  display: inline-block;
+  margin: 0 0.05em;
+  object-fit: contain;
 }
 
 [data-theme="dark"] {
@@ -507,5 +510,118 @@
 .post-header-right {
   .post-date {
     white-space: nowrap;
+  }
+}
+
+// Media modal and interaction styles
+.cursor-pointer {
+  cursor: pointer;
+  
+  &:hover {
+    opacity: 0.9;
+    transition: opacity 0.2s ease;
+  }
+}
+
+.media-modal {
+  .modal-dialog {
+    max-width: 90vw;
+    max-height: 90vh;
+  }
+  
+  .modal-content {
+    background-color: rgba(0, 0, 0, 0.95);
+    border: none;
+    border-radius: 8px;
+  }
+  
+  .modal-header,
+  .modal-footer {
+    background-color: transparent;
+    color: white;
+  }
+  
+  .modal-body {
+    background-color: transparent;
+    
+    video {
+      border-radius: 8px;
+    }
+  }
+  
+  .btn-dark {
+    &:hover {
+      opacity: 1 !important;
+      background-color: rgba(255, 255, 255, 0.2) !important;
+    }
+  }
+}
+
+// Post media improvements
+.post-media {
+  .media-grid {
+    .media-item {
+      border-radius: 8px;
+      overflow: hidden;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      
+      &:hover {
+        transform: scale(1.02);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        
+        [data-theme="dark"] & {
+          box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+        }
+      }
+      
+      video {
+        border-radius: 8px;
+        cursor: pointer;
+        
+        // Ensure video thumbnails load properly
+        &::-webkit-media-controls {
+          display: none !important;
+        }
+        &::-webkit-media-controls-enclosure {
+          display: none !important;
+        }
+      }
+      
+      // +X more overlay styling
+      .bg-opacity-75 {
+        backdrop-filter: blur(2px);
+        transition: all 0.3s ease;
+        
+        &:hover {
+          background-color: rgba(0, 0, 0, 0.85) !important;
+        }
+        
+        .fw-bold {
+          font-size: 1.5rem;
+          text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+      }
+    }
+  }
+  
+  .single-media {
+    img, video {
+      transition: transform 0.2s ease;
+      
+      &:hover {
+        transform: scale(1.01);
+      }
+    }
+    
+    video {
+      cursor: pointer;
+      
+      &::-webkit-media-controls {
+        display: none !important;
+      }
+      &::-webkit-media-controls-enclosure {
+        display: none !important;
+      }
+    }
   }
 }

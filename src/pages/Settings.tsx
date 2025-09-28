@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Sidebar from '../components/singles/Navbar';
 import { Card, Form, Button, Tabs, Tab, Alert, Spinner, Modal, InputGroup } from 'react-bootstrap';
-import { Eye, EyeSlash, PersonCircle, Gear, Palette, Shield, Upload } from 'react-bootstrap-icons';
+import { Eye, EyeSlash, PersonCircle, Gear, Palette, Shield, Upload, Bell } from 'react-bootstrap-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import '../css/settings.scss';
@@ -70,6 +70,18 @@ const SettingsPage: React.FC = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   
+  const [notificationSettings, setNotificationSettings] = useState({
+    likes: true,
+    comments: true,
+    follows: true,
+    mentions: true,
+    replies: true,
+    commentLikes: true
+  });
+  const [notificationLoading, setNotificationLoading] = useState(false);
+  const [notificationError, setNotificationError] = useState('');
+  const [notificationSuccess, setNotificationSuccess] = useState('');
+  
   const [activeTab, setActiveTab] = useState('account');
 
   useEffect(() => {
@@ -84,6 +96,7 @@ const SettingsPage: React.FC = () => {
     
     if (user) {
       loadUserData();
+      loadNotificationSettings();
     }
   }, [user]);
 
@@ -116,6 +129,54 @@ const SettingsPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error loading user data:', error);
+    }
+  };
+
+  const loadNotificationSettings = async () => {
+    try {
+      const response = await fetch('/api/users/me/settings', {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.settings && data.settings.notifications) {
+          setNotificationSettings(data.settings.notifications);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading notification settings:', error);
+    }
+  };
+
+  const handleNotificationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setNotificationLoading(true);
+    setNotificationError('');
+    setNotificationSuccess('');
+    
+    try {
+      const response = await fetch('/api/users/me/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          notifications: notificationSettings
+        })
+      });
+      
+      if (response.ok) {
+        setNotificationSuccess('Notification settings updated successfully!');
+      } else {
+        const error = await response.json();
+        setNotificationError(error.error || 'Failed to update notification settings');
+      }
+    } catch (error) {
+      setNotificationError('Failed to update notification settings');
+    } finally {
+      setNotificationLoading(false);
     }
   };
 
@@ -644,6 +705,113 @@ const SettingsPage: React.FC = () => {
                         </div>
                       )}
                     </Form.Group>
+                  </Form>
+                </Card.Body>
+              </Card>
+            </Tab>
+            
+            <Tab eventKey="notifications" title={<><Bell className="me-2" />Notifications</>}>
+              <Card className="settings-card">
+                <Card.Header>
+                  <h5 className="mb-0"><Bell className="me-2" />Notification Settings</h5>
+                </Card.Header>
+                <Card.Body>
+                  {notificationError && <Alert variant="danger">{notificationError}</Alert>}
+                  {notificationSuccess && <Alert variant="success">{notificationSuccess}</Alert>}
+                  
+                  <Form onSubmit={handleNotificationSubmit}>
+                    <p className="text-muted mb-4">
+                      Choose which notifications you'd like to receive when other users interact with your content.
+                    </p>
+                    
+                    <div className="notification-settings">
+                      <Form.Check
+                        type="switch"
+                        id="notif-likes"
+                        label="Post Likes"
+                        checked={notificationSettings.likes}
+                        onChange={(e) => setNotificationSettings(prev => ({ ...prev, likes: e.target.checked }))}
+                        className="mb-3"
+                      />
+                      <Form.Text className="text-muted d-block mb-3">
+                        Get notified when someone likes your posts
+                      </Form.Text>
+                      
+                      <Form.Check
+                        type="switch"
+                        id="notif-comments"
+                        label="Comments"
+                        checked={notificationSettings.comments}
+                        onChange={(e) => setNotificationSettings(prev => ({ ...prev, comments: e.target.checked }))}
+                        className="mb-3"
+                      />
+                      <Form.Text className="text-muted d-block mb-3">
+                        Get notified when someone comments on your posts
+                      </Form.Text>
+                      
+                      <Form.Check
+                        type="switch"
+                        id="notif-follows"
+                        label="New Followers"
+                        checked={notificationSettings.follows}
+                        onChange={(e) => setNotificationSettings(prev => ({ ...prev, follows: e.target.checked }))}
+                        className="mb-3"
+                      />
+                      <Form.Text className="text-muted d-block mb-3">
+                        Get notified when someone follows you
+                      </Form.Text>
+                      
+                      <Form.Check
+                        type="switch"
+                        id="notif-mentions"
+                        label="Mentions"
+                        checked={notificationSettings.mentions}
+                        onChange={(e) => setNotificationSettings(prev => ({ ...prev, mentions: e.target.checked }))}
+                        className="mb-3"
+                      />
+                      <Form.Text className="text-muted d-block mb-3">
+                        Get notified when someone mentions you with @username
+                      </Form.Text>
+                      
+                      <Form.Check
+                        type="switch"
+                        id="notif-replies"
+                        label="Comment Replies"
+                        checked={notificationSettings.replies}
+                        onChange={(e) => setNotificationSettings(prev => ({ ...prev, replies: e.target.checked }))}
+                        className="mb-3"
+                      />
+                      <Form.Text className="text-muted d-block mb-3">
+                        Get notified when someone replies to your comments
+                      </Form.Text>
+                      
+                      <Form.Check
+                        type="switch"
+                        id="notif-comment-likes"
+                        label="Comment Likes"
+                        checked={notificationSettings.commentLikes}
+                        onChange={(e) => setNotificationSettings(prev => ({ ...prev, commentLikes: e.target.checked }))}
+                        className="mb-3"
+                      />
+                      <Form.Text className="text-muted d-block mb-4">
+                        Get notified when someone likes your comments
+                      </Form.Text>
+                    </div>
+                    
+                    <Button 
+                      type="submit" 
+                      variant="primary" 
+                      disabled={notificationLoading}
+                    >
+                      {notificationLoading ? (
+                        <>
+                          <Spinner size="sm" className="me-2" />
+                          Saving...
+                        </>
+                      ) : (
+                        'Save Notification Settings'
+                      )}
+                    </Button>
                   </Form>
                 </Card.Body>
               </Card>

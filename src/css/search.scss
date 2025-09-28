@@ -2,6 +2,13 @@
   padding: 2rem;
   max-width: 800px;
   margin: 0 auto;
+  
+  // Add margin for desktop sidebar
+  @media (min-width: 769px) {
+    margin-left: 20vw;
+    margin-right: 0;
+    max-width: calc(800px - 20vw);
+  }
 }
 
 .search-header {
@@ -107,6 +114,11 @@
   .card-body {
     padding: 1.5rem;
   }
+
+  .user-container {
+    display: flex;
+    flex-direction: column;
+  }
 }
 
 [data-theme="dark"] .user-card {
@@ -120,6 +132,17 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
+  cursor: pointer;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  margin: -0.5rem;
+  transition: background-color 0.2s ease;
+  position: relative;
+  z-index: 1; // Lower z-index than action buttons
+
+  &:hover {
+    background-color: var(--hover-bg);
+  }
 
   .user-info {
     display: flex;
@@ -193,12 +216,39 @@
 .user-actions {
   border-top: 1px solid var(--card-border);
   padding-top: 1rem;
+  margin-top: 1rem;
+  position: relative;
+  z-index: 2; // Ensure buttons are above clickable area
   
   .btn {
     transition: all 0.2s ease;
+    position: relative;
+    z-index: 3; // Higher z-index for buttons
     
     &:hover {
       transform: translateY(-1px);
+    }
+
+    &:focus {
+      z-index: 4; // Even higher when focused
+    }
+  }
+}
+
+// Fix for narrow screens with sidebar
+@media (min-width: 769px) and (max-width: 1200px) {
+  .search-main {
+    padding: 1rem;
+    max-width: 75vw; // Account for 20vw sidebar + padding
+    margin-left: 0;
+  }
+  
+  .user-card {
+    .user-header {
+      .user-info {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+      }
     }
   }
 }

@@ -1,3 +1,15 @@
+// Create post page layout
+.create-post-main {
+  padding: 1rem;
+  
+  // Add margin for desktop sidebar
+  @media (min-width: 769px) {
+    margin-left: 20vw;
+    padding: 2rem 2rem 2rem 1rem;
+  }
+}
+
+// Modal styles
 .modal-content {
   background-color: var(--bg-secondary);
   color: var(--text-primary);
@@ -71,7 +83,205 @@
 }
 
 .twemoji-emoji {
-  height: 1em;
-  width: 1em;
-  vertical-align: -0.1em;
+  height: 1.1em;
+  width: 1.1em;
+  vertical-align: -0.2em;
+  display: inline-block;
+  margin: 0 0.05em;
+  object-fit: contain;
+}
+
+// Mobile modal fixes
+.create-post-modal {
+  // Force full screen on mobile devices
+  @media (max-width: 768px), (orientation: portrait) {
+    .modal-dialog {
+      margin: 0;
+      max-width: 100vw;
+      height: 100vh;
+      max-height: 100vh;
+      width: 100vw;
+      
+      .modal-content {
+        height: 100vh;
+        border-radius: 0;
+        border: none;
+        display: flex;
+        flex-direction: column;
+      }
+      
+      .modal-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+        
+        .form-control {
+          font-size: 16px; // Prevent zoom on iOS
+        }
+        
+        textarea {
+          min-height: 150px !important;
+          font-size: 16px; // Prevent zoom on iOS
+        }
+      }
+      
+      .modal-header {
+        flex-shrink: 0;
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color);
+      }
+      
+      .modal-footer {
+        flex-shrink: 0;
+        padding: 1rem;
+        border-top: 1px solid var(--border-color);
+      }
+    }
+  }
+  
+  // Landscape mobile
+  @media (max-height: 600px) and (orientation: landscape) {
+    .modal-dialog {
+      margin: 0.25rem;
+      height: calc(100vh - 0.5rem);
+      
+      .modal-body {
+        padding: 0.75rem;
+        
+        textarea {
+          min-height: 100px !important;
+        }
+      }
+    }
+  }
+}
+
+// Mobile full page styles
+.create-post-page {
+  .create-post-header {
+    background-color: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    
+    h5 {
+      color: var(--text-primary);
+    }
+  }
+  
+  .create-post-body {
+    background-color: var(--bg-primary);
+    
+    textarea.form-control {
+      background-color: var(--input-bg);
+      color: var(--input-text);
+      border: 1px solid var(--input-border);
+    }
+
+    .markdown-content {
+      background-color: var(--card-bg);
+      color: var(--text-primary);
+      border: 1px solid var(--card-border);
+    }
+  }
+}
+
+// Create Post Page styles
+.create-post-main {
+  padding: 2rem;
+  max-width: 800px;
+  margin: 0 auto;
+
+  .create-post-header {
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+
+    p {
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+    }
+  }
+
+  .create-post-content {
+    .form-control {
+      background-color: var(--input-bg);
+      color: var(--input-text);
+      border: 1px solid var(--input-border);
+
+      &:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+      }
+
+      &::placeholder {
+        color: var(--text-secondary);
+      }
+    }
+
+    textarea.form-control {
+      resize: vertical;
+      min-height: 150px;
+    }
+
+    .markdown-content {
+      background-color: var(--card-bg);
+      color: var(--text-primary);
+      border: 1px solid var(--card-border);
+    }
+
+    .nav-tabs {
+      border-bottom: 1px solid var(--border-color);
+
+      .nav-link {
+        color: var(--text-secondary);
+        background-color: transparent;
+        border-color: transparent;
+
+        &.active {
+          color: var(--primary-color);
+          background-color: var(--bg-primary);
+          border-color: var(--border-color) var(--border-color) var(--bg-primary);
+        }
+
+        &:hover {
+          border-color: var(--border-color);
+          background-color: var(--hover-bg);
+        }
+      }
+    }
+  }
+}
+
+// Mobile responsive styles for create post page
+@media (max-width: 768px) {
+  .create-post-main {
+    padding: 1rem;
+
+    .create-post-header {
+      flex-direction: column;
+      align-items: flex-start !important;
+      gap: 1rem;
+
+      h1 {
+        font-size: 2rem;
+      }
+
+      .create-post-submit {
+        align-self: stretch;
+      }
+    }
+
+    .create-post-content {
+      .input-group {
+        justify-content: center;
+        
+        .btn {
+          flex: 0 0 auto;
+          margin: 0.25rem;
+        }
+      }
+    }
+  }
 }

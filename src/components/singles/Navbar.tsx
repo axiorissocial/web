@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { LinkContainer } from 'react-router-bootstrap';
 import { Nav, Button } from 'react-bootstrap';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 import {
   HouseFill,
   Search,
@@ -11,32 +13,50 @@ import {
   PersonPlus,
   BellFill,
   GearFill,
+  ChatSquareText,
 } from 'react-bootstrap-icons';
 import '../../css/navbar.scss';
-import CreatePostModal from '../CreatePostModal';
 
 interface NavbarProps {
-  activeId?: 'home' | 'search' | 'notifications' | 'profile' | 'settings';
+  activeId?: 'home' | 'search' | 'notifications' | 'messages' | 'profile' | 'settings';
 }
 
 const allNavItems = [
   { id: 'home', to: '/', icon: <HouseFill />, label: 'Home' },
   { id: 'search', to: '/search', icon: <Search />, label: 'Search' },
   { id: 'notifications', to: '/notifications', icon: <BellFill />, label: 'Notifications' },
+  { id: 'messages', to: '/messages', icon: <ChatSquareText />, label: 'Messages' },
   { id: 'profile', to: '/user/me', icon: <PersonCircle />, label: 'Profile' },
   { id: 'settings', to: '/settings', icon: <GearFill />, label: 'Settings' },
 ] as const;
 
 const Sidebar: React.FC<NavbarProps> = ({ activeId = 'home' }) => {
   const [isMobile, setIsMobile] = useState(window.innerHeight > window.innerWidth);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const { user, loading } = useAuth();
+  const { unreadCount } = useNotifications();
+  const navigate = useNavigate();
   const isAuthenticated = !!user;
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerHeight > window.innerWidth);
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  const handleCreatePost = () => {
+    navigate('/create-post');
+  };
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerHeight > window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   if (loading) {
@@ -56,7 +76,10 @@ const Sidebar: React.FC<NavbarProps> = ({ activeId = 'home' }) => {
             key={id}
             to={isAuthenticated ? to : id === 'profile' ? '/account/login' : to}
           >
-            <Nav.Link className={activeId === id ? 'active' : ''}>
+            <Nav.Link className={`${activeId === id ? 'active' : ''} ${id === 'notifications' ? 'notification-link' : ''}`}>
+              {id === 'notifications' && unreadCount > 0 && (
+                <span className="notification-dot"></span>
+              )}
               {icon}
             </Nav.Link>
           </LinkContainer>
@@ -85,7 +108,10 @@ const Sidebar: React.FC<NavbarProps> = ({ activeId = 'home' }) => {
         <Nav className="flex-column nav-vertical">
           {desktopItems.map(({ id, to, icon, label }) => (
             <LinkContainer key={id} to={to}>
-              <Nav.Link className={activeId === id ? 'active' : ''}>
+              <Nav.Link className={`${activeId === id ? 'active' : ''} ${id === 'notifications' ? 'notification-link' : ''}`}>
+                {id === 'notifications' && unreadCount > 0 && (
+                  <span className="notification-dot"></span>
+                )}
                 {React.cloneElement(icon, { className: 'me-2' })}
                 {label}
               </Nav.Link>
@@ -96,20 +122,14 @@ const Sidebar: React.FC<NavbarProps> = ({ activeId = 'home' }) => {
 
       <div className="bottom mt-auto d-flex flex-column gap-2">
         {isAuthenticated ? (
-            <>
             <Button
               variant="primary"
-              className="create-thread-btn d-flex align-items-center justify-content-center w-100"
-              onClick={() => setShowCreateModal(true)}
+              className="create-post-btn d-flex align-items-center justify-content-center w-100"
+              onClick={handleCreatePost}
             >
               <Feather className="me-2" />
-              Create Thread
+              Create Post
             </Button>
-            <CreatePostModal
-              show={showCreateModal}
-              onHide={() => setShowCreateModal(false)}
-            />
-            </>
         ) : (
           <>
             <LinkContainer to="/account/login">

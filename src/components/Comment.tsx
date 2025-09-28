@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import { Button, Form, Spinner } from 'react-bootstrap';
+import { Button, Dropdown, Modal, Form, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import { ChatSquareText, Heart, HeartFill, ChevronDown, ChevronUp } from 'react-bootstrap-icons';
+import { ChatSquareText, Heart, HeartFill, ChevronDown, ChevronUp, ThreeDotsVertical, Trash, PencilSquare, EmojiSmile } from 'react-bootstrap-icons';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import twemoji from 'twemoji';
+import { processMentions } from '../utils/mentions';
+import MentionTextarea from './MentionTextarea';
+import EmojiPicker from './EmojiPicker';
+import { EMOJIS } from '../utils/emojis';
 import '../css/comment.scss';
 
 interface CommentUser {
@@ -21,6 +25,7 @@ interface CommentData {
   content: string;
   createdAt: string;
   updatedAt: string;
+  editedAt?: string; // Optional field for when comment was last edited
   user: CommentUser;
   parentId?: string;
   replies?: CommentData[];
@@ -34,6 +39,8 @@ interface CommentProps {
   depth?: number;
   onReplyAdded: () => void;
   isAuthenticated: boolean;
+  currentUser?: { id: string; username: string } | null;
+  onCommentDeleted?: () => void;
 }
 
 const CommentComponent: React.FC<CommentProps> = ({ 
@@ -41,11 +48,19 @@ const CommentComponent: React.FC<CommentProps> = ({
   postId, 
   depth = 0, 
   onReplyAdded,
-  isAuthenticated 
+  isAuthenticated,
+  currentUser,
+  onCommentDeleted
 }) => {
   const [showReplyForm, setShowReplyForm] = useState(false);
   const [replyContent, setReplyContent] = useState('');
   const [replyLoading, setReplyLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  
+  // Edit state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(comment.content);
+  const [editLoading, setEditLoading] = useState(false);
   
   // Like state
   const [isLiked, setIsLiked] = useState(comment.isLiked || false);
@@ -55,9 +70,101 @@ const CommentComponent: React.FC<CommentProps> = ({
   // Collapse/expand state for long comments
   const [isExpanded, setIsExpanded] = useState(false);
   
-  const maxDepth = 3; // Maximum nesting depth for replies
+  // Emoji picker state
+  const [editEmojiOpen, setEditEmojiOpen] = useState(false);
+  const [replyEmojiOpen, setReplyEmojiOpen] = useState(false);
+  
   const COMMENT_CHAR_LIMIT = 1000; // Character limit for replies
   const TRUNCATE_LENGTH = 300; // Length at which to truncate and show expand button
+
+  const handleDeleteComment = async () => {
+    if (!window.confirm('Are you sure you want to delete this comment?')) {
+      return;
+    }
+
+    setDeleteLoading(true);
+    try {
+      const response = await fetch(`/api/comments/${comment.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        onCommentDeleted?.();
+      } else {
+        throw new Error('Failed to delete comment');
+      }
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      alert('Failed to delete comment. Please try again.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handleEditComment = async () => {
+    if (!editContent.trim() || editLoading || editContent === comment.content) {
+      setIsEditing(false);
+      return;
+    }
+
+    if (editContent.length > COMMENT_CHAR_LIMIT) {
+      alert(`Comment is too long. Maximum ${COMMENT_CHAR_LIMIT} characters allowed.`);
+      return;
+    }
+
+    setEditLoading(true);
+    try {
+      const response = await fetch(`/api/comments/${comment.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          content: editContent.trim(),
+        }),
+      });
+
+      if (response.ok) {
+        const updatedComment = await response.json();
+        // Update the comment in the parent component
+        comment.content = updatedComment.content;
+        comment.updatedAt = updatedComment.updatedAt;
+        setIsEditing(false);
+        onReplyAdded?.(); // Refresh comments to show updated content
+      } else {
+        throw new Error('Failed to update comment');
+      }
+    } catch (error) {
+      console.error('Error editing comment:', error);
+      alert('Failed to update comment. Please try again.');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  // Emoji functions for edit form
+  const insertEditEmoji = (emojiName: string) => {
+    const emoji = `:${emojiName}:`;
+    setEditContent(prev => prev + emoji);
+    setEditEmojiOpen(false);
+  };
+
+  // Emoji functions for reply form
+  const insertReplyEmoji = (emojiName: string) => {
+    const emoji = `:${emojiName}:`;
+    setReplyContent(prev => prev + emoji);
+    setReplyEmojiOpen(false);
+  };
+
+  // Render emojis in text
+  const renderEmojisInText = (text: string) => {
+    return text.replace(/:([a-zA-Z0-9_+-]+):/g, (match, name) => {
+      const emoji = EMOJIS.find(e => e.name === name);
+      return emoji ? emoji.char : match;
+    });
+  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -104,9 +211,13 @@ const CommentComponent: React.FC<CommentProps> = ({
       'a', 'p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'code', 'pre',
       'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'img', 'span'
     ];
-    const allowedAttrs = ['href', 'title', 'target', 'rel', 'src', 'alt', 'class'];
+    const allowedAttrs = ['href', 'title', 'target', 'rel', 'src', 'alt', 'class', 'data-username'];
 
-    const mdHtml = marked.parse(content.replace(/</g, '&lt;').replace(/>/g, '&gt;'), markedOptions) as string;
+    // Process mentions first on raw content
+    const mentionsProcessed = processMentions(content);
+    
+    // Then process markdown
+    const mdHtml = marked.parse(mentionsProcessed, markedOptions) as string;
     const twemojiHtml = twemoji.parse(mdHtml, {
       folder: 'svg',
       ext: '.svg',
@@ -120,7 +231,12 @@ const CommentComponent: React.FC<CommentProps> = ({
   };
 
   const getAvatarUrl = (user: CommentUser) => {
-    return user.profile?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}&background=0d6efd&color=fff&size=40`;
+    if (user.profile?.avatar) {
+      return user.profile.avatar.startsWith('http') 
+        ? user.profile.avatar 
+        : `/uploads/avatars/${user.profile.avatar}`;
+    }
+    return null; // Return null when no avatar, let the component render a placeholder
   };
 
   const handleReplySubmit = async (e: React.FormEvent) => {
@@ -190,14 +306,24 @@ const CommentComponent: React.FC<CommentProps> = ({
   const { content, showExpandButton } = processCommentContent(comment.content);
 
   return (
-    <div className={`comment-item depth-${depth}`} style={{ marginLeft: depth > 0 ? '30px' : '0' }}>
+    <div 
+      id={`comment-${comment.id}`}
+      className={`comment-item depth-${depth}`} 
+      style={{ marginLeft: depth > 0 ? '30px' : '0' }}
+    >
       <div className="d-flex mb-3">
         <Link to={`/profile/${comment.user.username}`} className="text-decoration-none">
-          <img 
-            src={getAvatarUrl(comment.user)} 
-            alt={`${displayName}'s avatar`}
-            className="comment-avatar me-3"
-          />
+          {getAvatarUrl(comment.user) ? (
+            <img 
+              src={getAvatarUrl(comment.user)!} 
+              alt={`${displayName}'s avatar`}
+              className="comment-avatar me-3"
+            />
+          ) : (
+            <div className="comment-avatar-placeholder me-3">
+              {displayName.charAt(0).toUpperCase()}
+            </div>
+          )}
         </Link>
         <div className="flex-grow-1">
           <div className="d-flex align-items-center mb-1">
@@ -208,16 +334,115 @@ const CommentComponent: React.FC<CommentProps> = ({
               {displayName}
             </Link>
             <small className="text-muted me-2">@{comment.user.username}</small>
-            <small className="text-muted">
+            <small className="text-muted me-auto">
               {formatDate(comment.createdAt)}
-              {comment.updatedAt !== comment.createdAt && ' (edited)'}
+              {comment.editedAt && ' (edited)'}
             </small>
+            
+            {/* Delete dropdown for comment author */}
+            {currentUser && currentUser.id === comment.user.id && (
+              <Dropdown align="end">
+                <Dropdown.Toggle variant="link" size="sm" className="p-0 text-muted">
+                  <ThreeDotsVertical size={12} />
+                </Dropdown.Toggle>
+                <Dropdown.Menu>
+                  <Dropdown.Item 
+                    onClick={() => setIsEditing(true)}
+                    disabled={isEditing}
+                  >
+                    <PencilSquare size={14} className="me-2" />
+                    Edit
+                  </Dropdown.Item>
+                  <Dropdown.Item 
+                    onClick={handleDeleteComment}
+                    disabled={deleteLoading}
+                    className="text-danger"
+                  >
+                    {deleteLoading ? (
+                      <>
+                        <Spinner size="sm" className="me-2" />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash size={14} className="me-2" />
+                        Delete
+                      </>
+                    )}
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown>
+            )}
           </div>
           
-          <div 
-            className="comment-content mb-2"
-            dangerouslySetInnerHTML={{ __html: formatContent(content) }}
-          />
+          {isEditing ? (
+            <Form onSubmit={(e) => { e.preventDefault(); handleEditComment(); }} className="mb-3">
+              <MentionTextarea
+                value={editContent}
+                onChange={setEditContent}
+                rows={3}
+                className="mb-2"
+                maxLength={COMMENT_CHAR_LIMIT}
+              />
+              <div className="d-flex justify-content-between align-items-center mb-2">
+                <small className="text-muted">
+                  Supports **markdown**, :emojis:, and @mentions
+                </small>
+                <small className={`char-count ${editContent.length > COMMENT_CHAR_LIMIT * 0.9 ? 'text-warning' : ''} ${editContent.length >= COMMENT_CHAR_LIMIT ? 'text-danger' : ''}`}>
+                  {editContent.length}/{COMMENT_CHAR_LIMIT} characters
+                </small>
+              </div>
+              <div className="d-flex gap-2">
+                <Button 
+                  variant="outline-secondary" 
+                  size="sm"
+                  onClick={() => setEditEmojiOpen(!editEmojiOpen)}
+                  disabled={editLoading}
+                >
+                  <EmojiSmile size={14} />
+                </Button>
+                <Button 
+                  type="submit" 
+                  size="sm"
+                  disabled={!editContent.trim() || editLoading || editContent === comment.content || editContent.length > COMMENT_CHAR_LIMIT}
+                >
+                  {editLoading ? (
+                    <>
+                      <Spinner size="sm" className="me-2" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save'
+                  )}
+                </Button>
+                <Button 
+                  variant="secondary" 
+                  size="sm"
+                  onClick={() => {
+                    setIsEditing(false);
+                    setEditContent(comment.content);
+                  }}
+                  disabled={editLoading}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </Form>
+          ) : (
+            <>
+              <div 
+                className="comment-content mb-2"
+                dangerouslySetInnerHTML={{ __html: formatContent(content) }}
+              />
+            </>
+          )}
+          
+          {editEmojiOpen && (
+            <EmojiPicker 
+              onSelect={insertEditEmoji} 
+              onClose={() => setEditEmojiOpen(false)} 
+            />
+          )}
           
           {showExpandButton && (
             <Button
@@ -252,7 +477,7 @@ const CommentComponent: React.FC<CommentProps> = ({
               <span className="ms-1">{likesCount}</span>
             </Button>
             
-            {isAuthenticated && depth < maxDepth && (
+            {isAuthenticated && (
               <Button
                 variant="link"
                 size="sm"
@@ -266,52 +491,69 @@ const CommentComponent: React.FC<CommentProps> = ({
           </div>
 
           {showReplyForm && (
-            <Form onSubmit={handleReplySubmit} className="mt-3 reply-form">
-              <Form.Group>
-                <Form.Control
-                  as="textarea"
-                  rows={3}
-                  value={replyContent}
-                  onChange={(e) => setReplyContent(e.target.value)}
-                  placeholder={`Reply to ${displayName}...`}
-                  className="mb-2"
-                  size="sm"
-                  maxLength={COMMENT_CHAR_LIMIT}
+            <>
+              <Form onSubmit={handleReplySubmit} className="mt-3 reply-form">
+                <Form.Group>
+                  <MentionTextarea
+                    value={replyContent}
+                    onChange={setReplyContent}
+                    placeholder={`Reply to ${displayName}...`}
+                    className="mb-2"
+                    rows={3}
+                    maxLength={COMMENT_CHAR_LIMIT}
+                  />
+                  <div className="d-flex justify-content-between align-items-center mb-2">
+                    <small className="text-muted">
+                      Supports **markdown**, :emojis:, and @mentions
+                    </small>
+                    <small className={`char-count ${replyContent.length > COMMENT_CHAR_LIMIT * 0.9 ? 'text-warning' : ''} ${replyContent.length >= COMMENT_CHAR_LIMIT ? 'text-danger' : ''}`}>
+                      {replyContent.length}/{COMMENT_CHAR_LIMIT} characters
+                    </small>
+                  </div>
+                  <div className="d-flex gap-2">
+                    <Button 
+                      variant="outline-secondary" 
+                      size="sm"
+                      onClick={() => setReplyEmojiOpen(!replyEmojiOpen)}
+                      disabled={replyLoading}
+                    >
+                      <EmojiSmile size={14} />
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      disabled={!replyContent.trim() || replyLoading || replyContent.length > COMMENT_CHAR_LIMIT}
+                      size="sm"
+                    >
+                      {replyLoading ? (
+                        <>
+                          <Spinner size="sm" className="me-2" />
+                          Replying...
+                        </>
+                      ) : (
+                        'Reply'
+                      )}
+                    </Button>
+                    <Button 
+                      variant="secondary" 
+                      size="sm"
+                      onClick={() => {
+                        setShowReplyForm(false);
+                        setReplyContent('');
+                      }}
+                      disabled={replyLoading}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </Form.Group>
+              </Form>
+              {replyEmojiOpen && (
+                <EmojiPicker 
+                  onSelect={insertReplyEmoji} 
+                  onClose={() => setReplyEmojiOpen(false)} 
                 />
-                <div className="d-flex justify-content-between align-items-center mb-2">
-                  <small className={`char-count ${replyContent.length > COMMENT_CHAR_LIMIT * 0.9 ? 'text-warning' : ''} ${replyContent.length >= COMMENT_CHAR_LIMIT ? 'text-danger' : ''}`}>
-                    {replyContent.length}/{COMMENT_CHAR_LIMIT} characters
-                  </small>
-                </div>
-                <div className="d-flex gap-2">
-                  <Button 
-                    type="submit" 
-                    disabled={!replyContent.trim() || replyLoading || replyContent.length > COMMENT_CHAR_LIMIT}
-                    size="sm"
-                  >
-                    {replyLoading ? (
-                      <>
-                        <Spinner size="sm" className="me-2" />
-                        Replying...
-                      </>
-                    ) : (
-                      'Reply'
-                    )}
-                  </Button>
-                  <Button 
-                    variant="secondary" 
-                    size="sm"
-                    onClick={() => {
-                      setShowReplyForm(false);
-                      setReplyContent('');
-                    }}
-                    disabled={replyLoading}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </Form.Group>
-            </Form>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -326,6 +568,8 @@ const CommentComponent: React.FC<CommentProps> = ({
               depth={depth + 1}
               onReplyAdded={onReplyAdded}
               isAuthenticated={isAuthenticated}
+              currentUser={currentUser}
+              onCommentDeleted={onReplyAdded}
             />
           ))}
         </div>

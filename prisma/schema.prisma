@@ -31,6 +31,15 @@ model User {
   // Following system
   following   Follow[] @relation("UserFollowing")
   followers   Follow[] @relation("UserFollowers")
+  
+  // DM system
+  conversationParticipants ConversationParticipant[]
+  sentMessages            Message[]
+  messageReads            MessageRead[]
+  
+  // Notifications system
+  sentNotifications       Notification[] @relation("NotificationSender")
+  receivedNotifications   Notification[] @relation("NotificationReceiver")
 }
 
 model Profile {
@@ -75,8 +84,9 @@ model Post {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  likes      Like[]
-  comments   Comment[]
+  likes         Like[]
+  comments      Comment[]
+  notifications Notification[]
 }
 
 model Comment {
@@ -89,6 +99,7 @@ model Comment {
   likesCount Int     @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  editedAt  DateTime? // Track when content was last edited (null if never edited)
   
   // Reply system
   parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
@@ -96,7 +107,8 @@ model Comment {
   replies   Comment[] @relation("CommentReplies")
   
   // Likes relationship
-  likes     CommentLike[]
+  likes         CommentLike[]
+  notifications Notification[]
 }
 
 model Like {
@@ -127,4 +139,81 @@ model UserSettings {
   notifications Json?  // JSON for notification preferences
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model Conversation {
+  id            String   @id @default(uuid())
+  participants  ConversationParticipant[]
+  messages      Message[]
+  lastMessage   Message? @relation("LastMessage", fields: [lastMessageId], references: [id])
+  lastMessageId String?  @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ConversationParticipant {
+  id             String       @id @default(uuid())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  joinedAt       DateTime     @default(now())
+  lastReadAt     DateTime     @default(now())
+  
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  senderId       String
+  content        String
+  media          Json?        // For future media message support
+  readBy         MessageRead[]
+  isEdited       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  
+  // Relation for last message in conversation
+  lastMessageIn  Conversation? @relation("LastMessage")
+}
+
+model MessageRead {
+  id        String   @id @default(uuid())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  messageId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  readAt    DateTime @default(now())
+  
+  @@unique([messageId, userId])
+}
+
+// Notification system
+model Notification {
+  id          String            @id @default(uuid())
+  type        NotificationType
+  sender      User?             @relation("NotificationSender", fields: [senderId], references: [id], onDelete: Cascade)
+  senderId    String?
+  receiver    User              @relation("NotificationReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  receiverId  String
+  post        Post?             @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId      String?
+  comment     Comment?          @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  commentId   String?
+  message     String?           // Custom notification message
+  isRead      Boolean           @default(false)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+enum NotificationType {
+  LIKE         // Someone liked your post
+  COMMENT      // Someone commented on your post
+  FOLLOW       // Someone followed you
+  MENTION      // Someone mentioned you in a post/comment
+  REPLY        // Someone replied to your comment
+  COMMENT_LIKE // Someone liked your comment
 }

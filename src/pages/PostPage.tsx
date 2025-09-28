@@ -55,12 +55,52 @@ const PostPage: React.FC = () => {
   const [post, setPost] = useState<PostData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [canGoBack, setCanGoBack] = useState(false);
+  const [backContext, setBackContext] = useState<'home' | 'profile' | 'search' | 'unknown'>('unknown');
+  
+  // Handle comment highlighting from URL hash
+  useEffect(() => {
+    if (window.location.hash) {
+      const commentId = window.location.hash.replace('#comment-', '');
+      setTimeout(() => {
+        const element = document.getElementById(`comment-${commentId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.classList.add('highlighted-comment');
+          setTimeout(() => {
+            element.classList.remove('highlighted-comment');
+          }, 3000);
+        }
+      }, 500); // Wait for comments to load
+    }
+  }, [post]); // Trigger when post and comments are loaded
   
   // Comments
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [commentLoading, setCommentLoading] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
+
+  useEffect(() => {
+    // Check if user can navigate back and determine context
+    const hasHistory = window.history.length > 1;
+    const referrer = document.referrer;
+    const isFromSameOrigin = referrer.includes(window.location.origin);
+    
+    setCanGoBack(hasHistory && isFromSameOrigin);
+    
+    if (isFromSameOrigin) {
+      if (referrer.includes('/profile/')) {
+        setBackContext('profile');
+      } else if (referrer.includes('/search')) {
+        setBackContext('search');
+      } else if (referrer.includes('/') || referrer.endsWith('/')) {
+        setBackContext('home');
+      } else {
+        setBackContext('unknown');
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (postId) {
@@ -191,10 +231,21 @@ const PostPage: React.FC = () => {
           <Button 
             variant="outline-secondary" 
             className="mb-3"
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              if (canGoBack) {
+                navigate(-1);
+              } else {
+                navigate('/');
+              }
+            }}
           >
             <ArrowLeft className="me-2" />
-            Back
+            {canGoBack ? 
+              (backContext === 'profile' ? 'Back to Profile' :
+               backContext === 'search' ? 'Back to Search' :
+               backContext === 'home' ? 'Back to Home' :
+               'Back') : 
+              'Back to Home'}
           </Button>
 
           <Post 
@@ -260,6 +311,8 @@ const PostPage: React.FC = () => {
                       postId={postId!}
                       onReplyAdded={fetchComments}
                       isAuthenticated={!!user}
+                      currentUser={user}
+                      onCommentDeleted={fetchComments}
                     />
                   ))}
                 </div>

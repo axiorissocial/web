@@ -1,28 +1,44 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Modal, Button, Tab, Tabs, Form, Alert, InputGroup } from 'react-bootstrap';
+import { Modal, Button, Tab, Tabs, Form, Alert, InputGroup, Spinner } from 'react-bootstrap';
+import { useNavigate } from 'react-router-dom';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import twemoji from 'twemoji';
 import {
-  Image,
   CameraVideo,
   TypeBold,
   TypeItalic,
   TypeUnderline,
   Hash,
   EmojiSmile,
+  Upload,
+  X,
+  ArrowLeft,
 } from 'react-bootstrap-icons';
 import EmojiPicker from './EmojiPicker';
 import { EMOJIS } from '../utils/emojis';
 import '../css/postbox.scss';
 
+interface MediaItem {
+  url: string;
+  type: 'image' | 'video';
+  originalName: string;
+  size: number;
+}
+
 interface CreatePostModalProps {
   show: boolean;
   onHide: () => void;
   onPostCreated?: () => void;
+  mode?: 'modal' | 'page'; // New prop to control rendering mode
 }
 
-const CreatePostModal: React.FC<CreatePostModalProps> = ({ show, onHide, onPostCreated }) => {
+const CreatePostModal: React.FC<CreatePostModalProps> = ({ 
+  show, 
+  onHide, 
+  onPostCreated, 
+  mode = 'modal' 
+}) => {
   const [content, setContent] = useState('');
   const [title, setTitle] = useState('');
   const [activeTab, setActiveTab] = useState('write');
@@ -30,11 +46,83 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ show, onHide, onPostC
   const [charCount, setCharCount] = useState(0);
   const [posting, setPosting] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [uploadedMedia, setUploadedMedia] = useState<MediaItem[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerHeight > window.innerWidth);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerHeight > window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     setCharCount(content.length);
   }, [content]);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    // Validate file types and sizes
+    const validFiles = files.filter(file => {
+      if (file.size > 50 * 1024 * 1024) {
+        setError(`File ${file.name} is too large (max 50MB)`);
+        return false;
+      }
+      
+      const isImage = file.type.startsWith('image/');
+      const isVideo = file.type.startsWith('video/');
+      
+      if (!isImage && !isVideo) {
+        setError(`File ${file.name} is not a valid image or video`);
+        return false;
+      }
+      
+      return true;
+    });
+
+    if (validFiles.length === 0) return;
+
+    // Check total files limit
+    if (uploadedMedia.length + validFiles.length > 5) {
+      setError('Maximum 5 media files allowed per post');
+      return;
+    }
+
+    setUploading(true);
+    setError('');
+
+    try {
+      const formData = new FormData();
+      validFiles.forEach(file => formData.append('media', file));
+
+      const response = await fetch('/api/posts/media', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUploadedMedia(prev => [...prev, ...data.media]);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to upload media');
+      }
+    } catch (error) {
+      setError('Failed to upload media files');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeMedia = (index: number) => {
+    setUploadedMedia(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handlePost = async () => {
     if (!content.trim()) return;
@@ -45,7 +133,11 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ show, onHide, onPostC
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ content: content.trim(), title: title.trim() || undefined }),
+        body: JSON.stringify({ 
+          content: content.trim(), 
+          title: title.trim() || undefined,
+          media: uploadedMedia.length > 0 ? uploadedMedia : null
+        }),
       });
       
       if (response.ok) {
@@ -116,83 +208,180 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ show, onHide, onPostC
     setError('');
     setActiveTab('write');
     setEmojiOpen(false);
-    onHide();
+    setUploadedMedia([]);
+    
+    if (mode === 'page' && isMobile) {
+      navigate(-1); // Go back on mobile page mode
+    } else {
+      onHide();
+    }
   };
 
   const toolbarDisabled = activeTab === 'preview';
 
+  // Main content component that can be reused
+  const PostCreatorContent = () => (
+    <>
+      {error && <Alert variant="danger">{error}</Alert>}
+      <InputGroup className="mb-2 flex-wrap">
+        <Button variant="outline-secondary" onClick={() => insertAtCursor('**', '**')} disabled={toolbarDisabled}>
+          <TypeBold />
+        </Button>
+        <Button variant="outline-secondary" onClick={() => insertAtCursor('*', '*')} disabled={toolbarDisabled}>
+          <TypeItalic />
+        </Button>
+        <Button variant="outline-secondary" onClick={() => insertAtCursor('__', '__')} disabled={toolbarDisabled}>
+          <TypeUnderline />
+        </Button>
+        <Button variant="outline-secondary" onClick={() => insertAtCursor('# ')} disabled={toolbarDisabled}>
+          <Hash />
+        </Button>
+        <Button 
+          variant="outline-secondary" 
+          onClick={() => fileInputRef.current?.click()} 
+          disabled={toolbarDisabled || uploading}
+        >
+          {uploading ? <Spinner size="sm" /> : <Upload />}
+        </Button>
+        <Button variant="outline-secondary" onClick={() => setEmojiOpen(!emojiOpen)} disabled={toolbarDisabled}>
+          <EmojiSmile />
+        </Button>
+      </InputGroup>
+      
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept="image/*,video/*"
+        onChange={handleFileSelect}
+        style={{ display: 'none' }}
+      />
+      
+      {uploadedMedia.length > 0 && (
+        <div className="mb-3">
+          <h6>Attached Media ({uploadedMedia.length}/5):</h6>
+          <div className="d-flex flex-wrap gap-2">
+            {uploadedMedia.map((media, index) => (
+              <div key={index} className="position-relative" style={{ maxWidth: '100px' }}>
+                {media.type === 'image' ? (
+                  <img 
+                    src={media.url} 
+                    alt={media.originalName}
+                    className="img-thumbnail"
+                    style={{ width: '100px', height: '100px', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div className="d-flex align-items-center justify-content-center bg-light border rounded" 
+                       style={{ width: '100px', height: '100px' }}>
+                    <CameraVideo size={24} />
+                    <small className="position-absolute bottom-0 start-0 p-1 bg-dark text-white small">
+                      Video
+                    </small>
+                  </div>
+                )}
+                <Button
+                  variant="danger"
+                  size="sm"
+                  className="position-absolute top-0 end-0 p-1"
+                  onClick={() => removeMedia(index)}
+                  style={{ transform: 'translate(50%, -50%)' }}
+                >
+                  <X size={12} />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {emojiOpen && <EmojiPicker onSelect={insertEmoji} onClose={() => setEmojiOpen(false)} />}
+
+      <Form>
+        <Form.Group className="mb-3">
+          <Form.Control
+            type="text"
+            placeholder="Title (optional)"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            maxLength={100}
+          />
+        </Form.Group>
+        <Tabs
+          activeKey={activeTab}
+          onSelect={tab => setActiveTab(tab || 'write')}
+          className="mb-3"
+        >
+          <Tab eventKey="write" title="Write">
+            <Form.Control
+              as="textarea"
+              rows={6}
+              ref={textareaRef}
+              value={content}
+              onChange={e => setContent(e.target.value)}
+              placeholder="Enter your post content (supports Markdown) here..."
+              maxLength={1000}
+            />
+          </Tab>
+          <Tab eventKey="preview" title="Preview">
+            <div
+              className="markdown-content p-2 border rounded"
+              style={{ fontSize: '1em' }}
+              dangerouslySetInnerHTML={{ __html: sanitizedPreview }}
+            />
+          </Tab>
+        </Tabs>
+        <div className="text-end form-text">{charCount}/1000</div>
+      </Form>
+    </>
+  );
+
+  // If mobile, render as full page
+  if (isMobile && show) {
+    return (
+      <div className="create-post-page position-fixed w-100 h-100" style={{ top: 0, left: 0, zIndex: 1050, backgroundColor: 'var(--bg-primary)' }}>
+        <div className="create-post-header d-flex align-items-center p-3 border-bottom">
+          <Button
+            variant="outline-secondary"
+            size="sm"
+            onClick={handleHide}
+            className="me-3"
+          >
+            <ArrowLeft />
+          </Button>
+          <h5 className="mb-0 flex-grow-1">Create Post</h5>
+          <Button 
+            variant="primary" 
+            size="sm"
+            onClick={handlePost} 
+            disabled={content.length === 0 || content.length > 1000 || posting}
+          >
+            {posting ? <Spinner size="sm" /> : 'Post'}
+          </Button>
+        </div>
+        <div className="create-post-body p-3" style={{ height: 'calc(100vh - 80px)', overflowY: 'auto' }}>
+          <PostCreatorContent />
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop modal mode
   return (
-    <Modal show={show} onHide={handleHide} size="lg" backdrop="static" keyboard={false}>
+    <Modal show={show} onHide={handleHide} centered size="lg" className="create-post-modal">
       <Modal.Header closeButton>
-        <Modal.Title>Create Thread</Modal.Title>
+        <Modal.Title>Create Post</Modal.Title>
       </Modal.Header>
       <Modal.Body>
-        {error && <Alert variant="danger">{error}</Alert>}
-        <InputGroup className="mb-2 flex-wrap">
-          <Button variant="outline-secondary" onClick={() => insertAtCursor('**', '**')} disabled={toolbarDisabled}>
-            <TypeBold />
-          </Button>
-          <Button variant="outline-secondary" onClick={() => insertAtCursor('*', '*')} disabled={toolbarDisabled}>
-            <TypeItalic />
-          </Button>
-          <Button variant="outline-secondary" onClick={() => insertAtCursor('__', '__')} disabled={toolbarDisabled}>
-            <TypeUnderline />
-          </Button>
-          <Button variant="outline-secondary" onClick={() => insertAtCursor('# ')} disabled={toolbarDisabled}>
-            <Hash />
-          </Button>
-          <Button variant="outline-secondary" onClick={() => insertAtCursor('![alt text](image-url)')} disabled={toolbarDisabled}>
-            <Image />
-          </Button>
-          <Button variant="outline-secondary" onClick={() => insertAtCursor('<video src="video-url" controls></video>')} disabled={toolbarDisabled}>
-            <CameraVideo />
-          </Button>
-          <Button variant="outline-secondary" onClick={() => setEmojiOpen(!emojiOpen)} disabled={toolbarDisabled}>
-            <EmojiSmile />
-          </Button>
-        </InputGroup>
-        {emojiOpen && <EmojiPicker onSelect={insertEmoji} onClose={() => setEmojiOpen(false)} />}
-        <Form>
-          <Form.Group className="mb-3">
-            <Form.Control
-              type="text"
-              placeholder="Title (optional)"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              maxLength={100}
-            />
-          </Form.Group>
-          <Tabs
-            activeKey={activeTab}
-            onSelect={tab => setActiveTab(tab || 'write')}
-            className="mb-3"
-          >
-            <Tab eventKey="write" title="Write">
-              <Form.Control
-                as="textarea"
-                rows={6}
-                ref={textareaRef}
-                value={content}
-                onChange={e => setContent(e.target.value)}
-                placeholder="Enter your post content (supports Markdown) here..."
-                maxLength={1000}
-              />
-            </Tab>
-            <Tab eventKey="preview" title="Preview">
-              <div
-                className="markdown-content p-2 border rounded"
-                style={{ fontSize: '1em' }}
-                dangerouslySetInnerHTML={{ __html: sanitizedPreview }}
-              />
-            </Tab>
-          </Tabs>
-          <div className="text-end form-text">{charCount}/1000</div>
-        </Form>
+        <PostCreatorContent />
       </Modal.Body>
       <Modal.Footer>
         <Button variant="secondary" onClick={handleHide}>Cancel</Button>
-        <Button variant="primary" onClick={handlePost} disabled={content.length === 0 || content.length > 1000 || posting}>
-          Post
+        <Button 
+          variant="primary" 
+          onClick={handlePost} 
+          disabled={content.length === 0 || content.length > 1000 || posting}
+        >
+          {posting ? <Spinner size="sm" /> : 'Post'}
         </Button>
       </Modal.Footer>
     </Modal>

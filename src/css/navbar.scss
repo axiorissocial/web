@@ -61,7 +61,7 @@ nav.sidebar {
     margin-top: auto;
     padding-bottom: 1rem;
 
-    .create-thread-btn,
+    .create-post-btn,
     .login-btn,
     .signup-btn {
       display: flex;
@@ -80,7 +80,7 @@ nav.sidebar {
       }
     }
 
-    .create-thread-btn {
+    .create-post-btn {
       background-color: var(--primary-color);
       color: var(--text-primary);
       border: none;
@@ -212,6 +212,49 @@ main {
 
   main {
     margin-left: 0;
-    margin-bottom: 60px;
+    padding-bottom: 80px; /* Extra padding for navbar + safe area */
+    margin-bottom: 0;
+    height: calc(100vh - 60px); /* Account for navbar height */
+    overflow-y: auto;
+  }
+  
+  .app-container {
+    height: 100vh;
+    flex-direction: column;
+  }
+}
+
+// Notification indicator dot
+.notification-link {
+  position: relative;
+  
+  .notification-dot {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 8px;
+    height: 8px;
+    background-color: #007bff;
+    border-radius: 50%;
+    border: 2px solid var(--bg-secondary);
+    z-index: 1;
+    
+    // For desktop navbar
+    @media (min-width: 769px) {
+      top: 12px;
+      right: 12px;
+      width: 10px;
+      height: 10px;
+    }
+  }
+}
+
+// Mobile specific notification dot positioning
+.sidebar-mobile {
+  .notification-link .notification-dot {
+    top: 6px;
+    right: 6px;
+    width: 8px;
+    height: 8px;
   }
 }

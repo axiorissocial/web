@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
-import { Card, Button, Badge, Form, Modal, Spinner, Dropdown } from 'react-bootstrap';
-import { Heart, HeartFill, Eye, Calendar, ThreeDotsVertical, PencilSquare, Trash } from 'react-bootstrap-icons';
+import { Card, Button, Badge, Modal, Spinner, Dropdown } from 'react-bootstrap';
+import { Heart, HeartFill, Eye, Calendar, ThreeDotsVertical, PencilSquare, Trash, Play } from 'react-bootstrap-icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import twemoji from 'twemoji';
 import { EMOJIS } from '../utils/emojis';
+import { processMentions } from '../utils/mentions';
+import EditPostModal from './EditPostModal';
+import MediaModal from './MediaModal';
 import '../css/post.scss';
+import '../css/mentions.scss';
 
 interface PostUser {
   id: string;
@@ -22,6 +26,12 @@ interface PostData {
   id: string;
   title?: string;
   content: string;
+  media?: Array<{
+    url: string;
+    type: 'image' | 'video';
+    originalName: string;
+    size: number;
+  }> | null;
   createdAt: string;
   updatedAt: string;
   likesCount: number;
@@ -37,23 +47,22 @@ interface PostData {
 interface PostProps {
   post: PostData;
   onLikeToggle?: (postId: string, isLiked: boolean) => void;
+  onDelete?: (postId: string) => void;
   showFullContent?: boolean;
 }
 
-const Post: React.FC<PostProps> = ({ post, onLikeToggle, showFullContent = false }) => {
+const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullContent = false }) => {
   const [isLiked, setIsLiked] = useState(post.isLiked);
   const [likesCount, setLikesCount] = useState(post.likesCount || post._count?.likes || 0);
   const [isLiking, setIsLiking] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
   
-  const [isEditing, setIsEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState(post.title || '');
-  const [editContent, setEditContent] = useState(post.content);
-  const [editLoading, setEditLoading] = useState(false);
-  
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [showMediaModal, setShowMediaModal] = useState(false);
+  const [mediaModalIndex, setMediaModalIndex] = useState(0);
   
   const isOwner = user?.id === post.user.id;
 
@@ -67,7 +76,7 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, showFullContent = false
 
   const handleUserClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate(`/profile/${post.user.username}`);
+    navigate(`/profile/@${post.user.username}`);
   };
 
   const handleLikeToggle = async () => {
@@ -95,36 +104,14 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, showFullContent = false
     }
   };
   
-  const handleEditPost = async () => {
-    if (!isOwner || editLoading) return;
-    
-    setEditLoading(true);
-    try {
-      const response = await fetch(`/api/posts/${post.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          title: editTitle.trim() || null,
-          content: editContent.trim()
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to update post');
-      }
-      
-      (post as any).title = editTitle.trim() || undefined;
-      (post as any).content = editContent.trim();
-      setIsEditing(false);
-    } catch (error) {
-      console.error('Failed to update post:', error);
-    } finally {
-      setEditLoading(false);
-    }
+  const handleEditPost = () => {
+    if (!isOwner) return;
+    setShowEditModal(true);
+  };
+
+  const handlePostUpdated = () => {
+    // Refresh the post data or trigger a re-fetch
+    window.location.reload();
   };
   
   const handleDeletePost = async () => {
@@ -144,7 +131,18 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, showFullContent = false
         throw new Error('Failed to delete post');
       }
       
-      navigate('/dashboard');
+      // If we have an onDelete callback, use it instead of navigating
+      if (onDelete) {
+        onDelete(post.id);
+      } else {
+        // If we're on a post detail page (showFullContent), go back
+        if (showFullContent) {
+          navigate(-1); // Go back to previous page
+        } else {
+          // If we're in a feed, just refresh the current page
+          window.location.reload();
+        }
+      }
     } catch (error) {
       console.error('Failed to delete post:', error);
     } finally {
@@ -160,22 +158,197 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, showFullContent = false
     });
   };
 
-  const formatDate = (dateString: string) => {
+  const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
-    const diffMinutes = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMinutes / 60);
-    const diffDays = Math.floor(diffHours / 24);
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-    if (diffMinutes < 1) return 'Just now';
-    if (diffMinutes < 60) return `${diffMinutes}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays}d ago`;
     return date.toLocaleDateString();
   };
 
-  const processContent = (content: string) => {
+  const renderMedia = () => {
+    if (!post.media || !Array.isArray(post.media) || post.media.length === 0) {
+      return null;
+    }
+
+    const openMediaModal = (index: number) => {
+      setMediaModalIndex(index);
+      setShowMediaModal(true);
+    };
+
+    return (
+      <div className="post-media mt-2 mb-2">
+        {post.media.length === 1 ? (
+          // Single media item - full width
+          <div className="single-media">
+            {post.media[0].type === 'image' ? (
+              <img
+                src={post.media[0].url}
+                alt={post.media[0].originalName}
+                className="img-fluid rounded cursor-pointer"
+                style={{ maxHeight: '400px', width: '100%', objectFit: 'cover' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openMediaModal(0);
+                }}
+              />
+            ) : (
+              <div 
+                className="position-relative cursor-pointer"
+                style={{ maxHeight: '400px' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openMediaModal(0);
+                }}
+              >
+                <video
+                  className="w-100 rounded"
+                  style={{ maxHeight: '400px', objectFit: 'cover' }}
+                  preload="metadata"
+                  muted
+                >
+                  <source src={post.media[0].url + '#t=0.1'} />
+                  Your browser does not support the video tag.
+                </video>
+                <div 
+                  className="position-absolute top-50 start-50 translate-middle"
+                  style={{ 
+                    pointerEvents: 'none',
+                    backgroundColor: 'rgba(0,0,0,0.6)',
+                    borderRadius: '50%',
+                    width: '60px',
+                    height: '60px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <Play size={24} color="white" />
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          // Multiple media items - show max 2 items in grid
+          <div className="media-grid" style={{ 
+            display: 'grid', 
+            gridTemplateColumns: '1fr 1fr',
+            gap: '8px',
+            maxHeight: '300px'
+          }}>
+            {/* First media item */}
+            <div 
+              className="media-item position-relative cursor-pointer"
+              style={{
+                aspectRatio: '1/1',
+                overflow: 'hidden'
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                openMediaModal(0);
+              }}
+            >
+              {post.media[0].type === 'image' ? (
+                <img
+                  src={post.media[0].url}
+                  alt={post.media[0].originalName}
+                  className="img-fluid rounded w-100 h-100"
+                  style={{ objectFit: 'cover' }}
+                />
+              ) : (
+                <div className="position-relative w-100 h-100 rounded overflow-hidden">
+                  <video
+                    className="w-100 h-100"
+                    style={{ objectFit: 'cover' }}
+                    preload="metadata"
+                    muted
+                  >
+                    <source src={post.media[0].url + '#t=0.1'} />
+                  </video>
+                  <div 
+                    className="position-absolute top-50 start-50 translate-middle"
+                    style={{ 
+                      pointerEvents: 'none',
+                      backgroundColor: 'rgba(0,0,0,0.6)',
+                      borderRadius: '50%',
+                      width: '50px',
+                      height: '50px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <Play size={20} color="white" />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Second media item (or +X more overlay) */}
+            <div 
+              className="media-item position-relative cursor-pointer"
+              style={{
+                aspectRatio: '1/1',
+                overflow: 'hidden'
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                // If there are more than 2 items, open modal at index 1
+                // Otherwise, open the second item
+                openMediaModal(1);
+              }}
+            >
+              {post.media[1].type === 'image' ? (
+                <img
+                  src={post.media[1].url}
+                  alt={post.media[1].originalName}
+                  className="img-fluid rounded w-100 h-100"
+                  style={{ objectFit: 'cover' }}
+                />
+              ) : (
+                <div className="position-relative w-100 h-100 rounded overflow-hidden">
+                  <video
+                    className="w-100 h-100"
+                    style={{ objectFit: 'cover' }}
+                    preload="metadata"
+                    muted
+                  >
+                    <source src={post.media[1].url + '#t=0.1'} />
+                  </video>
+                  <div 
+                    className="position-absolute top-50 start-50 translate-middle"
+                    style={{ 
+                      pointerEvents: 'none',
+                      backgroundColor: 'rgba(0,0,0,0.6)',
+                      borderRadius: '50%',
+                      width: '50px',
+                      height: '50px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <Play size={20} color="white" />
+                  </div>
+                </div>
+              )}
+              
+              {/* +X more overlay when there are 3+ items */}
+              {post.media.length > 2 && (
+                <div className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-75 text-white rounded">
+                  <span className="fw-bold fs-4">+{post.media.length - 2}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };  const processContent = (content: string) => {
     const withEmojis = renderEmojisInContent(content);
     const maxLength = showFullContent ? Infinity : 400;
     
@@ -218,9 +391,14 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, showFullContent = false
       'a', 'p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'code', 'pre',
       'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'img', 'span'
     ];
-    const allowedAttrs = ['href', 'title', 'target', 'rel', 'src', 'alt', 'class'];
+    const allowedAttrs = ['href', 'title', 'target', 'rel', 'src', 'alt', 'class', 'data-username'];
 
-    const mdHtml = marked.parse(processedContent.replace(/</g, '&lt;').replace(/>/g, '&gt;'), markedOptions) as string;
+    // Process mentions first on raw content
+    const mentionsProcessed = processMentions(processedContent);
+    
+    // Then process markdown (but don't escape < and > for mentions)
+    const mdHtml = marked.parse(mentionsProcessed, markedOptions) as string;
+    
     const twemojiHtml = twemoji.parse(mdHtml, {
       folder: 'svg',
       ext: '.svg',
@@ -271,7 +449,7 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, showFullContent = false
           <div className="post-header-right d-flex align-items-center">
             <div className="post-date me-2">
               <Calendar size={14} />
-              {formatDate(post.createdAt)}
+              {formatTimeAgo(post.createdAt)}
             </div>
             {showFullContent && isOwner && (
               <Dropdown>
@@ -279,9 +457,9 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, showFullContent = false
                   <ThreeDotsVertical size={16} />
                 </Dropdown.Toggle>
                 <Dropdown.Menu>
-                  <Dropdown.Item onClick={(e) => { e.stopPropagation(); setIsEditing(!isEditing); }}>
+                  <Dropdown.Item onClick={(e) => { e.stopPropagation(); handleEditPost(); }}>
                     <PencilSquare size={14} className="me-2" />
-                    {isEditing ? 'Cancel Edit' : 'Edit Post'}
+                    Edit Post
                   </Dropdown.Item>
                   <Dropdown.Item 
                     onClick={(e) => { e.stopPropagation(); setShowDeleteModal(true); }}
@@ -296,73 +474,16 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, showFullContent = false
           </div>
         </div>
 
-        {isEditing ? (
-          <>
-            <Form.Group className="mb-3">
-              <Form.Label>Title (optional)</Form.Label>
-              <Form.Control
-                type="text"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                placeholder="Enter post title..."
-                onClick={(e) => e.stopPropagation()}
-              />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Content</Form.Label>
-              <Form.Control
-                as="textarea"
-                rows={6}
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                placeholder="What's on your mind?"
-                onClick={(e) => e.stopPropagation()}
-                required
-              />
-            </Form.Group>
-            <div className="d-flex gap-2 mb-3">
-              <Button 
-                variant="primary" 
-                size="sm" 
-                onClick={(e) => { e.stopPropagation(); handleEditPost(); }}
-                disabled={editLoading || !editContent.trim()}
-              >
-                {editLoading ? (
-                  <>
-                    <Spinner size="sm" className="me-1" />
-                    Saving...
-                  </>
-                ) : (
-                  'Save Changes'
-                )}
-              </Button>
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                onClick={(e) => { 
-                  e.stopPropagation(); 
-                  setIsEditing(false);
-                  setEditTitle(post.title || '');
-                  setEditContent(post.content);
-                }}
-                disabled={editLoading}
-              >
-                Cancel
-              </Button>
-            </div>
-          </>
-        ) : (
-          <>
-            {post.title && (
-              <Card.Title className="post-title">{post.title}</Card.Title>
-            )}
-
-            <div 
-              className={`post-content ${!showFullContent && (post.content.length > 200 || (post.content.match(/\n/g) || []).length > 6) ? 'truncated-height' : ''}`}
-              dangerouslySetInnerHTML={{ __html: contentHtml }}
-            />
-          </>
+        {post.title && (
+          <Card.Title className="post-title">{post.title}</Card.Title>
         )}
+
+        <div 
+          className={`post-content ${!showFullContent && (post.content.length > 200 || (post.content.match(/\n/g) || []).length > 6) ? 'truncated-height' : ''}`}
+          dangerouslySetInnerHTML={{ __html: contentHtml }}
+        />
+        
+        {renderMedia()}
 
         {isTruncated && !showFullContent && (
           <Button 
@@ -433,6 +554,25 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, showFullContent = false
           </Button>
         </Modal.Footer>
       </Modal>
+
+      <MediaModal
+        show={showMediaModal}
+        onHide={() => setShowMediaModal(false)}
+        media={post.media || []}
+        initialIndex={mediaModalIndex}
+      />
+      
+      <EditPostModal
+        show={showEditModal}
+        onHide={() => setShowEditModal(false)}
+        onPostUpdated={handlePostUpdated}
+        post={{
+          id: post.id,
+          title: post.title,
+          content: post.content,
+          media: (post.media as any) || []
+        }}
+      />
     </Card>
   );
 };

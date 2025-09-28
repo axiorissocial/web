@@ -5,14 +5,17 @@ import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './css/index.scss';
 import { AuthProvider } from './contexts/AuthContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import Home from './pages/Home';
 import Search from './pages/Search';
 import Notifications from './pages/Notifications';
+import Messages from './pages/Messages';
 import Profile from './pages/Profile';
 import PostPage from './pages/PostPage';
 import Settings from './pages/Settings';
 import AccountLogin from './pages/AccountLogin';
 import AccountRegister from './pages/AccountRegister';
+import CreatePost from './pages/CreatePost';
 import Mobile from './pages/Mobile';
 import Error from './pages/Error';
 
@@ -46,6 +49,9 @@ function AppRoutes() {
       <Route path="/" element={<Home />} />
       <Route path="/search" element={<Search />} />
       <Route path="/notifications" element={<Notifications />} />
+      <Route path="/messages" element={<Messages />} />
+      <Route path="/create-post" element={<CreatePost />} />
+      <Route path="/profile/@:username" element={<Profile />} />
       <Route path="/profile/:username" element={<Profile />} />
       <Route path="/user/me" element={<Profile />} />
       <Route path="/post/:postId" element={<PostPage />} />
@@ -62,7 +68,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <NotificationProvider>
+          <AppRoutes />
+        </NotificationProvider>
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>
