@@ -25,9 +25,10 @@ export const extractMentions = (content: string): string[] => {
 
 // Convert @mentions to clickable links
 export const processMentions = (content: string): string => {
-  // Simple regex replacement of @username with HTML links
-  const mentionRegex = /@(\w+)/g;
-  return content.replace(mentionRegex, '<a href="/profile/@$1" class="mention-link" data-username="$1">@$1</a>');
+  // Keep mentions as plaintext (e.g. @username).
+  // Previously we replaced mentions with anchor tags; revert to plain text so downstream
+  // markdown rendering treats mentions as text.
+  return content;
 };
 
 // Search users for mention autocomplete
@@ -43,7 +44,7 @@ export const searchUsersForMention = async (query: string): Promise<MentionUser[
       console.log('API response:', data);
       
       // Transform the API response to match our MentionUser interface
-      const users = (data.users || []).map((user: any) => ({
+      const users = (data.users || []).map((user: { id: number; username: string; profile?: { displayName?: string; avatar?: string } }) => ({
         id: user.id,
         username: user.username,
         displayName: user.profile?.displayName,

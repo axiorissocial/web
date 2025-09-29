@@ -10,6 +10,8 @@ import { EMOJIS } from '../utils/emojis';
 import { processMentions } from '../utils/mentions';
 import EditPostModal from './EditPostModal';
 import MediaModal from './MediaModal';
+import ReportModal from './ReportModal';
+import HlsVideo from './HlsVideo';
 import '../css/post.scss';
 import '../css/mentions.scss';
 
@@ -28,6 +30,7 @@ interface PostData {
   content: string;
   media?: Array<{
     url: string;
+    hlsUrl?: string;
     type: 'image' | 'video';
     originalName: string;
     size: number;
@@ -63,8 +66,10 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showMediaModal, setShowMediaModal] = useState(false);
   const [mediaModalIndex, setMediaModalIndex] = useState(0);
+  const [showReportModal, setShowReportModal] = useState(false);
   
   const isOwner = user?.id === post.user.id;
+  const isAdmin = (user?.level || 0) >= 10;
 
   const handlePostClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -205,15 +210,14 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
                   openMediaModal(0);
                 }}
               >
-                <video
+                <HlsVideo
                   className="w-100 rounded"
                   style={{ maxHeight: '400px', objectFit: 'cover' }}
                   preload="metadata"
                   muted
-                >
-                  <source src={post.media[0].url + '#t=0.1'} />
-                  Your browser does not support the video tag.
-                </video>
+                  hlsSrc={post.media[0].hlsUrl}
+                  src={post.media[0].url + '#t=0.1'}
+                />
                 <div 
                   className="position-absolute top-50 start-50 translate-middle"
                   style={{ 
@@ -261,14 +265,14 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
                 />
               ) : (
                 <div className="position-relative w-100 h-100 rounded overflow-hidden">
-                  <video
+                  <HlsVideo
                     className="w-100 h-100"
                     style={{ objectFit: 'cover' }}
                     preload="metadata"
                     muted
-                  >
-                    <source src={post.media[0].url + '#t=0.1'} />
-                  </video>
+                    src={post.media[0].url + '#t=0.1'}
+                    hlsSrc={post.media[0].hlsUrl}
+                  />
                   <div 
                     className="position-absolute top-50 start-50 translate-middle"
                     style={{ 
@@ -311,14 +315,14 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
                 />
               ) : (
                 <div className="position-relative w-100 h-100 rounded overflow-hidden">
-                  <video
+                  <HlsVideo
                     className="w-100 h-100"
                     style={{ objectFit: 'cover' }}
                     preload="metadata"
                     muted
-                  >
-                    <source src={post.media[1].url + '#t=0.1'} />
-                  </video>
+                    src={post.media[1].url + '#t=0.1'}
+                    hlsSrc={post.media[1].hlsUrl}
+                  />
                   <div 
                     className="position-absolute top-50 start-50 translate-middle"
                     style={{ 
@@ -451,26 +455,47 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
               <Calendar size={14} />
               {formatTimeAgo(post.createdAt)}
             </div>
-            {showFullContent && isOwner && (
-              <Dropdown>
-                <Dropdown.Toggle variant="link" size="sm" className="text-muted p-1">
-                  <ThreeDotsVertical size={16} />
-                </Dropdown.Toggle>
-                <Dropdown.Menu>
-                  <Dropdown.Item onClick={(e) => { e.stopPropagation(); handleEditPost(); }}>
-                    <PencilSquare size={14} className="me-2" />
-                    Edit Post
+            {/* Always render dropdown; items vary by ownership/admin status */}
+            <Dropdown>
+              <Dropdown.Toggle variant="link" size="sm" className="text-muted p-1">
+                <ThreeDotsVertical size={16} />
+              </Dropdown.Toggle>
+              <Dropdown.Menu align="end">
+                {isOwner && (
+                  <>
+                    <Dropdown.Item onClick={(e) => { e.stopPropagation(); handleEditPost(); }}>
+                      <PencilSquare size={14} className="me-2" />
+                      Edit Post
+                    </Dropdown.Item>
+                    <Dropdown.Item 
+                      onClick={(e) => { e.stopPropagation(); setShowDeleteModal(true); }}
+                      className="text-danger"
+                    >
+                      <Trash size={14} className="me-2" />
+                      Delete Post
+                    </Dropdown.Item>
+                  </>
+                )}
+
+                {!isOwner && (
+                  <Dropdown.Item onClick={(e) => { e.stopPropagation(); setShowReportModal(true); }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="me-2"><path d="M21 10v6a2 2 0 0 1-2 2H7l-4 4V6a2 2 0 0 1 2-2h9"></path></svg>
+                    Report Post
                   </Dropdown.Item>
-                  <Dropdown.Item 
-                    onClick={(e) => { e.stopPropagation(); setShowDeleteModal(true); }}
-                    className="text-danger"
-                  >
-                    <Trash size={14} className="me-2" />
-                    Delete Post
-                  </Dropdown.Item>
-                </Dropdown.Menu>
-              </Dropdown>
-            )}
+                )}
+
+                {/* Admin-only options */}
+                {isAdmin && (
+                  <>
+                    <Dropdown.Divider />
+                    <Dropdown.Item onClick={(e) => { e.stopPropagation(); window.open(`/admin/posts/${post.id}`, '_self'); }}>
+                      View in Admin
+                    </Dropdown.Item>
+                  </>
+                )}
+              </Dropdown.Menu>
+            </Dropdown>
+          
           </div>
         </div>
 
@@ -572,6 +597,12 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
           content: post.content,
           media: (post.media as any) || []
         }}
+      />
+      <ReportModal
+        show={showReportModal}
+        onHide={() => setShowReportModal(false)}
+        targetType="post"
+        targetId={post.id}
       />
     </Card>
   );

@@ -1,0 +1,9 @@
+node_modules
+dist
+src/generated
+server/generated
+public
+uploads
+.parcel-cache
+.next
+build

@@ -1,0 +1,155 @@
+import { Router, Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
+import { prisma } from '../index.js';
+import { requireAuth, AuthenticatedRequest } from '../middleware/auth.js';
+
+const router = Router();
+
+// Helper to delete media directory for a post
+const deletePostMediaFiles = async (postId: string) => {
+  try {
+    const mediaDir = path.join(process.cwd(), 'public', 'uploads', 'media', postId);
+    if (fs.existsSync(mediaDir)) {
+      fs.rmSync(mediaDir, { recursive: true, force: true });
+      console.log(`Deleted media directory for post: ${postId}`);
+    }
+  } catch (error) {
+    console.error(`Failed to delete media for post ${postId}:`, error);
+  }
+};
+
+// List users (admin only)
+router.get('/admin/users', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user || !user.isAdmin) return res.status(403).json({ error: 'Admin access required' });
+
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        isAdmin: true,
+        isPrivate: true,
+        createdAt: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+
+    res.json({ users });
+  } catch (error) {
+    console.error('Error fetching users for admin:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// Ban a user (mark private as a simple ban flag) / Unban
+router.patch('/admin/user/:id/ban', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const admin = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Admin access required' });
+
+    const { id } = req.params;
+    const target = await prisma.user.findUnique({ where: { id } });
+    if (!target) return res.status(404).json({ error: 'User not found' });
+
+    const updated = await prisma.user.update({ where: { id }, data: { isPrivate: true } });
+    res.json({ message: 'User banned (marked private)', user: { id: updated.id, username: updated.username } });
+  } catch (error) {
+    console.error('Error banning user:', error);
+    res.status(500).json({ error: 'Failed to ban user' });
+  }
+});
+
+router.patch('/admin/user/:id/unban', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const admin = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Admin access required' });
+
+    const { id } = req.params;
+    const target = await prisma.user.findUnique({ where: { id } });
+    if (!target) return res.status(404).json({ error: 'User not found' });
+
+    const updated = await prisma.user.update({ where: { id }, data: { isPrivate: false } });
+    res.json({ message: 'User unbanned', user: { id: updated.id, username: updated.username } });
+  } catch (error) {
+    console.error('Error unbanning user:', error);
+    res.status(500).json({ error: 'Failed to unban user' });
+  }
+});
+
+// Delete a user (admin)
+router.delete('/admin/user/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const admin = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Admin access required' });
+
+    const { id } = req.params;
+    const target = await prisma.user.findUnique({ where: { id } });
+    if (!target) return res.status(404).json({ error: 'User not found' });
+
+    // delete avatar files for user (avatars folder)
+    try {
+      const avatarsDir = path.join(process.cwd(), 'public', 'uploads', 'avatars');
+      if (fs.existsSync(avatarsDir)) {
+        const files = fs.readdirSync(avatarsDir);
+        files.forEach(file => {
+          if (file.startsWith(id + '-')) {
+            try { fs.unlinkSync(path.join(avatarsDir, file)); } catch (e) { /* ignore */ }
+          }
+        });
+      }
+    } catch (err) {
+      console.error('Failed to cleanup avatar files for user:', err);
+    }
+
+    // delete user's posts media directories
+    try {
+      const posts = await prisma.post.findMany({ where: { userId: id }, select: { id: true } });
+      for (const p of posts) {
+        await deletePostMediaFiles(p.id);
+      }
+    } catch (err) {
+      console.error('Failed to cleanup post media for user:', err);
+    }
+
+    // Attempt to delete user (cascade configured on many relations)
+    await prisma.user.delete({ where: { id } });
+
+    res.json({ message: 'User deleted' });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// Delete any post by id (admin)
+router.delete('/admin/post/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const admin = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Admin access required' });
+
+    const { id } = req.params;
+
+    const existingPost = await prisma.post.findUnique({ where: { id } });
+    if (!existingPost) return res.status(404).json({ error: 'Post not found' });
+
+    // delete media directory if exists
+    await deletePostMediaFiles(id);
+
+    // remove likes first
+    await prisma.like.deleteMany({ where: { postId: id } });
+
+    // delete the post
+    await prisma.post.delete({ where: { id } });
+
+    res.json({ message: 'Post deleted by admin' });
+  } catch (error) {
+    console.error('Error deleting post by admin:', error);
+    res.status(500).json({ error: 'Failed to delete post' });
+  }
+});
+
+export default router;

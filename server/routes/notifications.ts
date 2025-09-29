@@ -5,7 +5,6 @@ import { requireAuth, AuthenticatedRequest } from '../middleware/auth';
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Get unread notifications count
 router.get('/unread-count', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.id;
@@ -24,7 +23,6 @@ router.get('/unread-count', requireAuth, async (req: AuthenticatedRequest, res) 
   }
 });
 
-// Get user notifications (paginated)
 router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.id;
@@ -66,7 +64,6 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
       take: limit
     });
 
-    // Get unread count
     const unreadCount = await prisma.notification.count({
       where: { 
         receiverId: userId,
@@ -89,7 +86,6 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
   }
 });
 
-// Mark notification as read
 router.put('/:id/read', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.id;
@@ -118,7 +114,6 @@ router.put('/:id/read', requireAuth, async (req: AuthenticatedRequest, res) => {
   }
 });
 
-// Mark all notifications as read
 router.put('/read-all', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.id;
@@ -138,7 +133,6 @@ router.put('/read-all', requireAuth, async (req: AuthenticatedRequest, res) => {
   }
 });
 
-// Delete a notification
 router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.id;
@@ -166,7 +160,6 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res) => {
   }
 });
 
-// Helper function to create notifications (will be used by other routes)
 export const createNotification = async (
   type: NotificationType,
   senderId: string | null,
@@ -176,10 +169,8 @@ export const createNotification = async (
   message?: string
 ) => {
   try {
-    // Don't create notification for self-actions
     if (senderId === receiverId) return;
 
-    // Check if similar notification already exists (to prevent spam)
     if (type === 'LIKE' && postId) {
       const existing = await prisma.notification.findFirst({
         where: {
@@ -188,11 +179,11 @@ export const createNotification = async (
           receiverId,
           postId,
           createdAt: {
-            gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // within last 24 hours
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
           }
         }
       });
-      if (existing) return; // Don't create duplicate like notification
+      if (existing) return;
     }
 
     await prisma.notification.create({
@@ -210,7 +201,6 @@ export const createNotification = async (
   }
 };
 
-// Helper function to create mention notifications
 export const createMentionNotifications = async (
   content: string,
   senderId: string,
@@ -218,7 +208,6 @@ export const createMentionNotifications = async (
   commentId?: string
 ) => {
   try {
-    // Extract mentions from content
     const mentionRegex = /@(\w+)/g;
     const mentions: string[] = [];
     let match;
@@ -230,7 +219,6 @@ export const createMentionNotifications = async (
       }
     }
 
-    // Find mentioned users and create notifications
     for (const username of mentions) {
       const mentionedUser = await prisma.user.findUnique({
         where: { username },

@@ -5,10 +5,11 @@ import fs from 'fs';
 import { prisma } from '../index.js';
 import { requireAuth, optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { createNotification, createMentionNotifications } from './notifications.js';
+import { VideoProcessor } from '../utils/videoProcessor.js';
+import { ensureDir } from 'fs-extra';
 
 const viewCache = new Map<string, number>();
 
-// Helper function to delete media files
 const deleteMediaFiles = (mediaItems: any[]): void => {
   if (!Array.isArray(mediaItems)) return;
   
@@ -27,14 +28,23 @@ const deleteMediaFiles = (mediaItems: any[]): void => {
   });
 };
 
-// Media upload configuration
 const mediaStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'media');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+  destination: async (req, file, cb) => {
+    try {
+      const postId = req.body.postId;
+      let uploadDir: string;
+      
+      if (postId) {
+        uploadDir = path.join(process.cwd(), 'public', 'uploads', 'media', postId);
+      } else {
+        uploadDir = path.join(process.cwd(), 'public', 'uploads', 'media');
+      }
+      
+      await ensureDir(uploadDir);
+      cb(null, uploadDir);
+    } catch (error) {
+      cb(error instanceof Error ? error : new Error('Failed to create upload directory'), '');
     }
-    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -46,13 +56,11 @@ const mediaStorage = multer.diskStorage({
 const mediaUpload = multer({
   storage: mediaStorage,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit
-    files: 5 // Maximum 5 files per post
+    fileSize: 50 * 1024 * 1024,
+    files: 5
   },
   fileFilter: (req, file, cb) => {
-    // Allow images and videos
     if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
-      // Additional checks for specific formats
       const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
       const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/mov', 'video/avi'];
       
@@ -252,33 +260,62 @@ router.get('/posts/:id', optionalAuth, async (req: AuthenticatedRequest, res: Re
   }
 });
 
-// Media upload endpoint
 router.post('/posts/media', requireAuth, mediaUpload.array('media', 5), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const files = req.files as Express.Multer.File[];
+    const postId = req.body.postId;
     
     if (!files || files.length === 0) {
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
-    const mediaUrls = files.map(file => {
-      const mediaUrl = `/uploads/media/${file.filename}`;
-      return {
+    const processedMedia: any[] = [];
+
+    for (const file of files) {
+      const isVideo = file.mimetype.startsWith('video/');
+      let mediaUrl: string;
+      let hlsUrl: string | null = null;
+      
+      if (postId) {
+        mediaUrl = `/uploads/media/${postId}/${file.filename}`;
+      } else {
+        mediaUrl = `/uploads/media/${file.filename}`;
+      }
+      
+      if (isVideo) {
+        try {
+          const inputPath = file.path;
+          const outputDir = path.dirname(inputPath);
+          const filename = path.parse(file.filename).name;
+          
+          const hlsResult = await VideoProcessor.processToHLS(inputPath, outputDir, filename);
+          
+          if (hlsResult && hlsResult.hlsPath) {
+            const relativePath = path.relative(path.join(process.cwd(), 'public'), hlsResult.hlsPath);
+            hlsUrl = '/' + relativePath.replace(/\\/g, '/');
+          }
+        } catch (error) {
+          console.error('HLS processing failed for', file.filename, ':', error);
+        }
+      }
+
+      processedMedia.push({
         url: mediaUrl,
-        type: file.mimetype.startsWith('image/') ? 'image' : 'video',
+        hlsUrl: hlsUrl,
+        type: isVideo ? 'video' : 'image',
         originalName: file.originalname,
         size: file.size
-      };
-    });
+      });
+    }
 
     res.json({
       success: true,
-      media: mediaUrls
+      media: processedMedia
     });
 
   } catch (error) {
     console.error('Error uploading media:', error);
-    res.status(500).json({ error: 'Failed to upload media files' });
+    res.status(500).json({ error: 'Failed to upload media' });
   }
 });
 
@@ -315,7 +352,7 @@ router.post('/posts', requireAuth, async (req: AuthenticatedRequest, res: Respon
         title: title?.trim() || null,
         slug,
         isPrivate: Boolean(isPrivate),
-        media: media || null, // Store media as JSON
+        media: media || null,
         userId,
       },
       include: {
@@ -339,7 +376,6 @@ router.post('/posts', requireAuth, async (req: AuthenticatedRequest, res: Respon
       }
     });
 
-    // Create mention notifications for any @mentions in the post
     await createMentionNotifications(content, userId, post.id);
 
     res.status(201).json({
@@ -412,7 +448,6 @@ router.post('/posts/:id/like', requireAuth, async (req: AuthenticatedRequest, re
         })
       ]);
 
-      // Create notification for post author (if not liking own post)
       if (post.userId !== userId) {
         await createNotification(
           'LIKE',
@@ -484,11 +519,10 @@ router.get('/users/search', async (req: Request, res: Response) => {
       }
     });
 
-    // Add isFollowing field to each user
     const usersWithFollowStatus = users.map(user => ({
       ...user,
       isFollowing: currentUserId ? user.followers.length > 0 : false,
-      followers: undefined // Remove followers array from response
+      followers: undefined
     }));
 
     const totalUsers = await prisma.user.count({
@@ -550,7 +584,6 @@ router.put('/posts/:id', requireAuth, async (req: AuthenticatedRequest, res: Res
       return res.status(403).json({ error: 'You can only edit your own posts' });
     }
 
-    // If media is being updated, handle deletion of old media files
     if (media !== undefined && existingPost.media) {
       try {
         const oldMedia = existingPost.media as any;
@@ -626,25 +659,21 @@ router.delete('/posts/:id', requireAuth, async (req: AuthenticatedRequest, res: 
       return res.status(403).json({ error: 'You can only delete your own posts' });
     }
 
-    // Delete associated media files before deleting the post
     if (existingPost.media) {
       try {
         const mediaItems = existingPost.media as any;
         deleteMediaFiles(mediaItems);
       } catch (mediaError) {
         console.error('Error deleting media files:', mediaError);
-        // Continue with post deletion even if media cleanup fails
       }
     }
 
-    // Delete related data that might prevent post deletion
-    // Note: Comments should cascade delete due to onDelete: Cascade in schema
-    // But Likes don't have onDelete: Cascade, so we need to delete them manually
+    await deletePostMediaFiles(postId);
+
     await prisma.like.deleteMany({
       where: { postId }
     });
 
-    // Delete the post (comments should cascade delete automatically)
     await prisma.post.delete({
       where: { id: postId }
     });
@@ -654,7 +683,6 @@ router.delete('/posts/:id', requireAuth, async (req: AuthenticatedRequest, res: 
   } catch (error) {
     console.error('Error deleting post:', error);
     
-    // Provide more specific error messages
     if (error instanceof Error) {
       if (error.message.includes('Foreign key constraint')) {
         return res.status(400).json({ 
@@ -668,11 +696,8 @@ router.delete('/posts/:id', requireAuth, async (req: AuthenticatedRequest, res: 
   }
 });
 
-// Utility endpoint to clean up orphaned media files (admin use)
 router.post('/posts/cleanup-media', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    // TODO: Add admin role check here when user roles are implemented
-    // For now, any authenticated user can clean up orphaned media
     
     const mediaDir = path.join(process.cwd(), 'public', 'uploads', 'media');
     
@@ -680,10 +705,8 @@ router.post('/posts/cleanup-media', requireAuth, async (req: AuthenticatedReques
       return res.json({ message: 'Media directory does not exist', deleted: 0 });
     }
 
-    // Get all media files
     const files = fs.readdirSync(mediaDir);
     
-    // Get all media URLs from database
     const posts = await prisma.post.findMany({
       select: { media: true }
     });
@@ -700,11 +723,9 @@ router.post('/posts/cleanup-media', requireAuth, async (req: AuthenticatedReques
       }
     });
     
-    // Delete unused files
     let deletedCount = 0;
     files.forEach(filename => {
       if (!usedFiles.has(filename) && filename.startsWith('media-')) {
-        // Only delete files that start with 'media-' to avoid deleting other files
         const filePath = path.join(mediaDir, filename);
         try {
           fs.unlinkSync(filePath);
@@ -913,12 +934,9 @@ router.post('/posts/:id/comments', requireAuth, async (req: AuthenticatedRequest
       }
     });
 
-    // Create mention notifications for any @mentions in the comment
     await createMentionNotifications(content, userId, postId, comment.id);
 
-    // Create notifications
     if (parentId) {
-      // Reply notification - notify parent comment author
       const parentComment = await prisma.comment.findUnique({
         where: { id: parentId },
         select: { userId: true }
@@ -934,7 +952,6 @@ router.post('/posts/:id/comments', requireAuth, async (req: AuthenticatedRequest
         );
       }
     } else {
-      // Comment notification - notify post author
       if (post.userId !== userId) {
         await createNotification(
           'COMMENT',
@@ -1044,7 +1061,6 @@ router.post('/comments/:id/like', requireAuth, async (req: AuthenticatedRequest,
         data: { likesCount: { increment: 1 } }
       });
 
-      // Create notification for comment author (if not liking own comment)
       if (comment.userId !== userId) {
         await createNotification(
           'COMMENT_LIKE',
@@ -1067,7 +1083,6 @@ router.post('/comments/:id/like', requireAuth, async (req: AuthenticatedRequest,
   }
 });
 
-// Edit a comment
 router.put('/comments/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const commentId = req.params.id;
@@ -1082,7 +1097,6 @@ router.put('/comments/:id', requireAuth, async (req: AuthenticatedRequest, res: 
       return res.status(400).json({ error: 'Comment is too long. Maximum 1000 characters allowed.' });
     }
 
-    // First, check if the comment exists and belongs to the user
     const existingComment = await prisma.comment.findUnique({
       where: { id: commentId },
       select: { userId: true, content: true }
@@ -1096,12 +1110,10 @@ router.put('/comments/:id', requireAuth, async (req: AuthenticatedRequest, res: 
       return res.status(403).json({ error: 'You can only edit your own comments' });
     }
 
-    // Check if content actually changed
     if (existingComment.content === content.trim()) {
       return res.status(400).json({ error: 'No changes detected' });
     }
 
-    // Update the comment with new content and editedAt timestamp
     const updatedComment = await prisma.comment.update({
       where: { id: commentId },
       data: {
@@ -1134,12 +1146,10 @@ router.put('/comments/:id', requireAuth, async (req: AuthenticatedRequest, res: 
       }
     });
 
-    // Process mentions in the updated comment
     if (content.includes('@')) {
       await createMentionNotifications(content, userId, updatedComment.postId, updatedComment.id);
     }
 
-    // Format the response
     const response = {
       ...updatedComment,
       isLiked: userId ? updatedComment.likes.length > 0 : false,
@@ -1147,7 +1157,6 @@ router.put('/comments/:id', requireAuth, async (req: AuthenticatedRequest, res: 
       repliesCount: updatedComment._count.replies
     };
 
-    // Remove the _count and likes array from response  
     delete (response as any)._count;
     delete (response as any).likes;
 
@@ -1159,13 +1168,11 @@ router.put('/comments/:id', requireAuth, async (req: AuthenticatedRequest, res: 
   }
 });
 
-// Delete a comment
 router.delete('/comments/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const commentId = req.params.id;
     const userId = req.user!.id;
 
-    // First, check if the comment exists and belongs to the user
     const comment = await prisma.comment.findUnique({
       where: { id: commentId },
       select: { userId: true, postId: true }
@@ -1179,7 +1186,6 @@ router.delete('/comments/:id', requireAuth, async (req: AuthenticatedRequest, re
       return res.status(403).json({ error: 'You can only delete your own comments' });
     }
 
-    // Delete the comment (replies will cascade delete due to schema)
     await prisma.comment.delete({
       where: { id: commentId }
     });
@@ -1191,5 +1197,67 @@ router.delete('/comments/:id', requireAuth, async (req: AuthenticatedRequest, re
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+router.get('/posts/admin/download/:postId/:filename', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { postId, filename } = req.params;
+    
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId }
+    });
+    
+    if (!user || !user.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    const hlsPath = path.join(process.cwd(), 'public', 'uploads', 'media', postId, filename);
+    
+    if (!fs.existsSync(hlsPath)) {
+      return res.status(404).json({ error: 'Video file not found' });
+    }
+    
+    const tempDir = path.join(process.cwd(), 'temp');
+    await ensureDir(tempDir);
+    
+    const outputFilename = `${path.parse(filename).name}.mp4`;
+    const outputPath = path.join(tempDir, outputFilename);
+    
+    try {
+      await VideoProcessor.convertHLSToMP4(hlsPath, outputPath);
+      
+      res.download(outputPath, outputFilename, (err) => {
+        if (err) {
+          console.error('Download error:', err);
+        }
+        fs.unlink(outputPath, (unlinkErr) => {
+          if (unlinkErr) console.error('Cleanup error:', unlinkErr);
+        });
+      });
+      
+    } catch (error) {
+      console.error('MP4 conversion failed:', error);
+      res.status(500).json({ error: 'Failed to convert video for download' });
+    }
+    
+  } catch (error) {
+    console.error('Error in admin download:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+const deletePostMediaFiles = async (postId: string): Promise<void> => {
+  try {
+    const mediaDir = path.join(process.cwd(), 'public', 'uploads', 'media', postId);
+    
+    if (fs.existsSync(mediaDir)) {
+      await VideoProcessor.cleanupVideoFiles(mediaDir);
+      
+      fs.rmSync(mediaDir, { recursive: true, force: true });
+      console.log(`Deleted media directory for post: ${postId}`);
+    }
+  } catch (error) {
+    console.error(`Failed to delete media files for post ${postId}:`, error);
+  }
+};
 
 export default router;

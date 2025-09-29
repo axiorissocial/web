@@ -1,0 +1,93 @@
+:root {
+  --admin-sidebar-width: 240px;
+}
+
+.admin-panel {
+  display: flex;
+  gap: 1rem;
+}
+
+.admin-panel .admin-sidebar {
+  width: var(--admin-sidebar-width);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  padding: 1rem;
+  border-radius: 8px;
+  height: calc(100vh - 4rem);
+  box-sizing: border-box;
+}
+
+/* Topbar used on small screens */
+.admin-topbar {
+  display: none;
+}
+
+.admin-panel .admin-content {
+  flex: 1;
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.admin-sidebar .nav-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  width: 100%;
+  background: transparent;
+  border: none;
+  text-align: left;
+  color: var(--text-primary);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.admin-sidebar .nav-button:hover {
+  background-color: var(--hover-bg);
+}
+
+.admin-sidebar .nav-button .user-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Ensure text is readable in dark mode */
+body[data-theme="dark"] .admin-content,
+body[data-theme="dark"] .admin-sidebar {
+  color: var(--text-primary);
+}
+
+body[data-theme="dark"] .admin-content h2,
+body[data-theme="dark"] .admin-content h4 {
+  color: var(--text-primary);
+}
+
+/* Responsive: collapse sidebar on small screens and show topbar */
+@media (max-width: 767px) {
+  .admin-panel {
+    flex-direction: column;
+  }
+
+  .admin-panel .admin-sidebar {
+    display: none;
+    width: 100%;
+    height: auto;
+  }
+
+  .admin-topbar {
+    display: block;
+  }
+
+  .admin-content {
+    width: 100%;
+    padding: 0.5rem;
+  }
+}

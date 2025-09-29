@@ -11,7 +11,6 @@ const requireAuth = (req: any, res: Response, next: any) => {
   next();
 };
 
-// Get all conversations for the current user
 router.get('/conversations', requireAuth, async (req: any, res: Response) => {
   try {
     const userId = req.session.userId;
@@ -68,7 +67,6 @@ router.get('/conversations', requireAuth, async (req: any, res: Response) => {
       }
     });
 
-    // Add unread count for each conversation
     const conversationsWithUnread = await Promise.all(
       conversations.map(async (conversation) => {
         const participant = conversation.participants.find(p => p.userId === userId);
@@ -99,7 +97,6 @@ router.get('/conversations', requireAuth, async (req: any, res: Response) => {
   }
 });
 
-// Get or create a conversation with a specific user
 router.post('/conversations', requireAuth, async (req: any, res: Response) => {
   try {
     const userId = req.session.userId;
@@ -113,7 +110,6 @@ router.post('/conversations', requireAuth, async (req: any, res: Response) => {
       return res.status(400).json({ error: 'Cannot create conversation with yourself' });
     }
 
-    // Check if participant exists
     const participant = await prisma.user.findUnique({
       where: { id: participantId }
     });
@@ -122,7 +118,6 @@ router.post('/conversations', requireAuth, async (req: any, res: Response) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Check if conversation already exists
     const existingConversation = await prisma.conversation.findFirst({
       where: {
         participants: {
@@ -167,7 +162,6 @@ router.post('/conversations', requireAuth, async (req: any, res: Response) => {
       });
     }
 
-    // Create new conversation
     const newConversation = await prisma.conversation.create({
       data: {
         participants: {
@@ -207,7 +201,6 @@ router.post('/conversations', requireAuth, async (req: any, res: Response) => {
   }
 });
 
-// Get messages for a specific conversation
 router.get('/conversations/:conversationId/messages', requireAuth, async (req: any, res: Response) => {
   try {
     const userId = req.session.userId;
@@ -216,7 +209,6 @@ router.get('/conversations/:conversationId/messages', requireAuth, async (req: a
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = (page - 1) * limit;
 
-    // Check if user is participant in this conversation
     const participant = await prisma.conversationParticipant.findUnique({
       where: {
         conversationId_userId: {
@@ -270,7 +262,7 @@ router.get('/conversations/:conversationId/messages', requireAuth, async (req: a
     });
 
     res.json({
-      messages: messages.reverse(), // Reverse to show oldest first
+      messages: messages.reverse(),
       pagination: {
         page,
         limit,
@@ -284,7 +276,6 @@ router.get('/conversations/:conversationId/messages', requireAuth, async (req: a
   }
 });
 
-// Send a message
 router.post('/conversations/:conversationId/messages', requireAuth, async (req: any, res: Response) => {
   try {
     const userId = req.session.userId;
@@ -299,7 +290,6 @@ router.post('/conversations/:conversationId/messages', requireAuth, async (req: 
       return res.status(400).json({ error: 'Message is too long (max 1000 characters)' });
     }
 
-    // Check if user is participant in this conversation
     const participant = await prisma.conversationParticipant.findUnique({
       where: {
         conversationId_userId: {
@@ -313,7 +303,6 @@ router.post('/conversations/:conversationId/messages', requireAuth, async (req: 
       return res.status(403).json({ error: 'You are not a participant in this conversation' });
     }
 
-    // Create the message and update conversation
     const message = await prisma.$transaction(async (tx) => {
       const newMessage = await tx.message.create({
         data: {
@@ -337,7 +326,6 @@ router.post('/conversations/:conversationId/messages', requireAuth, async (req: 
         }
       });
 
-      // Update conversation's last message and timestamp
       await tx.conversation.update({
         where: { id: conversationId },
         data: {
@@ -356,13 +344,11 @@ router.post('/conversations/:conversationId/messages', requireAuth, async (req: 
   }
 });
 
-// Mark messages as read
 router.post('/conversations/:conversationId/read', requireAuth, async (req: any, res: Response) => {
   try {
     const userId = req.session.userId;
     const { conversationId } = req.params;
 
-    // Check if user is participant in this conversation
     const participant = await prisma.conversationParticipant.findUnique({
       where: {
         conversationId_userId: {
@@ -376,7 +362,6 @@ router.post('/conversations/:conversationId/read', requireAuth, async (req: any,
       return res.status(403).json({ error: 'You are not a participant in this conversation' });
     }
 
-    // Update the participant's lastReadAt timestamp
     await prisma.conversationParticipant.update({
       where: {
         conversationId_userId: {

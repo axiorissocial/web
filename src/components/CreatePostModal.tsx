@@ -8,7 +8,6 @@ import {
   CameraVideo,
   TypeBold,
   TypeItalic,
-  TypeUnderline,
   Hash,
   EmojiSmile,
   Upload,
@@ -21,9 +20,16 @@ import '../css/postbox.scss';
 
 interface MediaItem {
   url: string;
+  hlsUrl?: string;
   type: 'image' | 'video';
   originalName: string;
   size: number;
+}
+
+interface UploadProgress {
+  fileName: string;
+  progress: number;
+  status: 'uploading' | 'processing' | 'complete' | 'error';
 }
 
 interface CreatePostModalProps {
@@ -47,6 +53,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [posting, setPosting] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [uploadedMedia, setUploadedMedia] = useState<MediaItem[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
   const [uploading, setUploading] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerHeight > window.innerWidth);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -96,25 +103,77 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
     setUploading(true);
     setError('');
 
+    // Initialize progress tracking
+    const initialProgress = validFiles.map(file => ({
+      fileName: file.name,
+      progress: 0,
+      status: 'uploading' as const
+    }));
+    setUploadProgress(initialProgress);
+
     try {
       const formData = new FormData();
       validFiles.forEach(file => formData.append('media', file));
+      
+      // Add temporary post ID for organization (will be replaced with actual post ID later)
+      const tempPostId = `temp-${Date.now()}`;
+      formData.append('postId', tempPostId);
 
-      const response = await fetch('/api/posts/media', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData
+      const xhr = new XMLHttpRequest();
+      
+      // Track upload progress
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const progress = Math.round((event.loaded / event.total) * 100);
+          setUploadProgress(prev => prev.map(item => ({
+            ...item,
+            progress: Math.min(progress, 90), // Reserve 10% for processing
+            status: progress < 100 ? 'uploading' : 'processing'
+          })));
+        }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setUploadedMedia(prev => [...prev, ...data.media]);
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to upload media');
-      }
+      const uploadPromise = new Promise<any>((resolve, reject) => {
+        xhr.onreadystatechange = () => {
+          if (xhr.readyState === XMLHttpRequest.DONE) {
+            if (xhr.status === 200) {
+              const data = JSON.parse(xhr.responseText);
+              resolve(data);
+            } else {
+              const errorData = JSON.parse(xhr.responseText);
+              reject(new Error(errorData.error || 'Upload failed'));
+            }
+          }
+        };
+        
+        xhr.onerror = () => reject(new Error('Network error'));
+      });
+
+      xhr.open('POST', '/api/posts/media');
+      xhr.setRequestHeader('credentials', 'include');
+      xhr.send(formData);
+
+      const data = await uploadPromise;
+      
+      // Update progress to complete
+      setUploadProgress(prev => prev.map(item => ({
+        ...item,
+        progress: 100,
+        status: 'complete'
+      })));
+      
+      setUploadedMedia(prev => [...prev, ...data.media]);
+      
+      // Clear progress after a short delay
+      setTimeout(() => setUploadProgress([]), 2000);
+
     } catch (error) {
-      setError('Failed to upload media files');
+      console.error('Upload error:', error);
+      setUploadProgress(prev => prev.map(item => ({
+        ...item,
+        status: 'error'
+      })));
+      setError(error instanceof Error ? error.message : 'Failed to upload media files');
     } finally {
       setUploading(false);
     }
@@ -230,9 +289,6 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
         <Button variant="outline-secondary" onClick={() => insertAtCursor('*', '*')} disabled={toolbarDisabled}>
           <TypeItalic />
         </Button>
-        <Button variant="outline-secondary" onClick={() => insertAtCursor('__', '__')} disabled={toolbarDisabled}>
-          <TypeUnderline />
-        </Button>
         <Button variant="outline-secondary" onClick={() => insertAtCursor('# ')} disabled={toolbarDisabled}>
           <Hash />
         </Button>
@@ -256,6 +312,39 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
         onChange={handleFileSelect}
         style={{ display: 'none' }}
       />
+      
+      {/* Upload Progress Indicators */}
+      {uploadProgress.length > 0 && (
+        <div className="mb-3">
+          <h6>Uploading Files:</h6>
+          {uploadProgress.map((progress, index) => (
+            <div key={index} className="mb-2">
+              <div className="d-flex justify-content-between align-items-center mb-1">
+                <small className="text-muted">{progress.fileName}</small>
+                <small className={`text-${
+                  progress.status === 'complete' ? 'success' :
+                  progress.status === 'error' ? 'danger' :
+                  progress.status === 'processing' ? 'warning' : 'primary'
+                }`}>
+                  {progress.status === 'uploading' ? `${progress.progress}%` :
+                   progress.status === 'processing' ? 'Processing...' :
+                   progress.status === 'complete' ? 'Complete' : 'Error'}
+                </small>
+              </div>
+              <div className="progress" style={{ height: '4px' }}>
+                <div 
+                  className={`progress-bar ${
+                    progress.status === 'complete' ? 'bg-success' :
+                    progress.status === 'error' ? 'bg-danger' :
+                    progress.status === 'processing' ? 'bg-warning' : 'bg-primary'
+                  }`}
+                  style={{ width: `${progress.progress}%` }}
+                ></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       
       {uploadedMedia.length > 0 && (
         <div className="mb-3">
@@ -353,12 +442,44 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
             variant="primary" 
             size="sm"
             onClick={handlePost} 
-            disabled={content.length === 0 || content.length > 1000 || posting}
+            disabled={content.length === 0 || content.length > 1000 || posting || uploading}
           >
-            {posting ? <Spinner size="sm" /> : 'Post'}
+            {uploading ? <><Spinner size="sm" className="me-2" />Uploading...</> : posting ? <Spinner size="sm" /> : 'Post'}
           </Button>
         </div>
         <div className="create-post-body p-3" style={{ height: 'calc(100vh - 80px)', overflowY: 'auto' }}>
+          {/* Upload Progress Indicators - prominent for mobile */}
+          {uploadProgress.length > 0 && (
+            <div className="mb-3">
+              <h6>Uploading Files:</h6>
+              {uploadProgress.map((progress, index) => (
+                <div key={index} className="mb-2">
+                  <div className="d-flex justify-content-between align-items-center mb-1">
+                    <small className="text-muted">{progress.fileName}</small>
+                    <small className={`text-${
+                      progress.status === 'complete' ? 'success' :
+                      progress.status === 'error' ? 'danger' :
+                      progress.status === 'processing' ? 'warning' : 'primary'
+                    }`}>
+                      {progress.status === 'uploading' ? `${progress.progress}%` :
+                       progress.status === 'processing' ? 'Processing...' :
+                       progress.status === 'complete' ? 'Complete' : 'Error'}
+                    </small>
+                  </div>
+                  <div className="progress" style={{ height: '6px' }}>
+                    <div 
+                      className={`progress-bar ${
+                        progress.status === 'complete' ? 'bg-success' :
+                        progress.status === 'error' ? 'bg-danger' :
+                        progress.status === 'processing' ? 'bg-warning' : 'bg-primary'
+                      }`}
+                      style={{ width: `${progress.progress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           <PostCreatorContent />
         </div>
       </div>
@@ -372,6 +493,38 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
         <Modal.Title>Create Post</Modal.Title>
       </Modal.Header>
       <Modal.Body>
+        {/* Upload Progress Indicators - prominent for desktop modal */}
+        {uploadProgress.length > 0 && (
+          <div className="mb-3">
+            <h6>Uploading Files:</h6>
+            {uploadProgress.map((progress, index) => (
+              <div key={index} className="mb-2">
+                <div className="d-flex justify-content-between align-items-center mb-1">
+                  <small className="text-muted">{progress.fileName}</small>
+                  <small className={`text-${
+                    progress.status === 'complete' ? 'success' :
+                    progress.status === 'error' ? 'danger' :
+                    progress.status === 'processing' ? 'warning' : 'primary'
+                  }`}>
+                    {progress.status === 'uploading' ? `${progress.progress}%` :
+                     progress.status === 'processing' ? 'Processing...' :
+                     progress.status === 'complete' ? 'Complete' : 'Error'}
+                  </small>
+                </div>
+                <div className="progress" style={{ height: '6px' }}>
+                  <div 
+                    className={`progress-bar ${
+                      progress.status === 'complete' ? 'bg-success' :
+                      progress.status === 'error' ? 'bg-danger' :
+                      progress.status === 'processing' ? 'bg-warning' : 'bg-primary'
+                    }`}
+                    style={{ width: `${progress.progress}%` }}
+                  ></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         <PostCreatorContent />
       </Modal.Body>
       <Modal.Footer>
@@ -379,9 +532,9 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
         <Button 
           variant="primary" 
           onClick={handlePost} 
-          disabled={content.length === 0 || content.length > 1000 || posting}
+          disabled={content.length === 0 || content.length > 1000 || posting || uploading}
         >
-          {posting ? <Spinner size="sm" /> : 'Post'}
+          {uploading ? <><Spinner size="sm" className="me-2" />Uploading...</> : posting ? <Spinner size="sm" /> : 'Post'}
         </Button>
       </Modal.Footer>
     </Modal>

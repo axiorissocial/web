@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Badge, Button, Spinner, Alert } from 'react-bootstrap';
-import { Heart, ChatSquareText, PersonPlus, Reply, HeartFill, CheckAll } from 'react-bootstrap-icons';
+import { Heart, ChatSquareText, PersonPlus, Reply, HeartFill } from 'react-bootstrap-icons';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/singles/Navbar';
 import { useAuth } from '../contexts/AuthContext';

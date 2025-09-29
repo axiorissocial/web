@@ -8,7 +8,6 @@ import {
   CameraVideo,
   TypeBold,
   TypeItalic,
-  TypeUnderline,
   Hash,
   EmojiSmile,
   Upload,
@@ -39,7 +38,6 @@ const CreatePostPage: React.FC = () => {
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [uploadedMedia, setUploadedMedia] = useState<MediaItem[]>([]);
   const [uploading, setUploading] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
@@ -51,8 +49,19 @@ const CreatePostPage: React.FC = () => {
     const files = e.target.files;
     if (!files) return;
 
-    if (uploadedMedia.length + files.length > 5) {
-      setError('Maximum 5 media files allowed');
+    const validFiles = Array.from(files).filter(file => {
+      if (file.size > 50 * 1024 * 1024) {
+        setError(`File ${file.name} is too large. Maximum size is 50MB.`);
+        return false;
+      }
+      return true;
+    });
+
+    if (validFiles.length === 0) return;
+
+    // Check total files limit
+    if (uploadedMedia.length + validFiles.length > 5) {
+      setError('Maximum 5 media files allowed per post');
       return;
     }
 
@@ -60,34 +69,21 @@ const CreatePostPage: React.FC = () => {
     setError('');
 
     try {
-      for (const file of Array.from(files)) {
-        if (file.size > 50 * 1024 * 1024) {
-          setError(`File ${file.name} is too large. Maximum size is 50MB.`);
-          continue;
-        }
+      const formData = new FormData();
+      validFiles.forEach(file => formData.append('media', file));
 
-        const formData = new FormData();
-        formData.append('media', file);
+      const response = await fetch('/api/posts/media', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
 
-        const response = await fetch('/api/posts/upload', {
-          method: 'POST',
-          credentials: 'include',
-          body: formData,
-        });
-
-        if (response.ok) {
-          const { url } = await response.json();
-          const mediaItem: MediaItem = {
-            url,
-            type: file.type.startsWith('video/') ? 'video' : 'image',
-            originalName: file.name,
-            size: file.size
-          };
-          setUploadedMedia(prev => [...prev, mediaItem]);
-        } else {
-          const errorData = await response.json();
-          setError(errorData.message || `Failed to upload ${file.name}`);
-        }
+      if (response.ok) {
+        const data = await response.json();
+        setUploadedMedia(prev => [...prev, ...data.media]);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to upload media');
       }
     } catch (error) {
       console.error('Upload error:', error);
@@ -104,34 +100,22 @@ const CreatePostPage: React.FC = () => {
     setUploadedMedia(prev => prev.filter((_, i) => i !== index));
   };
 
-  const insertAtCursor = (before: string, after: string = '') => {
-    if (!textareaRef.current) return;
-    
-    const textarea = textareaRef.current;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
-    const selectedText = text.substring(start, end);
-    
-    const newText = text.substring(0, start) + before + selectedText + after + text.substring(end);
-    setContent(newText);
-    
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + before.length, start + before.length + selectedText.length);
-    }, 0);
+  const insertAtCursor = (text: string) => {
+    setContent(prev => prev + text);
   };
 
-  const insertEmoji = (emoji: any) => {
-    const emojiText = emoji.native || emoji.shortcodes || emoji;
-    insertAtCursor(emojiText);
+  const insertMarkdown = (before: string, after: string = '') => {
+    setContent(prev => prev + before + after);
+  };
+
+  const insertEmoji = (emojiName: string) => {
+    insertAtCursor(`:${emojiName}:`);
     setEmojiOpen(false);
   };
 
-  const processText = (text: string): string => {
-    // Process emoji shortcuts only
+  const renderEmojisInPreview = (text: string) => {
     return text.replace(/:([a-z0-9_]+):/gi, (_, name) => {
-      const emoji = EMOJIS.find(e => e.name.toLowerCase() === name.toLowerCase());
+      const emoji = EMOJIS.find(e => e.name === name);
       return emoji ? emoji.char : `:${name}:`;
     });
   };
@@ -143,8 +127,9 @@ const CreatePostPage: React.FC = () => {
     setError('');
 
     try {
-      // Just process emojis, keep mentions as plain text
-      const processedContent = processText(content);
+      // Process mentions and emojis
+      const mentionsProcessed = processMentions(content);
+      const processedContent = renderEmojisInPreview(mentionsProcessed);
       
       const response = await fetch('/api/posts', {
         method: 'POST',
@@ -175,10 +160,10 @@ const CreatePostPage: React.FC = () => {
     }
   };
 
-  // For preview, show processed mentions
-  const previewText = processText(content);
-  const processedPreview = processMentions(previewText);
-  const markedHtml = marked(processedPreview) as string;
+  // For preview, show processed mentions and emojis
+  const mentionsProcessed = processMentions(content);
+  const previewText = renderEmojisInPreview(mentionsProcessed);
+  const markedHtml = marked(previewText) as string;
   const processedWithEmojis = twemoji.parse(markedHtml, {
     folder: 'svg',
     ext: '.svg',
@@ -215,16 +200,13 @@ const CreatePostPage: React.FC = () => {
           {error && <Alert variant="danger">{error}</Alert>}
           
           <InputGroup className="mb-3 flex-wrap">
-            <Button variant="outline-secondary" onClick={() => insertAtCursor('**', '**')} disabled={toolbarDisabled}>
+            <Button variant="outline-secondary" onClick={() => insertMarkdown('**', '**')} disabled={toolbarDisabled}>
               <TypeBold />
             </Button>
-            <Button variant="outline-secondary" onClick={() => insertAtCursor('*', '*')} disabled={toolbarDisabled}>
+            <Button variant="outline-secondary" onClick={() => insertMarkdown('*', '*')} disabled={toolbarDisabled}>
               <TypeItalic />
             </Button>
-            <Button variant="outline-secondary" onClick={() => insertAtCursor('__', '__')} disabled={toolbarDisabled}>
-              <TypeUnderline />
-            </Button>
-            <Button variant="outline-secondary" onClick={() => insertAtCursor('# ')} disabled={toolbarDisabled}>
+            <Button variant="outline-secondary" onClick={() => insertMarkdown('# ')} disabled={toolbarDisabled}>
               <Hash />
             </Button>
             <Button 

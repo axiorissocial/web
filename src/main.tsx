@@ -13,6 +13,7 @@ import Messages from './pages/Messages';
 import Profile from './pages/Profile';
 import PostPage from './pages/PostPage';
 import Settings from './pages/Settings';
+import AdminPanel from './pages/AdminPanel';
 import AccountLogin from './pages/AccountLogin';
 import AccountRegister from './pages/AccountRegister';
 import CreatePost from './pages/CreatePost';
@@ -56,6 +57,7 @@ function AppRoutes() {
       <Route path="/user/me" element={<Profile />} />
       <Route path="/post/:postId" element={<PostPage />} />
       <Route path="/settings" element={<Settings />} />
+  <Route path="/admin" element={<AdminPanel />} />
       <Route path="/account/login" element={<AccountLogin />} />
       <Route path="/account/register" element={<AccountRegister />} />
       <Route path="/mobile" element={<Mobile />} />

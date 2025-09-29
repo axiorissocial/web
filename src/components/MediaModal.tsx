@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button } from 'react-bootstrap';
 import { ChevronLeft, ChevronRight, X } from 'react-bootstrap-icons';
+import HlsVideo from './HlsVideo';
 
 interface MediaItem {
   url: string;
+  hlsUrl?: string;
   type: 'image' | 'video';
   originalName: string;
   size: number;
@@ -99,7 +101,8 @@ const MediaModal: React.FC<MediaModalProps> = ({ show, onHide, media, initialInd
               }}
             />
           ) : (
-            <video
+            <HlsVideo
+              key={currentMedia.url}
               controls
               className="w-100"
               style={{ 
@@ -107,10 +110,9 @@ const MediaModal: React.FC<MediaModalProps> = ({ show, onHide, media, initialInd
                 maxWidth: '100%'
               }}
               autoPlay
-            >
-              <source src={currentMedia.url} />
-              Your browser does not support the video tag.
-            </video>
+              hlsSrc={currentMedia.hlsUrl}
+              src={currentMedia.url}
+            />
           )}
         </div>
         

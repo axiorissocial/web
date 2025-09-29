@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button, Dropdown, Modal, Form, Spinner } from 'react-bootstrap';
+import { Button, Dropdown, Form, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { ChatSquareText, Heart, HeartFill, ChevronDown, ChevronUp, ThreeDotsVertical, Trash, PencilSquare, EmojiSmile } from 'react-bootstrap-icons';
 import DOMPurify from 'dompurify';
@@ -8,7 +8,7 @@ import twemoji from 'twemoji';
 import { processMentions } from '../utils/mentions';
 import MentionTextarea from './MentionTextarea';
 import EmojiPicker from './EmojiPicker';
-import { EMOJIS } from '../utils/emojis';
+// EMOJIS not used here after emoji rendering moved to formatContent
 import '../css/comment.scss';
 
 interface CommentUser {
@@ -25,7 +25,7 @@ interface CommentData {
   content: string;
   createdAt: string;
   updatedAt: string;
-  editedAt?: string; // Optional field for when comment was last edited
+  editedAt?: string;
   user: CommentUser;
   parentId?: string;
   replies?: CommentData[];
@@ -57,25 +57,21 @@ const CommentComponent: React.FC<CommentProps> = ({
   const [replyLoading, setReplyLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   
-  // Edit state
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
   const [editLoading, setEditLoading] = useState(false);
   
-  // Like state
   const [isLiked, setIsLiked] = useState(comment.isLiked || false);
   const [likesCount, setLikesCount] = useState(comment.likesCount || 0);
   const [likeLoading, setLikeLoading] = useState(false);
   
-  // Collapse/expand state for long comments
   const [isExpanded, setIsExpanded] = useState(false);
   
-  // Emoji picker state
   const [editEmojiOpen, setEditEmojiOpen] = useState(false);
   const [replyEmojiOpen, setReplyEmojiOpen] = useState(false);
   
-  const COMMENT_CHAR_LIMIT = 1000; // Character limit for replies
-  const TRUNCATE_LENGTH = 300; // Length at which to truncate and show expand button
+  const COMMENT_CHAR_LIMIT = 1000;
+  const TRUNCATE_LENGTH = 300;
 
   const handleDeleteComment = async () => {
     if (!window.confirm('Are you sure you want to delete this comment?')) {
@@ -128,11 +124,10 @@ const CommentComponent: React.FC<CommentProps> = ({
 
       if (response.ok) {
         const updatedComment = await response.json();
-        // Update the comment in the parent component
         comment.content = updatedComment.content;
         comment.updatedAt = updatedComment.updatedAt;
         setIsEditing(false);
-        onReplyAdded?.(); // Refresh comments to show updated content
+        onReplyAdded?.();
       } else {
         throw new Error('Failed to update comment');
       }
@@ -144,27 +139,19 @@ const CommentComponent: React.FC<CommentProps> = ({
     }
   };
 
-  // Emoji functions for edit form
   const insertEditEmoji = (emojiName: string) => {
     const emoji = `:${emojiName}:`;
     setEditContent(prev => prev + emoji);
     setEditEmojiOpen(false);
   };
 
-  // Emoji functions for reply form
   const insertReplyEmoji = (emojiName: string) => {
     const emoji = `:${emojiName}:`;
     setReplyContent(prev => prev + emoji);
     setReplyEmojiOpen(false);
   };
 
-  // Render emojis in text
-  const renderEmojisInText = (text: string) => {
-    return text.replace(/:([a-zA-Z0-9_+-]+):/g, (match, name) => {
-      const emoji = EMOJIS.find(e => e.name === name);
-      return emoji ? emoji.char : match;
-    });
-  };
+
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -186,7 +173,6 @@ const CommentComponent: React.FC<CommentProps> = ({
     let displayContent = content;
     
     if (shouldTruncate && !isExpanded) {
-      // Find the last complete word within the limit
       let truncateAt = TRUNCATE_LENGTH;
       const lastSpace = content.lastIndexOf(' ', TRUNCATE_LENGTH);
       const lastNewline = content.lastIndexOf('\n', TRUNCATE_LENGTH);
@@ -213,10 +199,8 @@ const CommentComponent: React.FC<CommentProps> = ({
     ];
     const allowedAttrs = ['href', 'title', 'target', 'rel', 'src', 'alt', 'class', 'data-username'];
 
-    // Process mentions first on raw content
     const mentionsProcessed = processMentions(content);
     
-    // Then process markdown
     const mdHtml = marked.parse(mentionsProcessed, markedOptions) as string;
     const twemojiHtml = twemoji.parse(mdHtml, {
       folder: 'svg',
@@ -236,14 +220,13 @@ const CommentComponent: React.FC<CommentProps> = ({
         ? user.profile.avatar 
         : `/uploads/avatars/${user.profile.avatar}`;
     }
-    return null; // Return null when no avatar, let the component render a placeholder
+    return null;
   };
 
   const handleReplySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!replyContent.trim() || replyLoading) return;
 
-    // Check character limit
     if (replyContent.trim().length > COMMENT_CHAR_LIMIT) {
       alert(`Reply is too long. Maximum ${COMMENT_CHAR_LIMIT} characters allowed.`);
       return;

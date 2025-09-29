@@ -64,6 +64,7 @@ router.post('/register', async (req: Request, res: Response) => {
         id: true,
         username: true,
         email: true,
+        isAdmin: true,
         createdAt: true,
         profile: {
           select: {
@@ -80,6 +81,8 @@ router.post('/register', async (req: Request, res: Response) => {
       username: user.username,
       email: user.email,
     };
+    // include isAdmin in session user for convenience
+    (req.session.user as any).isAdmin = user.isAdmin ?? false;
 
     res.status(201).json({
       message: 'User registered successfully',
@@ -87,6 +90,7 @@ router.post('/register', async (req: Request, res: Response) => {
         id: user.id,
         username: user.username,
         email: user.email,
+        isAdmin: user.isAdmin ?? false,
       }
     });
 
@@ -115,6 +119,7 @@ router.post('/login', async (req: Request, res: Response) => {
         id: true,
         username: true,
         email: true,
+        isAdmin: true,
         password: true,
       }
     });
@@ -139,6 +144,8 @@ router.post('/login', async (req: Request, res: Response) => {
       username: user.username,
       email: user.email,
     };
+    // include isAdmin in session user for convenience
+    (req.session.user as any).isAdmin = user.isAdmin ?? false;
 
     if (remember) {
       req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
@@ -150,6 +157,7 @@ router.post('/login', async (req: Request, res: Response) => {
         id: user.id,
         username: user.username,
         email: user.email,
+        isAdmin: user.isAdmin ?? false,
       }
     });
 
@@ -184,6 +192,7 @@ router.get('/me', async (req: Request, res: Response) => {
         bio: true,
         level: true,
         isVerified: true,
+        isAdmin: true,
         createdAt: true,
         profile: {
           select: {
@@ -199,6 +208,11 @@ router.get('/me', async (req: Request, res: Response) => {
     if (!user) {
       req.session.destroy(() => {});
       return res.status(401).json({ message: 'User not found' });
+    }
+
+    // ensure session user has isAdmin flag
+    if (req.session.user) {
+      (req.session.user as any).isAdmin = user.isAdmin;
     }
 
     res.json({ user });

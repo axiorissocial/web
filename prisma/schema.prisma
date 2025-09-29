@@ -15,6 +15,7 @@ model User {
   password    String
   bio         String?  // optional bio
   level       Int      @default(1) // XP/level system
+  isAdmin     Boolean  @default(false) // Admin privileges
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   lastLogin   DateTime? 
@@ -40,6 +41,10 @@ model User {
   // Notifications system
   sentNotifications       Notification[] @relation("NotificationSender")
   receivedNotifications   Notification[] @relation("NotificationReceiver")
+  
+  // Reporting system
+  reports       Report[] @relation("UserReports")    // Reports made by this user
+  reviewedReports Report[] @relation("AdminReviews")  // Reports reviewed by this admin
 }
 
 model Profile {
@@ -87,6 +92,7 @@ model Post {
   likes         Like[]
   comments      Comment[]
   notifications Notification[]
+  reports       Report[]  // Reports against this post
 }
 
 model Comment {
@@ -109,6 +115,7 @@ model Comment {
   // Likes relationship
   likes         CommentLike[]
   notifications Notification[]
+  reports       Report[]  // Reports against this comment
 }
 
 model Like {
@@ -216,4 +223,48 @@ enum NotificationType {
   MENTION      // Someone mentioned you in a post/comment
   REPLY        // Someone replied to your comment
   COMMENT_LIKE // Someone liked your comment
+}
+
+// Unified reporting system for posts, comments, and replies
+model Report {
+  id          String      @id @default(uuid())
+  reporter    User        @relation("UserReports", fields: [reporterId], references: [id], onDelete: Cascade)
+  reporterId  String
+  
+  // Reported content (one of these will be set)
+  post        Post?       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId      String?
+  comment     Comment?    @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  commentId   String?
+  
+  reason      ReportReason
+  description String?     // Additional details from reporter
+  status      ReportStatus @default(PENDING)
+  
+  // Admin handling
+  reviewedBy  User?       @relation("AdminReviews", fields: [reviewedById], references: [id])
+  reviewedById String?
+  reviewNotes String?     // Admin notes
+  reviewedAt  DateTime?
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  INAPPROPRIATE_CONTENT
+  COPYRIGHT_VIOLATION
+  MISINFORMATION
+  HATE_SPEECH
+  VIOLENCE
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
 }

@@ -1,13 +1,12 @@
 .search-main {
   padding: 2rem;
-  max-width: 800px;
-  margin: 0 auto;
-  
-  // Add margin for desktop sidebar
-  @media (min-width: 769px) {
-    margin-left: 20vw;
-    margin-right: 0;
-    max-width: calc(800px - 20vw);
+  width: calc(100% - 20vw);
+  margin-left: 20vw;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    width: 100%;
+    margin-left: 0;
   }
 }
 

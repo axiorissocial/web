@@ -49,7 +49,6 @@ router.get('/:username/profile', async (req: Request, res: Response) => {
     const { username: rawUsername } = req.params;
     const currentUserId = (req.session as any)?.userId;
     
-    // Decode the username in case it's URL encoded
     const username = decodeURIComponent(rawUsername).trim();
 
     console.log(`Fetching profile for username: "${username}" (raw: "${rawUsername}"), currentUserId: ${currentUserId}`);
@@ -153,7 +152,6 @@ router.post('/:userId/follow', requireAuth, async (req: any, res: Response) => {
       }
     });
 
-    // Create follow notification
     await createNotification(
       'FOLLOW',
       currentUserId,
@@ -167,7 +165,6 @@ router.post('/:userId/follow', requireAuth, async (req: any, res: Response) => {
   }
 });
 
-// POST unfollow endpoint (for easier frontend integration)
 router.post('/:userId/unfollow', requireAuth, async (req: any, res: Response) => {
   try {
     const { userId } = req.params;
@@ -313,7 +310,6 @@ router.get('/me/profile', requireAuth, async (req: any, res: Response) => {
   }
 });
 
-// Get user settings
 router.get('/me/settings', requireAuth, async (req: any, res: Response) => {
   try {
     const currentUserId = req.session.userId;
@@ -337,7 +333,6 @@ router.get('/me/settings', requireAuth, async (req: any, res: Response) => {
         }
       });
     } else {
-      // Return default settings if none exist
       res.json({
         settings: {
           theme: 'dark',
@@ -358,7 +353,6 @@ router.get('/me/settings', requireAuth, async (req: any, res: Response) => {
   }
 });
 
-// Update user settings
 router.put('/me/settings', requireAuth, async (req: any, res: Response) => {
   try {
     const currentUserId = req.session.userId;

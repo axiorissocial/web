@@ -18,17 +18,17 @@ import {
 import '../../css/navbar.scss';
 
 interface NavbarProps {
-  activeId?: 'home' | 'search' | 'notifications' | 'messages' | 'profile' | 'settings';
+  activeId?: string;
 }
 
-const allNavItems = [
+const allNavItems: Array<{ id: string; to: string; icon: React.ReactNode; label: string }> = [
   { id: 'home', to: '/', icon: <HouseFill />, label: 'Home' },
   { id: 'search', to: '/search', icon: <Search />, label: 'Search' },
   { id: 'notifications', to: '/notifications', icon: <BellFill />, label: 'Notifications' },
   { id: 'messages', to: '/messages', icon: <ChatSquareText />, label: 'Messages' },
   { id: 'profile', to: '/user/me', icon: <PersonCircle />, label: 'Profile' },
   { id: 'settings', to: '/settings', icon: <GearFill />, label: 'Settings' },
-] as const;
+];
 
 const Sidebar: React.FC<NavbarProps> = ({ activeId = 'home' }) => {
   const [isMobile, setIsMobile] = useState(window.innerHeight > window.innerWidth);
@@ -36,6 +36,7 @@ const Sidebar: React.FC<NavbarProps> = ({ activeId = 'home' }) => {
   const { unreadCount } = useNotifications();
   const navigate = useNavigate();
   const isAuthenticated = !!user;
+  const isAdmin = !!(user && (user as any).isAdmin);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerHeight > window.innerWidth);
@@ -89,9 +90,16 @@ const Sidebar: React.FC<NavbarProps> = ({ activeId = 'home' }) => {
   }
 
   // DESKTOP VERSION
-  const desktopItems = isAuthenticated
-    ? allNavItems
+  let desktopItems = isAuthenticated
+    ? [...allNavItems]
     : allNavItems.filter(item => ['home', 'search'].includes(item.id));
+
+  if (isAuthenticated && isAdmin) {
+    desktopItems = [
+      ...desktopItems,
+      { id: 'admin', to: '/admin', icon: <GearFill />, label: 'Admin' },
+    ];
+  }
 
   return (
     <nav className="sidebar d-flex flex-column p-2">
@@ -112,7 +120,7 @@ const Sidebar: React.FC<NavbarProps> = ({ activeId = 'home' }) => {
                 {id === 'notifications' && unreadCount > 0 && (
                   <span className="notification-dot"></span>
                 )}
-                {React.cloneElement(icon, { className: 'me-2' })}
+                {React.isValidElement(icon) ? React.cloneElement(icon as any, { className: 'me-2' }) : icon}
                 {label}
               </Nav.Link>
             </LinkContainer>
