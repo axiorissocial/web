@@ -3,6 +3,7 @@ import cors from 'cors';
 import session from 'express-session';
 import FileStore from 'session-file-store';
 import path from 'path';
+import lusca from 'lusca';
 import http from 'http';
 import { PrismaClient } from '../src/generated/prisma/index.js';
 import authRoutes from './routes/auth.js';
@@ -51,6 +52,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(sessionMiddleware);
+app.use(lusca.csrf());
 
 app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')));
 

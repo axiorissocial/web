@@ -46,7 +46,8 @@
     "sass": "^1.93.2",
     "session-file-store": "^1.5.0",
     "twemoji": "^14.0.2",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "lusca": "^1.7.0"
   },
   "devDependencies": {
     "supertest": "^6.3.3",
@@ -75,12 +76,13 @@
   },
   "overrides": {
     "vite": "npm:rolldown-vite@7.1.12"
-  }
-  ,
+  },
   "vitest": {
     "test": {
       "environment": "node",
-      "include": ["**/*.test.js"]
+      "include": [
+        "**/*.test.js"
+      ]
     }
   }
 }

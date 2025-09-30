@@ -3,6 +3,8 @@ import bcrypt from 'bcrypt';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+
+const AVATARS_DIR = path.join(process.cwd(), 'public', 'uploads', 'avatars');
 import { PrismaClient } from '../../src/generated/prisma/index.js';
 
 const router = express.Router();
@@ -224,8 +226,10 @@ router.post('/users/profile/avatar', requireAuth, upload.single('avatar'), async
     
     if (req.file) {
       const filePath = req.file.path;
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      // Validate and restrict file deletion to AVATARS_DIR only
+      const resolvedPath = path.resolve(filePath);
+      if (resolvedPath.startsWith(AVATARS_DIR) && fs.existsSync(resolvedPath)) {
+        fs.unlinkSync(resolvedPath);
       }
     }
     
