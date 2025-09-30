@@ -279,16 +279,24 @@ export class VideoProcessor {
 
   static async cleanupVideoFiles(mediaDir: string): Promise<void> {
     try {
-      const exists = await fs.pathExists(mediaDir);
+      const ROOT_MEDIA_DIR = path.resolve(process.cwd(), 'public', 'uploads', 'media');
+      const resolvedMediaDir = path.resolve(mediaDir);
+      // Ensure the directory is within the allowed media root directory
+      if (!resolvedMediaDir.startsWith(ROOT_MEDIA_DIR + path.sep)) {
+        console.error('Refusing to clean up files for mediaDir outside allowed directory:', resolvedMediaDir);
+        return;
+      }
+
+      const exists = await fs.pathExists(resolvedMediaDir);
       if (!exists) return;
 
-      const files = await fs.readdir(mediaDir);
+      const files = await fs.readdir(resolvedMediaDir);
       const removableExtensions = ['.m3u8', '.ts'];
 
       await Promise.all(
         files
           .filter(file => removableExtensions.includes(path.extname(file).toLowerCase()))
-          .map(file => fs.remove(path.join(mediaDir, file)).catch(() => undefined))
+          .map(file => fs.remove(path.join(resolvedMediaDir, file)).catch(() => undefined))
       );
     } catch (error) {
       console.error('Error cleaning up video files:', error);
