@@ -14,7 +14,7 @@ const deletePostMediaFiles = async (postId: string) => {
       console.log(`Deleted media directory for post: ${postId}`);
     }
   } catch (error) {
-    console.error(`Failed to delete media for post ${postId}:`, error);
+    console.error('Failed to delete media for post %s:', postId, error);
   }
 };
 
