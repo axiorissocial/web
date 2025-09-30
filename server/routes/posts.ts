@@ -1359,6 +1359,11 @@ router.get('/posts/:postId/media/:mediaIndex/download', requireAuth, async (req:
 
 const deletePostMediaFiles = async (postId: string): Promise<void> => {
   try {
+    // Validate postId format to prevent path traversal and filesystem attack
+    const SAFE_ID_REGEX = /^[a-zA-Z0-9_-]+$/;
+    if (!SAFE_ID_REGEX.test(postId)) {
+      throw new Error(`Invalid postId format: ${postId}`);
+    }
     const mediaDir = path.join(process.cwd(), 'public', 'uploads', 'media', postId);
     
     if (fs.existsSync(mediaDir)) {
