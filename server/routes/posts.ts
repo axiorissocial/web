@@ -2,11 +2,11 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import fsExtra, { ensureDir } from 'fs-extra';
 import { prisma } from '../index.js';
 import { requireAuth, optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { createNotification, createMentionNotifications } from './notifications.js';
 import { VideoProcessor } from '../utils/videoProcessor.js';
-import { ensureDir } from 'fs-extra';
 
 const viewCache = new Map<string, number>();
 
@@ -97,27 +97,53 @@ const router = Router();
 
 router.get('/posts', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
-    const search = req.query.search as string;
-    const userId = req.query.userId as string;
+    const rawPage = parseInt(req.query.page as string, 10);
+    const rawLimit = parseInt(req.query.limit as string, 10);
+    const searchTerm = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+    const userId = typeof req.query.userId === 'string' ? req.query.userId : undefined;
+    const includePrivateRequested = req.query.includePrivate === 'true' || req.query.includePrivate === '1';
 
+    const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 10;
     const skip = (page - 1) * limit;
 
-    const where: any = {
-      isPrivate: false,
-    };
+    let includePrivate = false;
+    if (includePrivateRequested && req.userId) {
+      const requestingUser = await prisma.user.findUnique({ where: { id: req.userId } });
+      includePrivate = Boolean(requestingUser?.isAdmin);
+    }
 
-    if (search) {
-      where.OR = [
-        { content: { contains: search } },
-        { title: { contains: search } },
-        { user: { username: { contains: search } } },
-      ];
+    const where: any = {};
+
+    if (!includePrivate) {
+      where.isPrivate = false;
     }
 
     if (userId) {
       where.userId = userId;
+    }
+
+    if (searchTerm) {
+      where.OR = [
+        { id: searchTerm },
+        { slug: { contains: searchTerm, mode: 'insensitive' } },
+        { content: { contains: searchTerm, mode: 'insensitive' } },
+        { title: { contains: searchTerm, mode: 'insensitive' } },
+        {
+          user: {
+            is: {
+              username: { contains: searchTerm, mode: 'insensitive' }
+            }
+          }
+        },
+        {
+          user: {
+            is: {
+              id: searchTerm
+            }
+          }
+        }
+      ];
     }
 
     const posts = await prisma.post.findMany({
@@ -1198,49 +1224,135 @@ router.delete('/comments/:id', requireAuth, async (req: AuthenticatedRequest, re
   }
 });
 
-router.get('/posts/admin/download/:postId/:filename', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/posts/:postId/media/:mediaIndex/download', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { postId, filename } = req.params;
-    
+    const { postId, mediaIndex } = req.params;
+    const index = Number(mediaIndex);
+
+    if (!Number.isInteger(index) || index < 0) {
+      return res.status(400).json({ error: 'Invalid media index' });
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: req.userId }
     });
-    
+
     if (!user || !user.isAdmin) {
       return res.status(403).json({ error: 'Admin access required' });
     }
-    
-    const hlsPath = path.join(process.cwd(), 'public', 'uploads', 'media', postId, filename);
-    
-    if (!fs.existsSync(hlsPath)) {
-      return res.status(404).json({ error: 'Video file not found' });
+
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { media: true }
+    });
+
+    if (!post || !Array.isArray(post.media)) {
+      return res.status(404).json({ error: 'Post media not found' });
     }
-    
-    const tempDir = path.join(process.cwd(), 'temp');
-    await ensureDir(tempDir);
-    
-    const outputFilename = `${path.parse(filename).name}.mp4`;
-    const outputPath = path.join(tempDir, outputFilename);
-    
-    try {
-      await VideoProcessor.convertHLSToMP4(hlsPath, outputPath);
-      
-      res.download(outputPath, outputFilename, (err) => {
+
+    const mediaItems = post.media as Array<any>;
+
+    if (index >= mediaItems.length) {
+      return res.status(404).json({ error: 'Media item not found' });
+    }
+
+    const mediaItem = mediaItems[index];
+    if (!mediaItem || typeof mediaItem !== 'object') {
+      return res.status(404).json({ error: 'Media item not found' });
+    }
+
+    const publicRoot = path.join(process.cwd(), 'public');
+    const resolvePublicPath = (relativePath: string | null | undefined) => {
+      if (!relativePath) return null;
+      const sanitized = relativePath.replace(/^[/\\]+/, '');
+      const fullPath = path.join(publicRoot, sanitized);
+      const relative = path.relative(publicRoot, fullPath);
+
+      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        return null;
+      }
+
+      return fullPath;
+    };
+
+    const sendFile = async (filePath: string, downloadName?: string) => {
+      const exists = await fsExtra.pathExists(filePath);
+      if (!exists) {
+        res.status(404).json({ error: 'Media file not found' });
+        return;
+      }
+
+      const resolvedName = downloadName ?? path.basename(filePath);
+
+      res.download(filePath, resolvedName, (err) => {
         if (err) {
           console.error('Download error:', err);
         }
-        fs.unlink(outputPath, (unlinkErr) => {
-          if (unlinkErr) console.error('Cleanup error:', unlinkErr);
-        });
       });
-      
-    } catch (error) {
-      console.error('MP4 conversion failed:', error);
-      res.status(500).json({ error: 'Failed to convert video for download' });
+    };
+
+    if (mediaItem.type === 'image') {
+      const originalPath = resolvePublicPath(mediaItem.url);
+      if (!originalPath) {
+        return res.status(400).json({ error: 'Invalid media path' });
+      }
+
+  const downloadName = mediaItem.originalName || path.basename(originalPath);
+  await sendFile(originalPath, downloadName);
+  return;
     }
-    
+
+    if (mediaItem.type === 'video') {
+      const tempDir = path.join(process.cwd(), 'temp');
+      await fsExtra.ensureDir(tempDir);
+
+      const baseName = mediaItem.originalName
+        ? path.parse(mediaItem.originalName).name
+        : path.parse(mediaItem.url || 'video').name || 'video';
+      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+      const downloadName = `${baseName || 'video'}-${uniqueSuffix}.mp4`;
+      const tempOutputPath = path.join(tempDir, downloadName);
+
+      try {
+        const hlsPath = resolvePublicPath(mediaItem.hlsUrl);
+        if (hlsPath) {
+          await VideoProcessor.convertHLSToMP4(hlsPath, tempOutputPath);
+        } else {
+          const originalPath = resolvePublicPath(mediaItem.url);
+          if (!originalPath) {
+            return res.status(400).json({ error: 'Invalid media path' });
+          }
+
+          if (path.extname(originalPath).toLowerCase() === '.mp4') {
+            await sendFile(originalPath, mediaItem.originalName || path.basename(originalPath));
+            return;
+          }
+
+          await VideoProcessor.transcodeToMP4(originalPath, tempOutputPath);
+        }
+
+        const finalizedName = mediaItem.originalName
+          ? `${path.parse(mediaItem.originalName).name}.mp4`
+          : `${baseName || 'video'}.mp4`;
+
+        res.download(tempOutputPath, finalizedName, (err) => {
+          if (err) {
+            console.error('Download error:', err);
+          }
+          fsExtra.remove(tempOutputPath).catch(() => undefined);
+        });
+      } catch (error) {
+        await fsExtra.remove(tempOutputPath).catch(() => undefined);
+        console.error('Video download preparation failed:', error);
+        return res.status(500).json({ error: 'Failed to prepare video download' });
+      }
+
+      return;
+    }
+
+    return res.status(400).json({ error: 'Unsupported media type' });
   } catch (error) {
-    console.error('Error in admin download:', error);
+    console.error('Error preparing media download:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

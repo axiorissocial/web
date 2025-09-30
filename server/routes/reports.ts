@@ -125,13 +125,56 @@ router.get('/reports', requireAuth, async (req: AuthenticatedRequest, res: Respo
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    const { status, page = 1, limit = 20 } = req.query;
-    const offset = (Number(page) - 1) * Number(limit);
+    const allowedPageSizes = [10, 50, 100];
+    const status = typeof req.query.status === 'string' ? req.query.status : 'all';
+    const rawPage = parseInt(req.query.page as string, 10);
+    const rawLimit = parseInt(req.query.limit as string, 10);
+    const searchTerm = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+    const reportScope = typeof req.query.reportType === 'string' ? req.query.reportType.toLowerCase() : 'all';
+    const reasonFilter = typeof req.query.reason === 'string' ? req.query.reason.toUpperCase() : undefined;
+
+    const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+    const limit = allowedPageSizes.includes(rawLimit) ? rawLimit : allowedPageSizes[0];
+    const offset = (page - 1) * limit;
 
     const where: any = {};
-    
+
     if (status && status !== 'all') {
       where.status = status;
+    }
+
+    if (reasonFilter && reasonFilter !== 'ALL') {
+      where.reason = reasonFilter;
+    }
+
+    if (reportScope === 'post') {
+      where.postId = { not: null };
+    } else if (reportScope === 'comment') {
+      where.commentId = { not: null };
+    }
+
+    if (searchTerm) {
+      const searchFilter = {
+        OR: [
+          { id: searchTerm },
+          { reason: { contains: searchTerm, mode: 'insensitive' } },
+          { description: { contains: searchTerm, mode: 'insensitive' } },
+          { reporter: { username: { contains: searchTerm, mode: 'insensitive' } } },
+          { post: { id: searchTerm } },
+          { post: { title: { contains: searchTerm, mode: 'insensitive' } } },
+          { post: { content: { contains: searchTerm, mode: 'insensitive' } } },
+          { post: { user: { username: { contains: searchTerm, mode: 'insensitive' } } } },
+          { comment: { id: searchTerm } },
+          { comment: { content: { contains: searchTerm, mode: 'insensitive' } } },
+          { comment: { user: { username: { contains: searchTerm, mode: 'insensitive' } } } }
+        ]
+      };
+
+      if (where.AND) {
+        where.AND.push(searchFilter);
+      } else {
+        where.AND = [searchFilter];
+      }
     }
 
     const [reports, total] = await Promise.all([
@@ -181,10 +224,10 @@ router.get('/reports', requireAuth, async (req: AuthenticatedRequest, res: Respo
     res.json({
       reports,
       pagination: {
-        page: Number(page),
-        limit: Number(limit),
+        page,
+        limit,
         total,
-        pages: Math.ceil(total / Number(limit))
+        pages: Math.max(1, Math.ceil(total / limit))
       }
     });
 

@@ -1,93 +1,71 @@
-:root {
-  --admin-sidebar-width: 240px;
-}
-
-.admin-panel {
-  display: flex;
-  gap: 1rem;
-}
-
-.admin-panel .admin-sidebar {
-  width: var(--admin-sidebar-width);
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  padding: 1rem;
-  border-radius: 8px;
-  height: calc(100vh - 4rem);
-  box-sizing: border-box;
-}
-
-/* Topbar used on small screens */
-.admin-topbar {
-  display: none;
-}
-
-.admin-panel .admin-content {
-  flex: 1;
+/* Admin panel styling */
+.admin-content {
   background-color: var(--card-bg);
   border: 1px solid var(--card-border);
   padding: 1rem;
   border-radius: 8px;
 }
 
-.admin-sidebar .nav-button {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  width: 100%;
-  background: transparent;
-  border: none;
-  text-align: left;
-  color: var(--text-primary);
-  border-radius: 6px;
-  cursor: pointer;
+/* Align admin main content with the fixed sidebar and prevent overflow */
+.app-container {
+  --sidebar-width: clamp(220px, 20vw, 320px);
 }
 
-.admin-sidebar .nav-button:hover {
-  background-color: var(--hover-bg);
+.main-content {
+  padding: 1rem;
+  min-height: 100vh;
+  box-sizing: border-box;
+  width: calc(100vw - var(--sidebar-width));
+  max-width: calc(100vw - var(--sidebar-width));
+  overflow-x: hidden;
 }
 
-.admin-sidebar .nav-button .user-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--bg-primary);
+@media (orientation: portrait) {
+  .main-content {
+    margin-left: 0;
+    margin-bottom: 60px; /* Account for mobile navbar */
+    width: 100vw;
+    max-width: 100vw;
+  }
+}
+
+/* Ensure tables in admin panel inherit theme colors (fix black text in dark mode) */
+.admin-content table {
   color: var(--text-primary);
+  background-color: transparent;
+}
+
+.admin-content table thead th {
+  color: var(--text-primary);
+  background-color: transparent;
+  border-color: var(--card-border);
+}
+
+.admin-content table tbody td {
+  color: var(--text-primary);
+  border-color: var(--card-border);
+}
+
+.admin-content .table-striped > tbody > tr:nth-of-type(odd) {
+  background-color: rgba(0,0,0,0.02); /* subtle stripe; will still be fine in dark mode */
 }
 
 /* Ensure text is readable in dark mode */
-body[data-theme="dark"] .admin-content,
-body[data-theme="dark"] .admin-sidebar {
+body[data-theme="dark"] .admin-content {
   color: var(--text-primary);
 }
 
+body[data-theme="dark"] .admin-content h1,
 body[data-theme="dark"] .admin-content h2,
 body[data-theme="dark"] .admin-content h4 {
   color: var(--text-primary);
 }
 
-/* Responsive: collapse sidebar on small screens and show topbar */
-@media (max-width: 767px) {
-  .admin-panel {
-    flex-direction: column;
-  }
+/* Additional table styling for better dark mode support */
+body[data-theme="dark"] .admin-content table {
+  --bs-table-bg: transparent;
+}
 
-  .admin-panel .admin-sidebar {
-    display: none;
-    width: 100%;
-    height: auto;
-  }
-
-  .admin-topbar {
-    display: block;
-  }
-
-  .admin-content {
-    width: 100%;
-    padding: 0.5rem;
-  }
+body[data-theme="dark"] .admin-content .table-striped > tbody > tr:nth-of-type(odd) > td {
+  background-color: rgba(255,255,255,0.05);
 }

@@ -369,7 +369,7 @@
   }
 }
 
-@media (max-width: 768px) {
+@media (orientation: portrait) {
   .feed-container {
     padding: 0 8px;
   }
@@ -513,7 +513,6 @@
   }
 }
 
-// Media modal and interaction styles
 .cursor-pointer {
   cursor: pointer;
   
@@ -557,7 +556,6 @@
   }
 }
 
-// Post media improvements
 .post-media {
   .media-grid {
     .media-item {
@@ -578,7 +576,6 @@
         border-radius: 8px;
         cursor: pointer;
         
-        // Ensure video thumbnails load properly
         &::-webkit-media-controls {
           display: none !important;
         }
@@ -587,7 +584,6 @@
         }
       }
       
-      // +X more overlay styling
       .bg-opacity-75 {
         backdrop-filter: blur(2px);
         transition: all 0.3s ease;

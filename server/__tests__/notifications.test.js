@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 
-// Inline simplified versions of the notification helpers to avoid TS/Vite transforms
 const createNotification = async (prisma, type, senderId, receiverId, postId, commentId, message) => {
   try {
     if (senderId === receiverId) return 'noop';

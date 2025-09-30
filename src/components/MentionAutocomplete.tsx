@@ -85,7 +85,7 @@ const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
     <div
       ref={containerRef}
       className="mention-autocomplete"
-      onMouseDown={(e) => e.preventDefault()} // Prevent blur when clicking
+      onMouseDown={(e) => e.preventDefault()}
       style={{
         position: 'absolute',
         top: position.top,

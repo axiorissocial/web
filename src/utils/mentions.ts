@@ -1,5 +1,3 @@
-// Utility functions for handling user mentions
-
 export interface MentionUser {
   id: number;
   username: string;
@@ -7,7 +5,6 @@ export interface MentionUser {
   avatar?: string;
 }
 
-// Parse content and extract mentions
 export const extractMentions = (content: string): string[] => {
   const mentionRegex = /@(\w+)/g;
   const mentions: string[] = [];
@@ -23,15 +20,10 @@ export const extractMentions = (content: string): string[] => {
   return mentions;
 };
 
-// Convert @mentions to clickable links
 export const processMentions = (content: string): string => {
-  // Keep mentions as plaintext (e.g. @username).
-  // Previously we replaced mentions with anchor tags; revert to plain text so downstream
-  // markdown rendering treats mentions as text.
   return content;
 };
 
-// Search users for mention autocomplete
 export const searchUsersForMention = async (query: string): Promise<MentionUser[]> => {
   try {
     console.log('Making API call to:', `/api/users/search?q=${encodeURIComponent(query)}&limit=10`);
@@ -43,7 +35,6 @@ export const searchUsersForMention = async (query: string): Promise<MentionUser[
       const data = await response.json();
       console.log('API response:', data);
       
-      // Transform the API response to match our MentionUser interface
       const users = (data.users || []).map((user: { id: number; username: string; profile?: { displayName?: string; avatar?: string } }) => ({
         id: user.id,
         username: user.username,
@@ -61,7 +52,6 @@ export const searchUsersForMention = async (query: string): Promise<MentionUser[
   }
 };
 
-// Get current cursor position for mention detection
 export const getCursorMentionContext = (element: HTMLTextAreaElement | HTMLInputElement): { 
   isMention: boolean; 
   query: string; 
@@ -70,14 +60,12 @@ export const getCursorMentionContext = (element: HTMLTextAreaElement | HTMLInput
   const cursorPos = element.selectionStart || 0;
   const textBeforeCursor = element.value.substring(0, cursorPos);
   
-  // Find the last @ symbol before cursor
   const lastAtIndex = textBeforeCursor.lastIndexOf('@');
   
   if (lastAtIndex === -1) {
     return { isMention: false, query: '', startPos: -1 };
   }
   
-  // Check if there's any space between @ and cursor
   const textAfterAt = textBeforeCursor.substring(lastAtIndex + 1);
   
   if (/\s/.test(textAfterAt)) {
@@ -91,7 +79,6 @@ export const getCursorMentionContext = (element: HTMLTextAreaElement | HTMLInput
   };
 };
 
-// Insert mention into text at cursor position
 export const insertMention = (
   element: HTMLTextAreaElement | HTMLInputElement,
   username: string,
@@ -104,11 +91,9 @@ export const insertMention = (
   const newValue = textBefore + `@${username} ` + textAfter;
   element.value = newValue;
   
-  // Set cursor position after the inserted mention
-  const newCursorPos = startPos + username.length + 2; // +2 for @ and space
+  const newCursorPos = startPos + username.length + 2;
   element.setSelectionRange(newCursorPos, newCursorPos);
   
-  // Dispatch input event to trigger React state updates
   const event = new Event('input', { bubbles: true });
   element.dispatchEvent(event);
 };

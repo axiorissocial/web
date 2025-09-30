@@ -1,4 +1,6 @@
-import ffmpeg from 'fluent-ffmpeg';
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
+import ffprobeInstaller from '@ffprobe-installer/ffprobe';
+import { spawn } from 'child_process';
 import fs from 'fs-extra';
 import path from 'path';
 
@@ -11,6 +13,30 @@ export interface VideoProcessingResult {
     height: number;
   };
 }
+
+type VideoQuality = {
+  name: string;
+  resolution: string;
+  videoBitrate: string;
+  audioBitrate: string;
+  bufferSize: string;
+};
+
+type FfprobeStream = {
+  codec_type?: string;
+  width?: number;
+  height?: number;
+};
+
+type FfprobeMetadata = {
+  format?: {
+    duration?: string;
+  };
+  streams?: FfprobeStream[];
+};
+
+const FFMPEG_PATH = ffmpegInstaller.path;
+const FFPROBE_PATH = ffprobeInstaller.path;
 
 export class VideoProcessor {
   private static readonly HLS_SEGMENT_DURATION = 10;
@@ -30,8 +56,7 @@ export class VideoProcessor {
     const metadata = await this.getVideoMetadata(inputPath);
 
     await this.generateThumbnail(inputPath, thumbnailPath);
-
-    await this.convertToHLS(inputPath, hlsOutputPath, metadata);
+    await this.convertToHLS(inputPath, hlsOutputPath, metadata.resolution);
 
     return {
       hlsPath: hlsOutputPath,
@@ -45,107 +70,154 @@ export class VideoProcessor {
     hlsPath: string,
     outputPath: string
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      ffmpeg(hlsPath)
-        .outputOptions([
-          '-c copy',
-          '-bsf:a aac_adtstoasc'
-        ])
-        .output(outputPath)
-        .on('end', () => resolve())
-        .on('error', (err) => reject(err))
-        .run();
-    });
+    await fs.ensureDir(path.dirname(outputPath));
+
+    await this.runCommand(FFMPEG_PATH, [
+      '-y',
+      '-i',
+      hlsPath,
+      '-c',
+      'copy',
+      '-bsf:a',
+      'aac_adtstoasc',
+      outputPath
+    ]);
+  }
+
+  static async transcodeToMP4(
+    inputPath: string,
+    outputPath: string
+  ): Promise<void> {
+    await fs.ensureDir(path.dirname(outputPath));
+
+    await this.runCommand(FFMPEG_PATH, [
+      '-y',
+      '-i',
+      inputPath,
+      '-c:v',
+      'libx264',
+      '-preset',
+      'fast',
+      '-profile:v',
+      'main',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '128k',
+      '-movflags',
+      '+faststart',
+      outputPath
+    ]);
   }
 
   private static async getVideoMetadata(inputPath: string): Promise<{
     duration: number;
     resolution: { width: number; height: number };
   }> {
-    return new Promise((resolve, reject) => {
-      ffmpeg.ffprobe(inputPath, (err, metadata) => {
-        if (err) return reject(err);
+    const output = await this.runCommandWithOutput(FFPROBE_PATH, [
+      '-v',
+      'quiet',
+      '-print_format',
+      'json',
+      '-show_format',
+      '-show_streams',
+      inputPath
+    ]);
 
-        const videoStream = metadata.streams.find(s => s.codec_type === 'video');
-        if (!videoStream) return reject(new Error('No video stream found'));
+  const metadata = JSON.parse(output) as FfprobeMetadata;
+  const videoStream = (metadata.streams || []).find((stream) => stream.codec_type === 'video');
 
-        resolve({
-          duration: metadata.format.duration || 0,
-          resolution: {
-            width: videoStream.width || 0,
-            height: videoStream.height || 0
-          }
-        });
-      });
-    });
+    if (!videoStream) {
+      throw new Error('No video stream found when probing file');
+    }
+
+    return {
+      duration: Number(metadata.format?.duration) || 0,
+      resolution: {
+        width: Number(videoStream.width) || 0,
+        height: Number(videoStream.height) || 0
+      }
+    };
   }
 
   private static async generateThumbnail(
     inputPath: string,
     outputPath: string
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      ffmpeg(inputPath)
-        .seekInput(this.THUMBNAIL_TIME)
-        .frames(1)
-        .output(outputPath)
-        .on('end', () => resolve())
-        .on('error', (err) => reject(err))
-        .run();
-    });
+    await fs.ensureDir(path.dirname(outputPath));
+
+    await this.runCommand(FFMPEG_PATH, [
+      '-y',
+      '-ss',
+      this.THUMBNAIL_TIME,
+      '-i',
+      inputPath,
+      '-frames:v',
+      '1',
+      outputPath
+    ]);
   }
 
   private static async convertToHLS(
     inputPath: string,
     outputPath: string,
-    metadata: { resolution: { width: number; height: number } }
+    resolution: { width: number; height: number }
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const { width, height } = metadata.resolution;
-      
-      const qualities = this.determineQualityLevels(width, height);
-      
-      let command = ffmpeg(inputPath);
+    const qualities = this.determineQualityLevels(resolution.width, resolution.height);
 
-      qualities.forEach((quality, index) => {
-        const segmentPath = outputPath.replace('.m3u8', `_${quality.name}_%03d.ts`);
-        const playlistPath = outputPath.replace('.m3u8', `_${quality.name}.m3u8`);
-        
-        command = command
-          .addOutput(playlistPath)
-          .outputOptions([
-            '-c:v libx264',
-            '-c:a aac',
-            `-b:v ${quality.videoBitrate}`,
-            `-maxrate ${quality.videoBitrate}`,
-            `-bufsize ${quality.bufferSize}`,
-            `-s ${quality.resolution}`,
-            `-b:a ${quality.audioBitrate}`,
-            '-f hls',
-            `-hls_time ${this.HLS_SEGMENT_DURATION}`,
-            '-hls_list_size 0',
-            `-hls_segment_filename ${segmentPath}`,
-            '-preset fast',
-            '-profile:v main'
-          ]);
-      });
+    for (const quality of qualities) {
+      const segmentPath = outputPath.replace('.m3u8', `_${quality.name}_%03d.ts`);
+      const playlistPath = outputPath.replace('.m3u8', `_${quality.name}.m3u8`);
 
-      command
-        .on('end', async () => {
-          try {
-            await this.createMasterPlaylist(outputPath, qualities);
-            resolve();
-          } catch (err) {
-            reject(err);
-          }
-        })
-        .on('error', (err) => reject(err))
-        .run();
-    });
+      await this.runCommand(FFMPEG_PATH, [
+        '-y',
+        '-i',
+        inputPath,
+        '-map',
+        '0:v:0',
+        '-map',
+        '0:a:0?',
+        '-c:v',
+        'libx264',
+        '-preset',
+        'fast',
+        '-profile:v',
+        'main',
+        '-b:v',
+        quality.videoBitrate,
+        '-maxrate',
+        quality.videoBitrate,
+        '-bufsize',
+        quality.bufferSize,
+        '-vf',
+        `scale=${quality.resolution}`,
+        '-c:a',
+        'aac',
+        '-b:a',
+        quality.audioBitrate,
+        '-ac',
+        '2',
+        '-f',
+        'hls',
+        '-hls_time',
+        this.HLS_SEGMENT_DURATION.toString(),
+        '-hls_list_size',
+        '0',
+        '-hls_playlist_type',
+        'vod',
+        '-hls_flags',
+        'independent_segments',
+        '-hls_segment_filename',
+        segmentPath,
+        playlistPath
+      ]);
+    }
+
+    await this.createMasterPlaylist(outputPath, qualities);
   }
 
-  private static determineQualityLevels(width: number, height: number) {
-    const qualities = [];
+  private static determineQualityLevels(width: number, height: number): VideoQuality[] {
+    const qualities: VideoQuality[] = [];
 
     if (height >= 1080) {
       qualities.push({
@@ -190,41 +262,87 @@ export class VideoProcessor {
 
   private static async createMasterPlaylist(
     masterPath: string,
-    qualities: any[]
+    qualities: VideoQuality[]
   ): Promise<void> {
     let masterContent = '#EXTM3U\n#EXT-X-VERSION:3\n\n';
 
-    qualities.forEach(quality => {
-      const bandwidth = parseInt(quality.videoBitrate.replace('k', '')) * 1000;
+    for (const quality of qualities) {
+      const bandwidth = parseInt(quality.videoBitrate.replace('k', ''), 10) * 1000;
       const playlistName = path.basename(masterPath).replace('.m3u8', `_${quality.name}.m3u8`);
-      
+
       masterContent += `#EXT-X-STREAM-INF:BANDWIDTH=${bandwidth},RESOLUTION=${quality.resolution}\n`;
       masterContent += `${playlistName}\n`;
-    });
+    }
 
     await fs.writeFile(masterPath, masterContent);
   }
 
-  static async cleanupVideoFiles(mediaItem: any): Promise<void> {
-    if (mediaItem.type !== 'video') return;
-
+  static async cleanupVideoFiles(mediaDir: string): Promise<void> {
     try {
-      const basePath = mediaItem.url.replace('.m3u8', '');
-      const dir = path.dirname(mediaItem.url);
-      
-      const files = await fs.readdir(dir);
-      const relatedFiles = files.filter(file => 
-        file.startsWith(path.basename(basePath)) ||
-        file.includes(path.basename(basePath))
-      );
+      const exists = await fs.pathExists(mediaDir);
+      if (!exists) return;
+
+      const files = await fs.readdir(mediaDir);
+      const removableExtensions = ['.m3u8', '.ts'];
 
       await Promise.all(
-        relatedFiles.map(file => 
-          fs.remove(path.join(dir, file)).catch(() => {})
-        )
+        files
+          .filter(file => removableExtensions.includes(path.extname(file).toLowerCase()))
+          .map(file => fs.remove(path.join(mediaDir, file)).catch(() => undefined))
       );
     } catch (error) {
       console.error('Error cleaning up video files:', error);
     }
+  }
+
+  private static runCommand(binary: string, args: string[]): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const child = spawn(binary, args, {
+        windowsHide: true
+      });
+
+      let stderr = '';
+
+      child.stderr?.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      child.on('error', (error) => reject(error));
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Command failed (${code}): ${binary} ${args.join(' ')}\n${stderr}`));
+        }
+      });
+    });
+  }
+
+  private static runCommandWithOutput(binary: string, args: string[]): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const child = spawn(binary, args, {
+        windowsHide: true
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      child.stdout?.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      child.stderr?.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      child.on('error', (error) => reject(error));
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve(stdout);
+        } else {
+          reject(new Error(`Command failed (${code}): ${binary} ${args.join(' ')}\n${stderr}`));
+        }
+      });
+    });
   }
 }

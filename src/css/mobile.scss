@@ -86,7 +86,7 @@ body {
   }
 }
 
-@media (min-width: 768px) {
+@media (orientation: landscape) {
   .err-container {
     .text-section h1.error-code {
       font-size: 2.5rem;

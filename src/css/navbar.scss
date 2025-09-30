@@ -212,9 +212,9 @@ main {
 
   main {
     margin-left: 0;
-    padding-bottom: 80px; /* Extra padding for navbar + safe area */
+    padding-bottom: 80px;
     margin-bottom: 0;
-    height: calc(100vh - 60px); /* Account for navbar height */
+    height: calc(100vh - 60px);
     overflow-y: auto;
   }
   
@@ -224,7 +224,6 @@ main {
   }
 }
 
-// Notification indicator dot
 .notification-link {
   position: relative;
   
@@ -239,8 +238,7 @@ main {
     border: 2px solid var(--bg-secondary);
     z-index: 1;
     
-    // For desktop navbar
-    @media (min-width: 769px) {
+    @media (orientation: landscape) {
       top: 12px;
       right: 12px;
       width: 10px;
@@ -249,7 +247,6 @@ main {
   }
 }
 
-// Mobile specific notification dot positioning
 .sidebar-mobile {
   .notification-link .notification-dot {
     top: 6px;

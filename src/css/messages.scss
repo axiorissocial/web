@@ -1,12 +1,13 @@
 .messages-main {
-  height: 100vh;
+  min-height: 100vh;
   padding: 0;
   overflow: hidden;
 }
 
 .messages-container {
   display: flex;
-  height: 100vh;
+  min-height: 100%;
+  height: 100%;
   gap: 0;
 }
 
@@ -52,6 +53,21 @@
     color: white !important;
     
     .text-muted {
+    
+    .presence-dot {
+      position: absolute;
+      bottom: 2px;
+      right: 2px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--background-secondary);
+      background: #95a5a6;
+      
+      &.online {
+        background: #2ecc71;
+      }
+    }
       color: rgba(255, 255, 255, 0.8) !important;
     }
     
@@ -125,6 +141,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .messages-list {
@@ -186,8 +203,7 @@
   }
 }
 
-// Mobile responsiveness
-@media (max-width: 768px) {
+@media (orientation: portrait) {
   .messages-container {
     flex-direction: column;
   }
@@ -201,7 +217,8 @@
   }
   
   .messages-area {
-    height: 60vh;
+    height: auto;
+    min-height: 0;
   }
   
   .conversation-item {
@@ -211,7 +228,6 @@
   }
 }
 
-// Dark theme adjustments
 [data-bs-theme="dark"] {
   .conversations-sidebar,
   .messages-area {
@@ -234,6 +250,10 @@
     .avatar-placeholder {
       background: var(--primary-color);
     }
+    
+    .presence-dot {
+      border-color: var(--dark-background-secondary);
+    }
   }
   
   .message.other-message .message-content {
@@ -245,4 +265,45 @@
       color: var(--dark-text-secondary);
     }
   }
+}
+
+@media (max-width: 768px) {
+  .messages-main {
+    min-height: calc(100vh - 60px);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0) + 80px);
+    overflow: visible;
+  }
+
+  .messages-container {
+    min-height: 100%;
+  }
+
+  .messages-area {
+    min-height: 0;
+  }
+
+  .messages-area .card-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    background: var(--background-secondary);
+    border-top: 1px solid var(--border-color);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0) + 0.75rem);
+  }
+
+  .messages-list {
+    padding-bottom: 5.5rem;
+  }
+}
+
+.typing-indicator {
+  align-self: flex-start;
+  color: var(--text-secondary);
+  font-style: italic;
+  padding-left: 0.5rem;
+}
+
+.typing-preview {
+  font-style: italic;
+  font-weight: 500;
 }

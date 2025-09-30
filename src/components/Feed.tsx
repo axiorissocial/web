@@ -89,10 +89,9 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
     fetchPosts(1, true);
   }, [fetchPosts]);
 
-  // Listen for post creation events from the modal
   useEffect(() => {
     const handlePostCreated = () => {
-      fetchPosts(1, true); // Refresh the feed
+      fetchPosts(1, true);
     };
     
     window.addEventListener('postCreated', handlePostCreated);

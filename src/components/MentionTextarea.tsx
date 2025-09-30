@@ -30,11 +30,9 @@ const MentionTextarea: React.FC<MentionTextareaProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const calculateAutocompletePosition = useCallback((textarea: HTMLTextAreaElement, cursorPos: number) => {
-    // Create a temporary div to measure text
     const div = document.createElement('div');
     const style = window.getComputedStyle(textarea);
     
-    // Copy textarea styles to div
     div.style.position = 'absolute';
     div.style.visibility = 'hidden';
     div.style.whiteSpace = 'pre-wrap';
@@ -46,7 +44,6 @@ const MentionTextarea: React.FC<MentionTextareaProps> = ({
     div.style.border = style.border;
     div.style.width = `${textarea.offsetWidth}px`;
     
-    // Get text up to cursor position
     const textBeforeCursor = textarea.value.substring(0, cursorPos);
     div.textContent = textBeforeCursor;
     
@@ -56,9 +53,8 @@ const MentionTextarea: React.FC<MentionTextareaProps> = ({
     
     document.body.removeChild(div);
     
-    // Calculate position relative to textarea
-    const top = textRect.height + 25; // Add some offset below the current line
-    const left = 0; // Align to left of textarea for simplicity
+    const top = textRect.height + 25;
+    const left = 0;
     
     return { top, left };
   }, []);
@@ -67,7 +63,6 @@ const MentionTextarea: React.FC<MentionTextareaProps> = ({
     const newValue = e.target.value;
     onChange(newValue);
 
-    // Check for mention context
     const mentionContext = getCursorMentionContext(e.target);
     
     if (mentionContext.isMention && mentionContext.query.length >= 0) {
@@ -75,7 +70,6 @@ const MentionTextarea: React.FC<MentionTextareaProps> = ({
       setMentionStartPos(mentionContext.startPos);
       setShowAutocomplete(true);
       
-      // Calculate autocomplete position
       const position = calculateAutocompletePosition(e.target, e.target.selectionStart || 0);
       setAutocompletePosition(position);
     } else {
@@ -101,7 +95,6 @@ const MentionTextarea: React.FC<MentionTextareaProps> = ({
       setMentionQuery('');
       setMentionStartPos(-1);
       
-      // Focus back to textarea and set cursor position
       setTimeout(() => {
         textarea.focus();
         const newCursorPos = mentionStartPos + user.username.length + 2;
@@ -111,7 +104,6 @@ const MentionTextarea: React.FC<MentionTextareaProps> = ({
   }, [mentionStartPos, value, onChange]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Let MentionAutocomplete handle navigation keys when visible
     if (showAutocomplete && ['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(e.key)) {
       e.preventDefault();
       return;
@@ -119,7 +111,6 @@ const MentionTextarea: React.FC<MentionTextareaProps> = ({
   };
 
   const handleBlur = () => {
-    // Delay hiding to allow click on autocomplete
     setTimeout(() => {
       setShowAutocomplete(false);
     }, 300);

@@ -36,7 +36,7 @@ interface CreatePostModalProps {
   show: boolean;
   onHide: () => void;
   onPostCreated?: () => void;
-  mode?: 'modal' | 'page'; // New prop to control rendering mode
+  mode?: 'modal' | 'page';
 }
 
 const CreatePostModal: React.FC<CreatePostModalProps> = ({ 
@@ -74,7 +74,6 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    // Validate file types and sizes
     const validFiles = files.filter(file => {
       if (file.size > 50 * 1024 * 1024) {
         setError(`File ${file.name} is too large (max 50MB)`);
@@ -94,7 +93,6 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
     if (validFiles.length === 0) return;
 
-    // Check total files limit
     if (uploadedMedia.length + validFiles.length > 5) {
       setError('Maximum 5 media files allowed per post');
       return;
@@ -103,7 +101,6 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
     setUploading(true);
     setError('');
 
-    // Initialize progress tracking
     const initialProgress = validFiles.map(file => ({
       fileName: file.name,
       progress: 0,
@@ -115,19 +112,17 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
       const formData = new FormData();
       validFiles.forEach(file => formData.append('media', file));
       
-      // Add temporary post ID for organization (will be replaced with actual post ID later)
       const tempPostId = `temp-${Date.now()}`;
       formData.append('postId', tempPostId);
 
       const xhr = new XMLHttpRequest();
       
-      // Track upload progress
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
           const progress = Math.round((event.loaded / event.total) * 100);
           setUploadProgress(prev => prev.map(item => ({
             ...item,
-            progress: Math.min(progress, 90), // Reserve 10% for processing
+            progress: Math.min(progress, 90),
             status: progress < 100 ? 'uploading' : 'processing'
           })));
         }
@@ -155,7 +150,6 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
       const data = await uploadPromise;
       
-      // Update progress to complete
       setUploadProgress(prev => prev.map(item => ({
         ...item,
         progress: 100,
@@ -164,7 +158,6 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
       
       setUploadedMedia(prev => [...prev, ...data.media]);
       
-      // Clear progress after a short delay
       setTimeout(() => setUploadProgress([]), 2000);
 
     } catch (error) {
@@ -270,7 +263,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
     setUploadedMedia([]);
     
     if (mode === 'page' && isMobile) {
-      navigate(-1); // Go back on mobile page mode
+      navigate(-1);
     } else {
       onHide();
     }
@@ -278,7 +271,6 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
   const toolbarDisabled = activeTab === 'preview';
 
-  // Main content component that can be reused
   const PostCreatorContent = () => (
     <>
       {error && <Alert variant="danger">{error}</Alert>}
@@ -424,7 +416,6 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
     </>
   );
 
-  // If mobile, render as full page
   if (isMobile && show) {
     return (
       <div className="create-post-page position-fixed w-100 h-100" style={{ top: 0, left: 0, zIndex: 1050, backgroundColor: 'var(--bg-primary)' }}>
@@ -486,14 +477,12 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
     );
   }
 
-  // Desktop modal mode
   return (
     <Modal show={show} onHide={handleHide} centered size="lg" className="create-post-modal">
       <Modal.Header closeButton>
         <Modal.Title>Create Post</Modal.Title>
       </Modal.Header>
       <Modal.Body>
-        {/* Upload Progress Indicators - prominent for desktop modal */}
         {uploadProgress.length > 0 && (
           <div className="mb-3">
             <h6>Uploading Files:</h6>

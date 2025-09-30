@@ -12,7 +12,8 @@ router.get('/unread-count', requireAuth, async (req: AuthenticatedRequest, res) 
     const count = await prisma.notification.count({
       where: {
         receiverId: userId,
-        isRead: false
+        isRead: false,
+        isArchived: false
       }
     });
 
@@ -29,9 +30,13 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = (page - 1) * limit;
+    const view = (req.query.view as string) === 'archived' ? 'archived' : 'active';
 
     const notifications = await prisma.notification.findMany({
-      where: { receiverId: userId },
+      where: {
+        receiverId: userId,
+        isArchived: view === 'archived'
+      },
       include: {
         sender: {
           select: {
@@ -57,9 +62,14 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
             id: true,
             content: true
           }
+        },
+        conversation: {
+          select: {
+            id: true
+          }
         }
       },
-      orderBy: { createdAt: 'desc' },
+        orderBy: view === 'archived' ? { archivedAt: 'desc' } : { createdAt: 'desc' },
       skip: offset,
       take: limit
     });
@@ -67,7 +77,8 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
     const unreadCount = await prisma.notification.count({
       where: { 
         receiverId: userId,
-        isRead: false
+        isRead: false,
+        isArchived: false
       }
     });
 
@@ -121,7 +132,8 @@ router.put('/read-all', requireAuth, async (req: AuthenticatedRequest, res) => {
     await prisma.notification.updateMany({
       where: {
         receiverId: userId,
-        isRead: false
+        isRead: false,
+        isArchived: false
       },
       data: { isRead: true }
     });
@@ -130,6 +142,91 @@ router.put('/read-all', requireAuth, async (req: AuthenticatedRequest, res) => {
   } catch (error) {
     console.error('Error marking all notifications as read:', error);
     res.status(500).json({ error: 'Failed to mark all notifications as read' });
+  }
+});
+
+router.put('/mark-all-read', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+
+    await prisma.notification.updateMany({
+      where: {
+        receiverId: userId,
+        isRead: false,
+        isArchived: false
+      },
+      data: { isRead: true }
+    });
+
+    res.json({ success: true, message: 'All notifications marked as read' });
+  } catch (error) {
+    console.error('Error marking all notifications as read:', error);
+    res.status(500).json({ error: 'Failed to mark all notifications as read' });
+  }
+});
+
+router.put('/:id/archive', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const notificationId = req.params.id;
+
+    const notification = await prisma.notification.findFirst({
+      where: {
+        id: notificationId,
+        receiverId: userId,
+        isArchived: false
+      }
+    });
+
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    const updated = await prisma.notification.update({
+      where: { id: notificationId },
+      data: {
+        isArchived: true,
+        archivedAt: new Date(),
+        isRead: true
+      }
+    });
+
+    res.json({ success: true, notification: updated });
+  } catch (error) {
+    console.error('Error archiving notification:', error);
+    res.status(500).json({ error: 'Failed to archive notification' });
+  }
+});
+
+router.put('/:id/unarchive', requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const notificationId = req.params.id;
+
+    const notification = await prisma.notification.findFirst({
+      where: {
+        id: notificationId,
+        receiverId: userId,
+        isArchived: true
+      }
+    });
+
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    const updated = await prisma.notification.update({
+      where: { id: notificationId },
+      data: {
+        isArchived: false,
+        archivedAt: null
+      }
+    });
+
+    res.json({ success: true, notification: updated });
+  } catch (error) {
+    console.error('Error unarchiving notification:', error);
+    res.status(500).json({ error: 'Failed to unarchive notification' });
   }
 });
 
@@ -166,7 +263,8 @@ export const createNotification = async (
   receiverId: string,
   postId?: string,
   commentId?: string,
-  message?: string
+  message?: string,
+  conversationId?: string
 ) => {
   try {
     if (senderId === receiverId) return;
@@ -193,7 +291,8 @@ export const createNotification = async (
         receiverId,
         postId,
         commentId,
-        message
+        message,
+        conversationId
       }
     });
   } catch (error) {

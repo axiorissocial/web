@@ -8,7 +8,6 @@ import twemoji from 'twemoji';
 import { processMentions } from '../utils/mentions';
 import MentionTextarea from './MentionTextarea';
 import EmojiPicker from './EmojiPicker';
-// EMOJIS not used here after emoji rendering moved to formatContent
 import '../css/comment.scss';
 
 interface CommentUser {

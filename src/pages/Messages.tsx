@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Card, ListGroup, Button, Form, InputGroup, Spinner, Badge } from 'react-bootstrap';
 import { Send } from 'react-bootstrap-icons';
 import Sidebar from '../components/singles/Navbar';
 import { useAuth } from '../contexts/AuthContext';
 import '../css/messages.scss';
+import { useLocation } from 'react-router-dom';
 
 interface User {
   id: string;
@@ -16,6 +17,7 @@ interface User {
 
 interface Message {
   id: string;
+  conversationId: string;
   content: string;
   createdAt: string;
   sender: User;
@@ -32,8 +34,18 @@ interface Conversation {
   updatedAt: string;
 }
 
+interface RealtimeMessagePayload {
+  event?: 'message:new' | 'message:sent' | 'message:typing';
+  conversationId: string;
+  message?: Message;
+  unreadMessages?: number;
+  userId?: string;
+  isTyping?: boolean;
+}
+
 const Messages: React.FC = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -41,21 +53,28 @@ const Messages: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [pendingConversationId, setPendingConversationId] = useState<string | null>(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('conversation');
+  });
+  const [typingUsers, setTypingUsers] = useState<Record<string, string[]>>({});
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(() => new Set<string>());
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const conversationsRef = useRef<Conversation[]>([]);
+  const activeConversationRef = useRef<string | null>(null);
+  const typingStateRef = useRef(false);
+  const typingStopTimeoutRef = useRef<number | null>(null);
+  const typingTimeoutsRef = useRef<Map<string, Map<string, number>>>(new Map());
 
-  useEffect(() => {
-    document.title = 'Messages - Axioris';
-    if (user) {
-      fetchConversations();
+  const fetchConversations = useCallback(async (showSpinner = false) => {
+    if (!user) {
+      return;
     }
-  }, [user]);
 
-  useEffect(() => {
-    if (activeConversation) {
-      fetchMessages(activeConversation);
+    if (showSpinner) {
+      setLoading(true);
     }
-  }, [activeConversation]);
 
-  const fetchConversations = async () => {
     try {
       const response = await fetch('/api/conversations', {
         credentials: 'include'
@@ -68,11 +87,32 @@ const Messages: React.FC = () => {
     } catch (error) {
       console.error('Error fetching conversations:', error);
     } finally {
-      setLoading(false);
+      if (showSpinner) {
+        setLoading(false);
+      }
     }
-  };
+  }, [user]);
 
-  const fetchMessages = async (conversationId: string) => {
+  const markAsRead = useCallback(async (conversationId: string) => {
+    try {
+      await fetch(`/api/conversations/${conversationId}/read`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      setConversations(prev =>
+        prev.map(conv =>
+          conv.id === conversationId
+            ? { ...conv, unreadCount: 0 }
+            : conv
+        )
+      );
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
+    }
+  }, []);
+
+  const fetchMessages = useCallback(async (conversationId: string) => {
     setMessagesLoading(true);
     try {
       const response = await fetch(`/api/conversations/${conversationId}/messages`, {
@@ -81,44 +121,373 @@ const Messages: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setMessages(data.messages);
-        // Mark messages as read
-        markAsRead(conversationId);
+        const orderedMessages: Message[] = [...data.messages].sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+        setMessages(orderedMessages);
+        await markAsRead(conversationId);
       }
     } catch (error) {
       console.error('Error fetching messages:', error);
     } finally {
       setMessagesLoading(false);
     }
-  };
+  }, [markAsRead]);
 
-  const markAsRead = async (conversationId: string) => {
-    try {
-      await fetch(`/api/conversations/${conversationId}/read`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-      
-      // Update unread count in conversations list
-      setConversations(prev => 
-        prev.map(conv => 
-          conv.id === conversationId 
-            ? { ...conv, unreadCount: 0 }
-            : conv
-        )
-      );
-    } catch (error) {
-      console.error('Error marking messages as read:', error);
+  useEffect(() => {
+    document.title = 'Messages - Axioris';
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      fetchConversations(true);
+    } else {
+      setConversations([]);
+      setMessages([]);
+      setActiveConversation(null);
+      setOnlineUsers(new Set());
+      setLoading(false);
     }
+  }, [user, fetchConversations]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    setPendingConversationId(params.get('conversation'));
+  }, [location.search]);
+
+  useEffect(() => {
+    if (activeConversation) {
+      fetchMessages(activeConversation);
+    }
+  }, [activeConversation, fetchMessages]);
+
+  useEffect(() => {
+    if (pendingConversationId) {
+      const exists = conversations.some(conversation => conversation.id === pendingConversationId);
+      if (exists) {
+        if (activeConversation !== pendingConversationId) {
+          setActiveConversation(pendingConversationId);
+        }
+        setPendingConversationId(null);
+      }
+    } else if (!activeConversation && conversations.length > 0) {
+      setActiveConversation(conversations[0].id);
+    }
+  }, [pendingConversationId, conversations, activeConversation]);
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+
+
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [messages, activeConversation]);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const customEvent = event as CustomEvent<RealtimeMessagePayload>;
+      const detail = customEvent.detail;
+
+      if (!detail || !detail.conversationId) {
+        return;
+      }
+
+      const { conversationId, message, unreadMessages, event: eventName } = detail;
+
+      if (eventName === 'message:typing') {
+        const { userId, isTyping } = detail;
+        if (!userId || userId === user?.id) {
+          return;
+        }
+
+        setTypingUsers(prev => {
+          const existing = new Set(prev[conversationId] || []);
+          if (isTyping) {
+            existing.add(userId);
+          } else {
+            existing.delete(userId);
+          }
+
+          if (existing.size === 0) {
+            const next = { ...prev };
+            delete next[conversationId];
+            return next;
+          }
+
+          return {
+            ...prev,
+            [conversationId]: Array.from(existing)
+          };
+        });
+
+        const conversationTimeouts = typingTimeoutsRef.current.get(conversationId) || new Map();
+        if (conversationTimeouts.has(userId)) {
+          window.clearTimeout(conversationTimeouts.get(userId)!);
+        }
+
+        if (isTyping) {
+          const timeoutId = window.setTimeout(() => {
+            setTypingUsers(prev => {
+              const current = prev[conversationId];
+              if (!current) return prev;
+
+              const nextSet = new Set(current);
+              nextSet.delete(userId);
+
+              if (nextSet.size === 0) {
+                const next = { ...prev };
+                delete next[conversationId];
+                return next;
+              }
+
+              return {
+                ...prev,
+                [conversationId]: Array.from(nextSet)
+              };
+            });
+
+            const convTimeouts = typingTimeoutsRef.current.get(conversationId);
+            if (convTimeouts) {
+              convTimeouts.delete(userId);
+              if (convTimeouts.size === 0) {
+                typingTimeoutsRef.current.delete(conversationId);
+              }
+            }
+          }, 5000);
+
+          conversationTimeouts.set(userId, timeoutId);
+        } else {
+          conversationTimeouts.delete(userId);
+        }
+
+        if (conversationTimeouts.size > 0) {
+          typingTimeoutsRef.current.set(conversationId, conversationTimeouts);
+        } else {
+          typingTimeoutsRef.current.delete(conversationId);
+        }
+
+        return;
+      }
+
+      if (!message) {
+        return;
+      }
+      const isActive = activeConversationRef.current === conversationId;
+      const existingConversation = conversationsRef.current.find(conv => conv.id === conversationId);
+      const isSenderEvent = eventName === 'message:sent';
+
+      if (message.sender.id !== user?.id) {
+        setTypingUsers(prev => {
+          const current = prev[conversationId];
+          if (!current || current.length === 0) {
+            return prev;
+          }
+
+          if (!current.includes(message.sender.id)) {
+            return prev;
+          }
+
+          const nextSet = new Set(current);
+          nextSet.delete(message.sender.id);
+
+          if (nextSet.size === 0) {
+            const next = { ...prev };
+            delete next[conversationId];
+            return next;
+          }
+
+          return {
+            ...prev,
+            [conversationId]: Array.from(nextSet)
+          };
+        });
+
+        const conversationTimeouts = typingTimeoutsRef.current.get(conversationId);
+        if (conversationTimeouts?.has(message.sender.id)) {
+          window.clearTimeout(conversationTimeouts.get(message.sender.id)!);
+          conversationTimeouts.delete(message.sender.id);
+          if (conversationTimeouts.size === 0) {
+            typingTimeoutsRef.current.delete(conversationId);
+          }
+        }
+      }
+
+      if (existingConversation) {
+        const computedUnread = isActive || isSenderEvent
+          ? 0
+          : typeof unreadMessages === 'number'
+            ? unreadMessages
+            : existingConversation.unreadCount + 1;
+
+        setConversations(prev => {
+          const current = prev.find(conv => conv.id === conversationId);
+          if (!current) {
+            return prev;
+          }
+
+          const updated: Conversation = {
+            ...current,
+            lastMessage: message,
+            updatedAt: message.createdAt,
+            unreadCount: computedUnread
+          };
+
+          const others = prev.filter(conv => conv.id !== conversationId);
+          return [updated, ...others];
+        });
+      } else {
+        void fetchConversations();
+      }
+
+      if (isActive) {
+        setMessages(prev => {
+          if (prev.some(m => m.id === message.id)) {
+            return prev;
+          }
+
+          const next = [...prev, message].sort(
+            (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
+          return next;
+        });
+
+        if (!isSenderEvent) {
+          void markAsRead(conversationId);
+        }
+      }
+    };
+
+    window.addEventListener('ws-message', handler as EventListener);
+
+    return () => {
+      window.removeEventListener('ws-message', handler as EventListener);
+    };
+  }, [fetchConversations, markAsRead]);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const customEvent = event as CustomEvent<{ event?: string; userIds?: string[]; userId?: string; status?: string }>;
+      const detail = customEvent.detail;
+      if (!detail) {
+        return;
+      }
+
+      if (detail.event === 'presence:state') {
+        const ids = detail.userIds || [];
+        setOnlineUsers(new Set(ids));
+        return;
+      }
+
+      if (detail.event === 'presence:update' && detail.userId) {
+        setOnlineUsers(prev => {
+          const next = new Set(prev);
+          if (detail.status === 'online') {
+            next.add(detail.userId!);
+          } else {
+            next.delete(detail.userId!);
+          }
+          return next;
+        });
+      }
+    };
+
+    window.addEventListener('ws-presence', handler as EventListener);
+
+    return () => {
+      window.removeEventListener('ws-presence', handler as EventListener);
+    };
+  }, []);
+
+useEffect(() => {
+  return () => {
+    if (typingStopTimeoutRef.current !== null) {
+      window.clearTimeout(typingStopTimeoutRef.current);
+      typingStopTimeoutRef.current = null;
+    }
+
+    typingTimeoutsRef.current.forEach((conversationTimeouts) => {
+      conversationTimeouts.forEach((timeoutId) => {
+        window.clearTimeout(timeoutId);
+      });
+    });
+    typingTimeoutsRef.current.clear();
   };
+}, []);
+
+  const sendTypingStatus = useCallback(async (typing: boolean, conversationId?: string) => {
+    const targetConversationId = conversationId ?? activeConversationRef.current;
+    if (!targetConversationId) {
+      return;
+    }
+
+    try {
+      await fetch(`/api/conversations/${targetConversationId}/typing`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ isTyping: typing })
+      });
+    } catch (error) {
+      console.error('Error updating typing status:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    const previousConversation = activeConversationRef.current;
+    if (previousConversation && previousConversation !== activeConversation && typingStateRef.current) {
+      typingStateRef.current = false;
+      void sendTypingStatus(false, previousConversation);
+    }
+
+    activeConversationRef.current = activeConversation;
+
+    if (typingStopTimeoutRef.current !== null) {
+      window.clearTimeout(typingStopTimeoutRef.current);
+      typingStopTimeoutRef.current = null;
+    }
+  }, [activeConversation, sendTypingStatus]);
+
+  const scheduleTypingStop = useCallback(() => {
+    if (typingStopTimeoutRef.current !== null) {
+      window.clearTimeout(typingStopTimeoutRef.current);
+    }
+
+    typingStopTimeoutRef.current = window.setTimeout(() => {
+      typingStopTimeoutRef.current = null;
+      if (typingStateRef.current) {
+        typingStateRef.current = false;
+        void sendTypingStatus(false);
+      }
+    }, 3000);
+  }, [sendTypingStatus]);
+
+  const handleTypingActivity = useCallback(() => {
+    if (!activeConversationRef.current) {
+      return;
+    }
+
+    if (!typingStateRef.current) {
+      typingStateRef.current = true;
+      void sendTypingStatus(true);
+    }
+
+    scheduleTypingStop();
+  }, [scheduleTypingStop, sendTypingStatus]);
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !activeConversation || sending) return;
 
+    const conversationId = activeConversation;
     setSending(true);
     try {
-      const response = await fetch(`/api/conversations/${activeConversation}/messages`, {
+      const response = await fetch(`/api/conversations/${conversationId}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -130,18 +499,44 @@ const Messages: React.FC = () => {
       });
 
       if (response.ok) {
-        const message = await response.json();
-        setMessages(prev => [...prev, message]);
+        const message: Message = await response.json();
+        setMessages(prev => {
+          if (prev.some(m => m.id === message.id)) {
+            return prev;
+          }
+
+          const next = [...prev, message].sort(
+            (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
+          return next;
+        });
         setNewMessage('');
-        
-        // Update conversation's last message
-        setConversations(prev =>
-          prev.map(conv =>
-            conv.id === activeConversation
-              ? { ...conv, lastMessage: message, updatedAt: message.createdAt }
-              : conv
-          )
-        );
+
+        if (typingStateRef.current) {
+          typingStateRef.current = false;
+          void sendTypingStatus(false);
+          if (typingStopTimeoutRef.current !== null) {
+            window.clearTimeout(typingStopTimeoutRef.current);
+            typingStopTimeoutRef.current = null;
+          }
+        }
+
+        setConversations(prev => {
+          const current = prev.find(conv => conv.id === conversationId);
+          if (!current) {
+            return prev;
+          }
+
+          const updated: Conversation = {
+            ...current,
+            lastMessage: message,
+            updatedAt: message.createdAt,
+            unreadCount: 0
+          };
+
+          const others = prev.filter(conv => conv.id !== conversationId);
+          return [updated, ...others];
+        });
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -172,6 +567,19 @@ const Messages: React.FC = () => {
   const getOtherParticipantAvatar = (conversation: Conversation) => {
     return conversation.otherParticipants[0]?.user?.profile?.avatar;
   };
+
+  const getOtherParticipantId = (conversation: Conversation) => {
+    return conversation.otherParticipants[0]?.user?.id;
+  };
+
+  const activeConversationData = activeConversation
+    ? conversations.find(c => c.id === activeConversation) || null
+    : null;
+  const activeParticipantId = activeConversationData ? getOtherParticipantId(activeConversationData) : undefined;
+  const isActiveParticipantOnline = activeParticipantId ? onlineUsers.has(activeParticipantId) : false;
+  const activeParticipantName = activeConversationData
+    ? getOtherParticipantName(activeConversationData)
+    : '';
 
   if (!user) {
     return (
@@ -218,52 +626,71 @@ const Messages: React.FC = () => {
                 </div>
               ) : (
                 <ListGroup variant="flush">
-                  {conversations.map((conversation) => (
-                    <ListGroup.Item
-                      key={conversation.id}
-                      action
-                      active={activeConversation === conversation.id}
-                      onClick={() => setActiveConversation(conversation.id)}
-                      className="conversation-item"
-                    >
-                      <div className="d-flex align-items-center">
-                        <div className="conversation-avatar me-3">
-                          {getOtherParticipantAvatar(conversation) ? (
-                            <img
-                              src={getOtherParticipantAvatar(conversation)}
-                              alt="Avatar"
-                              className="avatar-img"
-                            />
-                          ) : (
-                            <div className="avatar-placeholder">
-                              {getOtherParticipantName(conversation).charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-grow-1">
-                          <div className="d-flex justify-content-between align-items-start">
-                            <h6 className="mb-1">{getOtherParticipantName(conversation)}</h6>
-                            <div className="d-flex align-items-center">
-                              {conversation.unreadCount > 0 && (
-                                <Badge bg="primary" pill className="me-2">
-                                  {conversation.unreadCount}
-                                </Badge>
-                              )}
-                              <small className="text-muted">
-                                {formatTime(conversation.updatedAt)}
-                              </small>
-                            </div>
+                  {conversations.map((conversation) => {
+                    const otherParticipantId = getOtherParticipantId(conversation);
+                    const isOnline = otherParticipantId ? onlineUsers.has(otherParticipantId) : false;
+                    const isTyping = (typingUsers[conversation.id]?.length ?? 0) > 0;
+
+                    return (
+                      <ListGroup.Item
+                        key={conversation.id}
+                        action
+                        active={activeConversation === conversation.id}
+                        onClick={() => setActiveConversation(conversation.id)}
+                        className="conversation-item"
+                      >
+                        <div className="d-flex align-items-center">
+                          <div className="conversation-avatar me-3">
+                            {getOtherParticipantAvatar(conversation) ? (
+                              <img
+                                src={getOtherParticipantAvatar(conversation)}
+                                alt="Avatar"
+                                className="avatar-img"
+                              />
+                            ) : (
+                              <div className="avatar-placeholder">
+                                {getOtherParticipantName(conversation).charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            {otherParticipantId && (
+                              <span
+                                className={`presence-dot ${isOnline ? 'online' : 'offline'}`}
+                                title={isOnline ? 'Online' : 'Offline'}
+                                aria-hidden="true"
+                              />
+                            )}
                           </div>
-                          {conversation.lastMessage && (
-                            <p className="mb-0 text-muted last-message">
-                              {conversation.lastMessage.sender.id === user.id ? 'You: ' : ''}
-                              {conversation.lastMessage.content}
-                            </p>
-                          )}
+                          <div className="flex-grow-1">
+                            <div className="d-flex justify-content-between align-items-start">
+                              <div className="d-flex align-items-center gap-2">
+                                <h6 className="mb-1">{getOtherParticipantName(conversation)}</h6>
+                              </div>
+                              <div className="d-flex align-items-center">
+                                {conversation.unreadCount > 0 && (
+                                  <Badge bg="primary" pill className="me-2">
+                                    {conversation.unreadCount}
+                                  </Badge>
+                                )}
+                                <small className="text-muted">
+                                  {formatTime(conversation.updatedAt)}
+                                </small>
+                              </div>
+                            </div>
+                            {isTyping ? (
+                              <p className="mb-0 text-primary typing-preview">Typing…</p>
+                            ) : (
+                              conversation.lastMessage && (
+                                <p className="mb-0 text-muted last-message">
+                                  {conversation.lastMessage.sender.id === user.id ? 'You: ' : ''}
+                                  {conversation.lastMessage.content}
+                                </p>
+                              )
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </ListGroup.Item>
-                  ))}
+                      </ListGroup.Item>
+                    );
+                  })}
                 </ListGroup>
               )}
             </Card.Body>
@@ -274,11 +701,18 @@ const Messages: React.FC = () => {
             {activeConversation ? (
               <>
                 <Card.Header>
-                  <h6 className="mb-0">
-                    {getOtherParticipantName(
-                      conversations.find(c => c.id === activeConversation)!
-                    )}
-                  </h6>
+                  {activeConversationData ? (
+                    <div className="d-flex flex-column">
+                      <h6 className="mb-0">{activeParticipantName}</h6>
+                      <small
+                        className={`presence-status ${isActiveParticipantOnline ? 'online' : 'offline'}`}
+                      >
+                        {isActiveParticipantOnline ? 'Online' : 'Offline'}
+                      </small>
+                    </div>
+                  ) : (
+                    <h6 className="mb-0">Conversation</h6>
+                  )}
                 </Card.Header>
                 <Card.Body className="messages-body">
                   {messagesLoading ? (
@@ -303,6 +737,12 @@ const Messages: React.FC = () => {
                           </div>
                         </div>
                       ))}
+                      <div ref={messagesEndRef} />
+                      {activeConversation && (typingUsers[activeConversation]?.length ?? 0) > 0 && (
+                        <div className="typing-indicator">
+                          <small className="text-muted">Typing…</small>
+                        </div>
+                      )}
                     </div>
                   )}
                 </Card.Body>
@@ -313,7 +753,20 @@ const Messages: React.FC = () => {
                         type="text"
                         placeholder="Type a message..."
                         value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
+                        onChange={(e) => {
+                          setNewMessage(e.target.value);
+                          handleTypingActivity();
+                        }}
+                        onBlur={() => {
+                          if (typingStateRef.current) {
+                            typingStateRef.current = false;
+                            void sendTypingStatus(false);
+                          }
+                          if (typingStopTimeoutRef.current !== null) {
+                            window.clearTimeout(typingStopTimeoutRef.current);
+                            typingStopTimeoutRef.current = null;
+                          }
+                        }}
                         disabled={sending}
                         maxLength={1000}
                       />

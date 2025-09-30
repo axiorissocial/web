@@ -81,7 +81,6 @@ router.post('/register', async (req: Request, res: Response) => {
       username: user.username,
       email: user.email,
     };
-    // include isAdmin in session user for convenience
     (req.session.user as any).isAdmin = user.isAdmin ?? false;
 
     res.status(201).json({
@@ -144,7 +143,6 @@ router.post('/login', async (req: Request, res: Response) => {
       username: user.username,
       email: user.email,
     };
-    // include isAdmin in session user for convenience
     (req.session.user as any).isAdmin = user.isAdmin ?? false;
 
     if (remember) {
@@ -210,7 +208,6 @@ router.get('/me', async (req: Request, res: Response) => {
       return res.status(401).json({ message: 'User not found' });
     }
 
-    // ensure session user has isAdmin flag
     if (req.session.user) {
       (req.session.user as any).isAdmin = user.isAdmin;
     }

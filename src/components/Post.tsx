@@ -115,7 +115,6 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
   };
 
   const handlePostUpdated = () => {
-    // Refresh the post data or trigger a re-fetch
     window.location.reload();
   };
   
@@ -136,15 +135,12 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
         throw new Error('Failed to delete post');
       }
       
-      // If we have an onDelete callback, use it instead of navigating
       if (onDelete) {
         onDelete(post.id);
       } else {
-        // If we're on a post detail page (showFullContent), go back
         if (showFullContent) {
-          navigate(-1); // Go back to previous page
+          navigate(-1);
         } else {
-          // If we're in a feed, just refresh the current page
           window.location.reload();
         }
       }
@@ -188,7 +184,6 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
     return (
       <div className="post-media mt-2 mb-2">
         {post.media.length === 1 ? (
-          // Single media item - full width
           <div className="single-media">
             {post.media[0].type === 'image' ? (
               <img
@@ -237,14 +232,12 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
             )}
           </div>
         ) : (
-          // Multiple media items - show max 2 items in grid
           <div className="media-grid" style={{ 
             display: 'grid', 
             gridTemplateColumns: '1fr 1fr',
             gap: '8px',
             maxHeight: '300px'
           }}>
-            {/* First media item */}
             <div 
               className="media-item position-relative cursor-pointer"
               style={{
@@ -292,7 +285,6 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
               )}
             </div>
 
-            {/* Second media item (or +X more overlay) */}
             <div 
               className="media-item position-relative cursor-pointer"
               style={{
@@ -301,8 +293,6 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
               }}
               onClick={(e) => {
                 e.stopPropagation();
-                // If there are more than 2 items, open modal at index 1
-                // Otherwise, open the second item
                 openMediaModal(1);
               }}
             >
@@ -397,10 +387,8 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
     ];
     const allowedAttrs = ['href', 'title', 'target', 'rel', 'src', 'alt', 'class', 'data-username'];
 
-    // Process mentions first on raw content
     const mentionsProcessed = processMentions(processedContent);
     
-    // Then process markdown (but don't escape < and > for mentions)
     const mdHtml = marked.parse(mentionsProcessed, markedOptions) as string;
     
     const twemojiHtml = twemoji.parse(mdHtml, {
@@ -455,7 +443,6 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
               <Calendar size={14} />
               {formatTimeAgo(post.createdAt)}
             </div>
-            {/* Always render dropdown; items vary by ownership/admin status */}
             <Dropdown>
               <Dropdown.Toggle variant="link" size="sm" className="text-muted p-1">
                 <ThreeDotsVertical size={16} />
@@ -484,7 +471,6 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
                   </Dropdown.Item>
                 )}
 
-                {/* Admin-only options */}
                 {isAdmin && (
                   <>
                     <Dropdown.Divider />
@@ -585,6 +571,8 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
         onHide={() => setShowMediaModal(false)}
         media={post.media || []}
         initialIndex={mediaModalIndex}
+        isAdmin={isAdmin}
+        postId={post.id}
       />
       
       <EditPostModal

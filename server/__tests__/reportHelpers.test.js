@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 
-// Inline the helper logic to avoid importing the runtime module which can trigger Vite SSR transform
 const mapReasonToEnum = (r) => {
   if (!r || typeof r !== 'string') return 'OTHER';
   const normalized = r.trim().toLowerCase();

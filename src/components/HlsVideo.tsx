@@ -23,7 +23,6 @@ const HlsVideo: React.FC<HlsVideoProps> = ({ src, hlsSrc, ...props }) => {
         if (hlsSrc) hls!.loadSource(hlsSrc);
       });
     } else {
-      // If hlsSrc is provided but Hls.js is not supported, try to set hlsSrc on video (Safari)
       if (hlsSrc) {
         video.src = hlsSrc;
       } else if (src) {
@@ -41,7 +40,6 @@ const HlsVideo: React.FC<HlsVideoProps> = ({ src, hlsSrc, ...props }) => {
 
   return (
     <video ref={videoRef} {...props}>
-      {/* Fallback source for browsers that can play MP4 */}
       {src ? <source src={src} /> : null}
       Your browser does not support the video tag.
     </video>

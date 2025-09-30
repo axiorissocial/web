@@ -47,8 +47,8 @@ const ProfilePage: React.FC = () => {
   const [followLoading, setFollowLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'posts' | 'about'>('posts');
   const [isMobile, setIsMobile] = useState(window.innerHeight > window.innerWidth);
+  const [messageLoading, setMessageLoading] = useState(false);
 
-  // Handle /user/me route - redirect to user's profile when auth is loaded
   useEffect(() => {
     if (!username && !authLoading && currentUser) {
       navigate(`/profile/@${currentUser.username}`, { replace: true });
@@ -61,7 +61,6 @@ const ProfilePage: React.FC = () => {
     }
   }, [username]);
 
-  // Mobile detection
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerHeight > window.innerWidth);
     window.addEventListener('resize', handleResize);
@@ -75,7 +74,6 @@ const ProfilePage: React.FC = () => {
   const fetchProfile = async () => {
     if (!username) return;
     
-    // Remove @ symbol if present
     const cleanUsername = username.startsWith('@') ? username.slice(1) : username;
     
     setLoading(true);
@@ -153,7 +151,6 @@ const ProfilePage: React.FC = () => {
     return <Navigate to="/account/login" replace />;
   }
 
-  // Show loading while waiting for redirect or profile data
   if ((!username && authLoading) || loading) {
     return (
       <div className="app-container">
@@ -168,7 +165,6 @@ const ProfilePage: React.FC = () => {
     );
   }
 
-  // If we don't have a username and we're not loading auth, we're redirecting
   if (!username) {
     return (
       <div className="app-container">
@@ -213,7 +209,8 @@ const ProfilePage: React.FC = () => {
     if (!profile || !currentUser) return;
 
     try {
-      // Create or find existing conversation
+      setMessageLoading(true);
+
       const response = await fetch('/api/conversations', {
         method: 'POST',
         headers: {
@@ -221,19 +218,24 @@ const ProfilePage: React.FC = () => {
         },
         credentials: 'include',
         body: JSON.stringify({
-          participantIds: [profile.id]
+          participantId: profile.id
         })
       });
 
       if (response.ok) {
-        await response.json();
-        // Navigate to messages page
-        navigate('/messages');
+        const conversation = await response.json();
+        if (conversation?.id) {
+          navigate(`/messages?conversation=${conversation.id}`);
+        } else {
+          navigate('/messages');
+        }
       } else {
         console.error('Failed to create conversation');
       }
     } catch (error) {
       console.error('Error creating conversation:', error);
+    } finally {
+      setMessageLoading(false);
     }
   };
 
@@ -322,8 +324,9 @@ const ProfilePage: React.FC = () => {
                         className="message-btn"
                         onClick={handleMessage}
                         title="Send Message"
+                        disabled={messageLoading}
                       >
-                        <Envelope />
+                        {messageLoading ? <Spinner size="sm" /> : <Envelope />}
                       </Button>
                     </>
                   )}

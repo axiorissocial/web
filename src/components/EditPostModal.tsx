@@ -35,7 +35,6 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
   const [updating, setUpdating] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   
-  // Media state
   const [uploadedMedia, setUploadedMedia] = useState<MediaFile[]>(post.media || []);
   const [uploading, setUploading] = useState(false);
 
@@ -105,7 +104,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
     if (!files || files.length === 0) return;
 
     const validFiles = Array.from(files).filter(file => {
-      const maxSize = 50 * 1024 * 1024; // 50MB
+      const maxSize = 50 * 1024 * 1024;
       if (file.size > maxSize) {
         setError(`File ${file.name} is too large (max 50MB)`);
         return false;

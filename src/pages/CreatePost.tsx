@@ -59,7 +59,6 @@ const CreatePostPage: React.FC = () => {
 
     if (validFiles.length === 0) return;
 
-    // Check total files limit
     if (uploadedMedia.length + validFiles.length > 5) {
       setError('Maximum 5 media files allowed per post');
       return;
@@ -127,7 +126,6 @@ const CreatePostPage: React.FC = () => {
     setError('');
 
     try {
-      // Process mentions and emojis
       const mentionsProcessed = processMentions(content);
       const processedContent = renderEmojisInPreview(mentionsProcessed);
       
@@ -145,7 +143,6 @@ const CreatePostPage: React.FC = () => {
       });
 
       if (response.ok) {
-        // Navigate back to previous page and refresh
         window.dispatchEvent(new CustomEvent('postCreated'));
         navigate(-1);
       } else {
@@ -160,7 +157,6 @@ const CreatePostPage: React.FC = () => {
     }
   };
 
-  // For preview, show processed mentions and emojis
   const mentionsProcessed = processMentions(content);
   const previewText = renderEmojisInPreview(mentionsProcessed);
   const markedHtml = marked(previewText) as string;

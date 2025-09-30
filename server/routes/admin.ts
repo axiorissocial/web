@@ -6,7 +6,6 @@ import { requireAuth, AuthenticatedRequest } from '../middleware/auth.js';
 
 const router = Router();
 
-// Helper to delete media directory for a post
 const deletePostMediaFiles = async (postId: string) => {
   try {
     const mediaDir = path.join(process.cwd(), 'public', 'uploads', 'media', postId);
@@ -19,33 +18,64 @@ const deletePostMediaFiles = async (postId: string) => {
   }
 };
 
-// List users (admin only)
 router.get('/admin/users', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
     if (!user || !user.isAdmin) return res.status(403).json({ error: 'Admin access required' });
 
-    const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        isAdmin: true,
-        isPrivate: true,
-        createdAt: true
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100
-    });
+    const allowedPageSizes = [10, 50, 100];
+    const rawPage = parseInt(req.query.page as string, 10);
+    const rawLimit = parseInt(req.query.limit as string, 10);
+    const searchTerm = typeof req.query.search === 'string' ? req.query.search.trim() : '';
 
-    res.json({ users });
+    const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+    const limit = allowedPageSizes.includes(rawLimit) ? rawLimit : allowedPageSizes[0];
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+
+    if (searchTerm) {
+      where.OR = [
+        { username: { contains: searchTerm, mode: 'insensitive' } },
+        { email: { contains: searchTerm, mode: 'insensitive' } },
+        { id: searchTerm }
+      ];
+    }
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          isAdmin: true,
+          isPrivate: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit
+      }),
+      prisma.user.count({ where })
+    ]);
+
+    res.json({
+      users,
+      total,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.max(1, Math.ceil(total / limit))
+      }
+    });
   } catch (error) {
     console.error('Error fetching users for admin:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
 
-// Ban a user (mark private as a simple ban flag) / Unban
 router.patch('/admin/user/:id/ban', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const admin = await prisma.user.findUnique({ where: { id: req.userId } });
@@ -80,7 +110,6 @@ router.patch('/admin/user/:id/unban', requireAuth, async (req: AuthenticatedRequ
   }
 });
 
-// Delete a user (admin)
 router.delete('/admin/user/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const admin = await prisma.user.findUnique({ where: { id: req.userId } });
@@ -90,7 +119,6 @@ router.delete('/admin/user/:id', requireAuth, async (req: AuthenticatedRequest, 
     const target = await prisma.user.findUnique({ where: { id } });
     if (!target) return res.status(404).json({ error: 'User not found' });
 
-    // delete avatar files for user (avatars folder)
     try {
       const avatarsDir = path.join(process.cwd(), 'public', 'uploads', 'avatars');
       if (fs.existsSync(avatarsDir)) {
@@ -105,7 +133,6 @@ router.delete('/admin/user/:id', requireAuth, async (req: AuthenticatedRequest, 
       console.error('Failed to cleanup avatar files for user:', err);
     }
 
-    // delete user's posts media directories
     try {
       const posts = await prisma.post.findMany({ where: { userId: id }, select: { id: true } });
       for (const p of posts) {
@@ -115,7 +142,6 @@ router.delete('/admin/user/:id', requireAuth, async (req: AuthenticatedRequest, 
       console.error('Failed to cleanup post media for user:', err);
     }
 
-    // Attempt to delete user (cascade configured on many relations)
     await prisma.user.delete({ where: { id } });
 
     res.json({ message: 'User deleted' });
@@ -125,7 +151,6 @@ router.delete('/admin/user/:id', requireAuth, async (req: AuthenticatedRequest, 
   }
 });
 
-// Delete any post by id (admin)
 router.delete('/admin/post/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const admin = await prisma.user.findUnique({ where: { id: req.userId } });
@@ -136,13 +161,10 @@ router.delete('/admin/post/:id', requireAuth, async (req: AuthenticatedRequest, 
     const existingPost = await prisma.post.findUnique({ where: { id } });
     if (!existingPost) return res.status(404).json({ error: 'Post not found' });
 
-    // delete media directory if exists
     await deletePostMediaFiles(id);
 
-    // remove likes first
     await prisma.like.deleteMany({ where: { postId: id } });
 
-    // delete the post
     await prisma.post.delete({ where: { id } });
 
     res.json({ message: 'Post deleted by admin' });

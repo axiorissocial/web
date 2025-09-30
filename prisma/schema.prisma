@@ -156,6 +156,7 @@ model Conversation {
   lastMessageId String?  @unique
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  notifications Notification[]
 }
 
 model ConversationParticipant {
@@ -210,8 +211,12 @@ model Notification {
   postId      String?
   comment     Comment?          @relation(fields: [commentId], references: [id], onDelete: Cascade)
   commentId   String?
+  conversation Conversation?    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String?
   message     String?           // Custom notification message
   isRead      Boolean           @default(false)
+  isArchived  Boolean           @default(false)
+  archivedAt  DateTime?
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 }
@@ -223,6 +228,7 @@ enum NotificationType {
   MENTION      // Someone mentioned you in a post/comment
   REPLY        // Someone replied to your comment
   COMMENT_LIKE // Someone liked your comment
+  MESSAGE      // Someone sent you a message
 }
 
 // Unified reporting system for posts, comments, and replies

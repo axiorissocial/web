@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button } from 'react-bootstrap';
-import { ChevronLeft, ChevronRight, X } from 'react-bootstrap-icons';
+import { Modal, Button, Spinner } from 'react-bootstrap';
+import { ChevronLeft, ChevronRight, Download, X } from 'react-bootstrap-icons';
 import HlsVideo from './HlsVideo';
 
 interface MediaItem {
@@ -16,14 +16,22 @@ interface MediaModalProps {
   onHide: () => void;
   media: MediaItem[];
   initialIndex: number;
+  isAdmin?: boolean;
+  postId?: string;
 }
 
-const MediaModal: React.FC<MediaModalProps> = ({ show, onHide, media, initialIndex }) => {
+const MediaModal: React.FC<MediaModalProps> = ({ show, onHide, media, initialIndex, isAdmin = false, postId }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   useEffect(() => {
     setCurrentIndex(initialIndex);
   }, [initialIndex]);
+
+  useEffect(() => {
+    setDownloadError(null);
+  }, [currentIndex]);
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -61,6 +69,60 @@ const MediaModal: React.FC<MediaModalProps> = ({ show, onHide, media, initialInd
   if (!show || media.length === 0) return null;
 
   const currentMedia = media[currentIndex];
+  const canDownload = Boolean(isAdmin && postId);
+
+  const handleDownload = async () => {
+    if (!canDownload || !postId) return;
+
+    try {
+      setIsDownloading(true);
+      setDownloadError(null);
+
+      const response = await fetch(`/api/posts/${postId}/media/${currentIndex}/download`, {
+        method: 'GET',
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        let message = 'Failed to download media';
+        try {
+          const data = await response.json();
+          if (data?.error) {
+            message = data.error;
+          }
+        } catch {
+          // Ignore JSON parsing errors
+        }
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get('content-disposition') ?? response.headers.get('Content-Disposition');
+
+      let filename = currentMedia.originalName || `media-${postId}-${currentIndex + 1}`;
+      if (disposition) {
+        const match = disposition.match(/filename\*?="?([^";]+)"?/i);
+        if (match && match[1]) {
+          filename = decodeURIComponent(match[1]);
+        }
+      }
+
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      window.URL.revokeObjectURL(url);
+
+    } catch (error) {
+      console.error('Media download failed:', error);
+      setDownloadError(error instanceof Error ? error.message : 'Failed to download media');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   return (
     <Modal 
@@ -76,14 +138,36 @@ const MediaModal: React.FC<MediaModalProps> = ({ show, onHide, media, initialInd
           <div className="text-muted small">
             {currentMedia.type === 'image' ? 'Image' : 'Video'} {currentIndex + 1} of {media.length}
           </div>
-          <Button 
-            variant="link" 
-            className="text-white p-0"
-            onClick={onHide}
-            style={{ fontSize: '1.5rem' }}
-          >
-            <X />
-          </Button>
+          <div className="d-flex align-items-center gap-3">
+            {canDownload && (
+              <Button
+                variant="outline-light"
+                className="text-white d-flex align-items-center gap-2"
+                disabled={isDownloading}
+                onClick={handleDownload}
+              >
+                {isDownloading ? (
+                  <>
+                    <Spinner animation="border" size="sm" />
+                    <span>Preparing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download />
+                    <span>Download</span>
+                  </>
+                )}
+              </Button>
+            )}
+            <Button 
+              variant="link" 
+              className="text-white p-0"
+              onClick={onHide}
+              style={{ fontSize: '1.5rem' }}
+            >
+              <X />
+            </Button>
+          </div>
         </div>
       </Modal.Header>
       
@@ -149,9 +233,14 @@ const MediaModal: React.FC<MediaModalProps> = ({ show, onHide, media, initialInd
         )}
       </Modal.Body>
       
-      {currentMedia.originalName && (
-        <Modal.Footer className="border-0 pt-0 justify-content-center">
-          <small className="text-muted">{currentMedia.originalName}</small>
+      {(currentMedia.originalName || downloadError) && (
+        <Modal.Footer className="border-0 pt-0 flex-column align-items-center">
+          {currentMedia.originalName && (
+            <small className="text-muted">{currentMedia.originalName}</small>
+          )}
+          {downloadError && (
+            <small className="text-danger mt-1">{downloadError}</small>
+          )}
         </Modal.Footer>
       )}
     </Modal>

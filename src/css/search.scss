@@ -1,10 +1,9 @@
 .search-main {
   padding: 2rem;
   width: calc(100% - 20vw);
-  margin-left: 20vw;
   box-sizing: border-box;
 
-  @media (max-width: 768px) {
+  @media (orientation: portrait) {
     width: 100%;
     margin-left: 0;
   }
@@ -137,7 +136,7 @@
   margin: -0.5rem;
   transition: background-color 0.2s ease;
   position: relative;
-  z-index: 1; // Lower z-index than action buttons
+  z-index: 1;
 
   &:hover {
     background-color: var(--hover-bg);
@@ -217,29 +216,26 @@
   padding-top: 1rem;
   margin-top: 1rem;
   position: relative;
-  z-index: 2; // Ensure buttons are above clickable area
+  z-index: 2;
   
   .btn {
     transition: all 0.2s ease;
     position: relative;
-    z-index: 3; // Higher z-index for buttons
+    z-index: 3;
     
     &:hover {
       transform: translateY(-1px);
     }
 
     &:focus {
-      z-index: 4; // Even higher when focused
+      z-index: 4;
     }
   }
 }
 
-// Fix for narrow screens with sidebar
-@media (min-width: 769px) and (max-width: 1200px) {
+@media (orientation: landscape) {
   .search-main {
     padding: 1rem;
-    max-width: 75vw; // Account for 20vw sidebar + padding
-    margin-left: 0;
   }
   
   .user-card {
@@ -252,7 +248,7 @@
   }
 }
 
-@media (max-width: 768px) {
+@media (orientation: portrait) {
   .search-main {
     padding: 1rem;
   }

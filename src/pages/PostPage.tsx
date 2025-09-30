@@ -58,7 +58,6 @@ const PostPage: React.FC = () => {
   const [canGoBack, setCanGoBack] = useState(false);
   const [backContext, setBackContext] = useState<'home' | 'profile' | 'search' | 'unknown'>('unknown');
   
-  // Handle comment highlighting from URL hash
   useEffect(() => {
     if (window.location.hash) {
       const commentId = window.location.hash.replace('#comment-', '');
@@ -71,18 +70,16 @@ const PostPage: React.FC = () => {
             element.classList.remove('highlighted-comment');
           }, 3000);
         }
-      }, 500); // Wait for comments to load
+      }, 500);
     }
-  }, [post]); // Trigger when post and comments are loaded
+  }, [post]);
   
-  // Comments
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [commentLoading, setCommentLoading] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
 
   useEffect(() => {
-    // Check if user can navigate back and determine context
     const hasHistory = window.history.length > 1;
     const referrer = document.referrer;
     const isFromSameOrigin = referrer.includes(window.location.origin);
@@ -154,7 +151,6 @@ const PostPage: React.FC = () => {
     e.preventDefault();
     if (!newComment.trim() || commentLoading || !user) return;
     
-    // Check character limit
     if (newComment.trim().length > 1000) {
       alert('Comment is too long. Maximum 1000 characters allowed.');
       return;
@@ -175,7 +171,7 @@ const PostPage: React.FC = () => {
 
       if (response.ok) {
         setNewComment('');
-        fetchComments(); // Refresh comments
+        fetchComments();
       }
     } catch (error) {
       console.error('Error posting comment:', error);
@@ -185,7 +181,6 @@ const PostPage: React.FC = () => {
   };
 
   const handleLikeToggle = (_: string, isLiked: boolean) => {
-    // Update the post state when like is toggled
     setPost(prev => prev ? {
       ...prev,
       isLiked,

@@ -1,8 +1,20 @@
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '../../src/generated/prisma/index.js';
+import { prisma } from '../index.js';
+import { broadcastToUsers } from '../realtime.js';
+import { encryptText, decryptText } from '../utils/encryption.js';
 
 const router = Router();
-const prisma = new PrismaClient();
+
+const sanitizeMessage = (message: any) => {
+  if (!message) {
+    return message;
+  }
+
+  return {
+    ...message,
+    content: decryptText(message.content)
+  };
+};
 
 const requireAuth = (req: any, res: Response, next: any) => {
   if (!req.session?.userId) {
@@ -84,6 +96,7 @@ router.get('/conversations', requireAuth, async (req: any, res: Response) => {
 
         return {
           ...conversation,
+          lastMessage: conversation.lastMessage ? sanitizeMessage(conversation.lastMessage) : null,
           unreadCount,
           otherParticipants: conversation.participants.filter(p => p.userId !== userId)
         };
@@ -100,18 +113,19 @@ router.get('/conversations', requireAuth, async (req: any, res: Response) => {
 router.post('/conversations', requireAuth, async (req: any, res: Response) => {
   try {
     const userId = req.session.userId;
-    const { participantId } = req.body;
+    const { participantId, participantIds } = req.body;
+    const targetParticipantId = participantId || (Array.isArray(participantIds) ? participantIds[0] : undefined);
 
-    if (!participantId) {
+    if (!targetParticipantId) {
       return res.status(400).json({ error: 'Participant ID is required' });
     }
 
-    if (participantId === userId) {
+    if (targetParticipantId === userId) {
       return res.status(400).json({ error: 'Cannot create conversation with yourself' });
     }
 
     const participant = await prisma.user.findUnique({
-      where: { id: participantId }
+      where: { id: targetParticipantId }
     });
 
     if (!participant) {
@@ -123,7 +137,7 @@ router.post('/conversations', requireAuth, async (req: any, res: Response) => {
         participants: {
           every: {
             userId: {
-              in: [userId, participantId]
+              in: [userId, targetParticipantId]
             }
           }
         },
@@ -167,7 +181,7 @@ router.post('/conversations', requireAuth, async (req: any, res: Response) => {
         participants: {
           create: [
             { userId: userId },
-            { userId: participantId }
+            { userId: targetParticipantId }
           ]
         }
       },
@@ -261,8 +275,10 @@ router.get('/conversations/:conversationId/messages', requireAuth, async (req: a
       where: { conversationId }
     });
 
+    const decryptedMessages = messages.map((message: any) => sanitizeMessage(message));
+
     res.json({
-      messages: messages.reverse(),
+      messages: decryptedMessages.reverse(),
       pagination: {
         page,
         limit,
@@ -308,7 +324,7 @@ router.post('/conversations/:conversationId/messages', requireAuth, async (req: 
         data: {
           conversationId,
           senderId: userId,
-          content: content.trim()
+          content: encryptText(content.trim())
         },
         include: {
           sender: {
@@ -337,9 +353,172 @@ router.post('/conversations/:conversationId/messages', requireAuth, async (req: 
       return newMessage;
     });
 
-    res.status(201).json(message);
+    const safeMessage = sanitizeMessage(message);
+
+    const participants = await prisma.conversationParticipant.findMany({
+      where: { conversationId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            profile: {
+              select: {
+                displayName: true,
+                avatar: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const senderDisplayName = safeMessage.sender.profile?.displayName || safeMessage.sender.username;
+
+    await Promise.all(
+      participants.map(async (participant: any) => {
+        if (participant.userId === userId) {
+          return;
+        }
+
+        const unreadMessages = await prisma.message.count({
+          where: {
+            conversationId,
+            createdAt: {
+              gt: participant.lastReadAt || new Date(0)
+            },
+            senderId: {
+              not: participant.userId
+            }
+          }
+        });
+
+        const notificationText = unreadMessages > 1
+          ? `${senderDisplayName} sent you ${unreadMessages} new messages`
+          : `${senderDisplayName} sent you a message`;
+
+        const existingNotification = await prisma.notification.findFirst({
+          where: {
+            type: 'MESSAGE',
+            receiverId: participant.userId,
+            conversationId
+          }
+        });
+
+        if (existingNotification) {
+          await prisma.notification.update({
+            where: { id: existingNotification.id },
+            data: {
+              message: notificationText,
+              senderId: userId,
+              isRead: false,
+              isArchived: false,
+              archivedAt: null
+            }
+          });
+        } else {
+          await prisma.notification.create({
+            data: {
+              type: 'MESSAGE',
+              senderId: userId,
+              receiverId: participant.userId,
+              conversationId,
+              message: notificationText
+            }
+          });
+        }
+
+        const unreadNotifications = await prisma.notification.count({
+          where: {
+            receiverId: participant.userId,
+            isRead: false,
+            isArchived: false
+          }
+        });
+
+        broadcastToUsers([participant.userId], {
+          event: 'notification:count',
+          data: { count: unreadNotifications }
+        });
+
+        broadcastToUsers([participant.userId], {
+          event: 'message:new',
+          data: {
+            conversationId,
+            message: safeMessage,
+            unreadMessages
+          }
+        });
+      })
+    );
+
+    broadcastToUsers([userId], {
+      event: 'message:sent',
+      data: {
+        conversationId,
+        message: safeMessage
+      }
+    });
+
+    res.status(201).json(safeMessage);
   } catch (error) {
     console.error('Error sending message:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/conversations/:conversationId/typing', requireAuth, async (req: any, res: Response) => {
+  try {
+    const userId = req.session.userId;
+    const { conversationId } = req.params;
+    const { isTyping } = req.body;
+
+    if (typeof isTyping !== 'boolean') {
+      return res.status(400).json({ error: 'isTyping boolean is required' });
+    }
+
+    const participant = await prisma.conversationParticipant.findUnique({
+      where: {
+        conversationId_userId: {
+          conversationId,
+          userId
+        }
+      }
+    });
+
+    if (!participant) {
+      return res.status(403).json({ error: 'You are not a participant in this conversation' });
+    }
+
+    const otherParticipants = await prisma.conversationParticipant.findMany({
+      where: {
+        conversationId,
+        userId: {
+          not: userId
+        }
+      },
+      select: {
+        userId: true
+      }
+    });
+
+    if (otherParticipants.length) {
+      broadcastToUsers(
+        otherParticipants.map((p) => p.userId),
+        {
+          event: 'message:typing',
+          data: {
+            conversationId,
+            userId,
+            isTyping
+          }
+        }
+      );
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error broadcasting typing indicator:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -372,6 +551,31 @@ router.post('/conversations/:conversationId/read', requireAuth, async (req: any,
       data: {
         lastReadAt: new Date()
       }
+    });
+
+    await prisma.notification.updateMany({
+      where: {
+        conversationId,
+        receiverId: userId,
+        type: 'MESSAGE',
+        isRead: false
+      },
+      data: {
+        isRead: true
+      }
+    });
+
+    const unreadNotifications = await prisma.notification.count({
+      where: {
+        receiverId: userId,
+        isRead: false,
+        isArchived: false
+      }
+    });
+
+    broadcastToUsers([userId], {
+      event: 'notification:count',
+      data: { count: unreadNotifications }
     });
 
     res.json({ success: true });

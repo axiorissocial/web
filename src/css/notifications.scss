@@ -1,15 +1,12 @@
-// Notifications layout
 .notifications-main {
   padding: 2rem;
   
-  // Add margin for desktop sidebar  
-  @media (min-width: 769px) {
+  @media (orientation: landscape) {
     margin-left: 20vw;
     padding: 2rem 2rem 2rem 1rem;
   }
 }
 
-// Notification cards
 .notification-card {
   transition: all 0.2s ease;
 }
@@ -41,4 +38,98 @@
   height: 8px;
   background: var(--primary-color);
   border-radius: 50%;
+  padding: 0 !important;
+  display: inline-block;
+}
+
+.notification-action-buttons .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border-width: 2px;
+  transition: transform 0.1s ease;
+}
+
+.notification-action-buttons .btn:active {
+  transform: scale(0.95);
+}
+
+.notification-action-btn.archive {
+  color: #b85c00;
+  border-color: #ffa94d;
+  background-color: rgba(255, 169, 77, 0.12);
+}
+
+.notification-action-btn.archive:hover,
+.notification-action-btn.archive:focus {
+  background-color: rgba(255, 169, 77, 0.24);
+  color: #8a4600;
+}
+
+.notification-action-btn.delete {
+  color: #d6336c;
+  border-color: #ff6b6b;
+}
+
+.notification-action-btn.delete:hover,
+.notification-action-btn.delete:focus {
+  background-color: rgba(255, 107, 107, 0.18);
+  color: #b0234f;
+}
+
+.notification-action-btn.restore {
+  color: #2b8a3e;
+  border-color: #51cf66;
+  background-color: rgba(81, 207, 102, 0.12);
+}
+
+.notification-action-btn.restore:hover,
+.notification-action-btn.restore:focus {
+  background-color: rgba(81, 207, 102, 0.24);
+  color: #1f6d2d;
+}
+
+.notification-card.archived {
+  opacity: 0.92;
+  border-style: dashed;
+}
+
+.notification-action-buttons .spinner-border {
+  width: 1rem;
+  height: 1rem;
+}
+
+.notifications-controls .btn-warning {
+  color: #8a4600;
+  background-color: rgba(255, 193, 7, 0.2);
+  border-color: #ffc107;
+}
+
+.notifications-controls .btn-warning:hover,
+.notifications-controls .btn-warning:focus {
+  background-color: rgba(255, 193, 7, 0.32);
+  color: #6c3700;
+}
+
+[data-theme="dark"] .notification-action-btn.archive {
+  color: #ffbe76;
+  border-color: #ff922b;
+}
+
+[data-theme="dark"] .notification-action-btn.delete {
+  color: #ff8787;
+  border-color: #ff6b6b;
+}
+
+[data-theme="dark"] .notification-action-btn.restore {
+  color: #60f5a1;
+  border-color: #38d9a9;
+}
+
+[data-theme="dark"] .notification-card.archived {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
 }
