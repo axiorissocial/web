@@ -242,7 +242,7 @@ const ProfilePage: React.FC = () => {
   return (
     <div className="app-container">
       <Sidebar activeId="profile" />
-      <main>
+      <main className="profile-main">
         <div className="profile-container">
           <Card className="profile-card">
             <div className="profile-banner">
@@ -332,6 +332,23 @@ const ProfilePage: React.FC = () => {
                   )}
                 </div>
               </div>
+
+              {isMobile && (
+                <div className="profile-mobile-stats">
+                  <div className="stat-chip">
+                    <span className="label">Posts</span>
+                    <span className="value">{profile._count.posts}</span>
+                  </div>
+                  <div className="stat-chip">
+                    <span className="label">Following</span>
+                    <span className="value">{profile._count.following}</span>
+                  </div>
+                  <div className="stat-chip">
+                    <span className="label">Followers</span>
+                    <span className="value">{profile._count.followers}</span>
+                  </div>
+                </div>
+              )}
               
               {(profile.bio || profile.profile?.bio) && (
                 <div className="profile-bio">

@@ -1,10 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Card, ListGroup, Button, Form, InputGroup, Spinner, Badge } from 'react-bootstrap';
-import { Send } from 'react-bootstrap-icons';
+import { Send, Trash, EmojiSmile } from 'react-bootstrap-icons';
 import Sidebar from '../components/singles/Navbar';
 import { useAuth } from '../contexts/AuthContext';
 import '../css/messages.scss';
 import { useLocation } from 'react-router-dom';
+import EmojiPicker from '../components/EmojiPicker';
+import DOMPurify from 'dompurify';
+import twemoji from 'twemoji';
+import { EMOJIS } from '../utils/emojis';
 
 interface User {
   id: string;
@@ -22,6 +26,7 @@ interface Message {
   createdAt: string;
   sender: User;
   isEdited: boolean;
+  updatedAt?: string;
 }
 
 interface Conversation {
@@ -35,13 +40,67 @@ interface Conversation {
 }
 
 interface RealtimeMessagePayload {
-  event?: 'message:new' | 'message:sent' | 'message:typing';
+  event?: 'message:new' | 'message:sent' | 'message:typing' | 'message:deleted';
   conversationId: string;
   message?: Message;
   unreadMessages?: number;
   userId?: string;
   isTyping?: boolean;
+  messageId?: string;
+  lastMessage?: Message | null;
+  deletedBy?: string;
 }
+
+const emojiShortcodeMap: Map<string, string> = (() => {
+  const map = new Map<string, string>();
+  for (const { name, char, aliases } of EMOJIS) {
+    map.set(name.toLowerCase(), char);
+    if (aliases) {
+      for (const alias of aliases) {
+        map.set(alias.toLowerCase(), char);
+      }
+    }
+  }
+  return map;
+})();
+
+const convertShortcodesToEmoji = (text: string) =>
+  text.replace(/:([a-z0-9_+\-]+):/gi, (_, code: string) =>
+    emojiShortcodeMap.get(code.toLowerCase()) ?? `:${code}:`
+  );
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+type MessageHtmlOptions = {
+  preserveLineBreaks?: boolean;
+};
+
+const buildMessageHtml = (content: string, options: MessageHtmlOptions = {}) => {
+  const { preserveLineBreaks = true } = options;
+  const baseContent = convertShortcodesToEmoji(content ?? '');
+  const escaped = escapeHtml(baseContent);
+  const normalized = preserveLineBreaks
+    ? escaped.replace(/\r\n|\r|\n/g, '<br />')
+    : escaped.replace(/\r\n|\r|\n/g, ' ');
+  const parsed = twemoji.parse(normalized, {
+    folder: 'svg',
+    ext: '.svg',
+    className: 'twemoji-emoji'
+  });
+  return DOMPurify.sanitize(parsed, {
+    ALLOWED_TAGS: ['br', 'img', 'span'],
+    ALLOWED_ATTR: ['class', 'src', 'alt', 'draggable', 'loading', 'width', 'height', 'role', 'aria-hidden', 'referrerpolicy', 'decoding']
+  });
+};
+
+const formatMessageContent = (content: string) => buildMessageHtml(content, { preserveLineBreaks: true });
+const formatMessagePreview = (content: string) => buildMessageHtml(content, { preserveLineBreaks: false });
 
 const Messages: React.FC = () => {
   const { user } = useAuth();
@@ -53,6 +112,8 @@ const Messages: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [deletingMessageIds, setDeletingMessageIds] = useState<string[]>([]);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [pendingConversationId, setPendingConversationId] = useState<string | null>(() => {
     const params = new URLSearchParams(location.search);
     return params.get('conversation');
@@ -60,6 +121,7 @@ const Messages: React.FC = () => {
   const [typingUsers, setTypingUsers] = useState<Record<string, string[]>>({});
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(() => new Set<string>());
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messageInputRef = useRef<HTMLInputElement | null>(null);
   const conversationsRef = useRef<Conversation[]>([]);
   const activeConversationRef = useRef<string | null>(null);
   const typingStateRef = useRef(false);
@@ -179,13 +241,50 @@ const Messages: React.FC = () => {
     conversationsRef.current = conversations;
   }, [conversations]);
 
-
+  useEffect(() => {
+    setEmojiPickerOpen(false);
+  }, [activeConversation]);
 
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
   }, [messages, activeConversation]);
+
+  const updateAfterMessageDeletion = useCallback(
+    (conversationId: string, messageId: string, lastMessage?: Message | null) => {
+      setMessages(prev => {
+        if (activeConversationRef.current !== conversationId) {
+          return prev;
+        }
+
+        if (!prev.some(m => m.id === messageId)) {
+          return prev;
+        }
+
+        return prev.filter(m => m.id !== messageId);
+      });
+
+      setConversations(prev => {
+        const current = prev.find(conv => conv.id === conversationId);
+        if (!current) {
+          return prev;
+        }
+
+        const removedWasLast = current.lastMessage?.id === messageId;
+        const nextLast = lastMessage ?? (removedWasLast ? undefined : current.lastMessage);
+        const updatedConversation: Conversation = {
+          ...current,
+          lastMessage: nextLast,
+          updatedAt: lastMessage?.createdAt ?? new Date().toISOString()
+        };
+
+        const others = prev.filter(conv => conv.id !== conversationId);
+        return [updatedConversation, ...others];
+      });
+    },
+    []
+  );
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -197,6 +296,21 @@ const Messages: React.FC = () => {
       }
 
       const { conversationId, message, unreadMessages, event: eventName } = detail;
+
+      if (eventName === 'message:deleted') {
+        const { messageId, lastMessage } = detail as {
+          messageId?: string;
+          lastMessage?: Message | null;
+        };
+
+        if (!messageId) {
+          return;
+        }
+
+        updateAfterMessageDeletion(conversationId, messageId, lastMessage);
+        setDeletingMessageIds(prev => prev.filter(id => id !== messageId));
+        return;
+      }
 
       if (eventName === 'message:typing') {
         const { userId, isTyping } = detail;
@@ -366,7 +480,7 @@ const Messages: React.FC = () => {
     return () => {
       window.removeEventListener('ws-message', handler as EventListener);
     };
-  }, [fetchConversations, markAsRead]);
+  }, [fetchConversations, markAsRead, updateAfterMessageDeletion]);
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -542,6 +656,7 @@ useEffect(() => {
       console.error('Error sending message:', error);
     } finally {
       setSending(false);
+      setEmojiPickerOpen(false);
     }
   };
 
@@ -576,6 +691,69 @@ useEffect(() => {
     ? conversations.find(c => c.id === activeConversation) || null
     : null;
   const activeParticipantId = activeConversationData ? getOtherParticipantId(activeConversationData) : undefined;
+  const handleDeleteMessage = useCallback(
+    async (message: Message) => {
+      if (deletingMessageIds.includes(message.id)) {
+        return;
+      }
+
+      setDeletingMessageIds(prev => [...prev, message.id]);
+
+      try {
+        const response = await fetch(
+          `/api/conversations/${message.conversationId}/messages/${message.id}`,
+          {
+            method: 'DELETE',
+            credentials: 'include'
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json().catch(() => ({}));
+          const nextLastMessage = (data as { lastMessage?: Message | null })?.lastMessage;
+          updateAfterMessageDeletion(message.conversationId, message.id, nextLastMessage);
+        } else {
+          const errorData = await response.json().catch(() => null);
+          const errorMsg = errorData?.error || 'Failed to delete message';
+          console.error(errorMsg);
+        }
+      } catch (error) {
+        console.error('Error deleting message:', error);
+      } finally {
+        setDeletingMessageIds(prev => prev.filter(id => id !== message.id));
+      }
+    },
+    [deletingMessageIds, updateAfterMessageDeletion]
+  );
+
+  const insertEmoji = useCallback(
+    (emojiName: string) => {
+      const input = messageInputRef.current;
+      const currentValue = newMessage;
+      const selectionStart = input?.selectionStart ?? currentValue.length;
+      const selectionEnd = input?.selectionEnd ?? currentValue.length;
+      const emojiText = `:${emojiName}:`;
+
+      const nextValue =
+        currentValue.slice(0, selectionStart) + emojiText + currentValue.slice(selectionEnd);
+
+      setNewMessage(nextValue);
+      setEmojiPickerOpen(false);
+
+      requestAnimationFrame(() => {
+        if (!input) {
+          return;
+        }
+        input.focus();
+        const cursor = selectionStart + emojiText.length;
+        input.setSelectionRange(cursor, cursor);
+      });
+
+      handleTypingActivity();
+    },
+    [newMessage, handleTypingActivity]
+  );
+
   const isActiveParticipantOnline = activeParticipantId ? onlineUsers.has(activeParticipantId) : false;
   const activeParticipantName = activeConversationData
     ? getOtherParticipantName(activeConversationData)
@@ -630,6 +808,10 @@ useEffect(() => {
                     const otherParticipantId = getOtherParticipantId(conversation);
                     const isOnline = otherParticipantId ? onlineUsers.has(otherParticipantId) : false;
                     const isTyping = (typingUsers[conversation.id]?.length ?? 0) > 0;
+                    const lastMessagePreview = conversation.lastMessage
+                      ? formatMessagePreview(conversation.lastMessage.content)
+                      : '';
+                    const isOwnPreview = conversation.lastMessage?.sender.id === user.id;
 
                     return (
                       <ListGroup.Item
@@ -681,8 +863,15 @@ useEffect(() => {
                             ) : (
                               conversation.lastMessage && (
                                 <p className="mb-0 text-muted last-message">
-                                  {conversation.lastMessage.sender.id === user.id ? 'You: ' : ''}
-                                  {conversation.lastMessage.content}
+                                  {isOwnPreview && (
+                                    <span className="last-message-prefix">You: </span>
+                                  )}
+                                  <span
+                                    className="message-preview"
+                                    dangerouslySetInnerHTML={{
+                                      __html: lastMessagePreview
+                                    }}
+                                  />
                                 </p>
                               )
                             )}
@@ -721,22 +910,47 @@ useEffect(() => {
                     </div>
                   ) : (
                     <div className="messages-list">
-                      {messages.map((message) => (
-                        <div
-                          key={message.id}
-                          className={`message ${
-                            message.sender.id === user.id ? 'own-message' : 'other-message'
-                          }`}
-                        >
-                          <div className="message-content">
-                            <p className="mb-1">{message.content}</p>
-                            <small className="text-muted">
-                              {formatTime(message.createdAt)}
-                              {message.isEdited && ' (edited)'}
-                            </small>
+                      {messages.map((message) => {
+                        const isOwnMessage = message.sender.id === user.id;
+                        const isDeleting = deletingMessageIds.includes(message.id);
+                        const renderedMessage = formatMessageContent(message.content);
+
+                        return (
+                          <div
+                            key={message.id}
+                            className={`message ${isOwnMessage ? 'own-message' : 'other-message'}`}
+                          >
+                            <div className="message-content">
+                              {isOwnMessage && (
+                                <div className="message-toolbar">
+                                  <Button
+                                    variant="link"
+                                    size="sm"
+                                    className="message-action"
+                                    aria-label={isDeleting ? 'Deleting message…' : 'Delete message'}
+                                    onClick={() => handleDeleteMessage(message)}
+                                    disabled={isDeleting}
+                                  >
+                                    {isDeleting ? (
+                                      <Spinner animation="border" size="sm" role="status" variant="light" />
+                                    ) : (
+                                      <Trash size={16} />
+                                    )}
+                                  </Button>
+                                </div>
+                              )}
+                              <p
+                                className="mb-1"
+                                dangerouslySetInnerHTML={{ __html: renderedMessage }}
+                              />
+                              <small className="text-muted">
+                                {formatTime(message.createdAt)}
+                                {message.isEdited && ' (edited)'}
+                              </small>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       <div ref={messagesEndRef} />
                       {activeConversation && (typingUsers[activeConversation]?.length ?? 0) > 0 && (
                         <div className="typing-indicator">
@@ -767,9 +981,20 @@ useEffect(() => {
                             typingStopTimeoutRef.current = null;
                           }
                         }}
+                        ref={messageInputRef}
                         disabled={sending}
                         maxLength={1000}
                       />
+                      <Button
+                        variant="outline-secondary"
+                        type="button"
+                        className="emoji-toggle"
+                        onClick={() => setEmojiPickerOpen(prev => !prev)}
+                        aria-label={emojiPickerOpen ? 'Hide emoji picker' : 'Show emoji picker'}
+                        disabled={sending}
+                      >
+                        <EmojiSmile />
+                      </Button>
                       <Button
                         variant="primary"
                         type="submit"
@@ -779,6 +1004,11 @@ useEffect(() => {
                       </Button>
                     </InputGroup>
                   </Form>
+                  {emojiPickerOpen && (
+                    <div className="messages-emoji-picker">
+                      <EmojiPicker onSelect={insertEmoji} onClose={() => setEmojiPickerOpen(false)} />
+                    </div>
+                  )}
                 </Card.Footer>
               </>
             ) : (

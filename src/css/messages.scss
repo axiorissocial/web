@@ -112,6 +112,22 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: 200px;
+
+    .last-message-prefix {
+      font-weight: 500;
+      margin-right: 0.25rem;
+    }
+
+    .message-preview {
+      display: inline;
+
+      .twemoji-emoji {
+        height: 1em;
+        width: 1em;
+        margin: 0 0.05em;
+        vertical-align: -0.12em;
+      }
+    }
   }
 }
 
@@ -133,6 +149,48 @@
       font-weight: 600;
     }
   }
+}
+
+.messages-area .card-footer {
+  position: relative;
+
+  .emoji-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.75rem;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    background: transparent;
+    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+
+    &:hover,
+    &:focus {
+      color: var(--text-primary);
+      border-color: var(--primary-color);
+      background: rgba(var(--primary-rgb, 99, 102, 241), 0.08);
+      box-shadow: none;
+    }
+
+    svg {
+      pointer-events: none;
+      font-size: 1.1rem;
+    }
+  }
+}
+
+.messages-emoji-picker {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: 0;
+  z-index: 25;
+}
+
+.messages-emoji-picker .emoji-picker-wrapper {
+  position: static;
+  bottom: auto;
+  left: auto;
+  right: auto;
 }
 
 .messages-body {
@@ -164,7 +222,7 @@
       color: white;
       border-radius: 18px 18px 4px 18px;
       max-width: 70%;
-      padding: 0.75rem 1rem;
+      padding: 1rem 2.5rem 0.75rem 1rem;
       
       small {
         color: rgba(255, 255, 255, 0.8);
@@ -180,7 +238,7 @@
       color: var(--text-primary);
       border-radius: 18px 18px 18px 4px;
       max-width: 70%;
-      padding: 0.75rem 1rem;
+      padding: 1rem 2.5rem 0.75rem 1rem;
       border: 1px solid var(--border-color);
       
       small {
@@ -190,6 +248,7 @@
   }
   
   .message-content {
+    position: relative;
     word-wrap: break-word;
     
     p {
@@ -200,6 +259,90 @@
     small {
       font-size: 0.75rem;
     }
+
+    .twemoji-emoji {
+      height: 1.1em;
+      width: 1.1em;
+      margin: 0 0.05em;
+      vertical-align: -0.15em;
+    }
+  }
+
+  .message-toolbar {
+    position: absolute;
+    top: 6px;
+    right: 10px;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 1;
+  }
+
+  &:hover .message-toolbar,
+  &:focus-within .message-toolbar {
+    opacity: 1;
+  }
+
+  .message-action {
+    padding: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: inherit;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+    border: none;
+    background: transparent;
+    text-decoration: none;
+
+    svg {
+      display: block;
+    }
+  }
+
+  &.own-message {
+    .message-action {
+      color: rgba(255, 255, 255, 0.85);
+
+      &:hover {
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.2);
+        transform: translateY(-1px);
+      }
+    }
+  }
+
+  &.other-message {
+    .message-action {
+      color: var(--text-secondary);
+
+      &:hover {
+        color: var(--text-primary);
+        background: rgba(0, 0, 0, 0.05);
+        transform: translateY(-1px);
+      }
+    }
+  }
+
+  .message-action:disabled {
+    opacity: 0.7;
+    transform: none;
+    background: transparent;
+  }
+}
+
+@media (hover: none) {
+  .message .message-toolbar {
+    opacity: 1;
+  }
+
+  .message .message-action:hover {
+    transform: none;
+    background: transparent;
   }
 }
 

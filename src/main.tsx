@@ -39,8 +39,14 @@ function AppRoutes() {
 
     const cookies = document.cookie.split(';').map(c => c.trim());
     const hasMobileCookie = cookies.some(c => c.startsWith('mobileonsite='));
+    const isStandalone = Boolean(
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+        (window.matchMedia && window.matchMedia('(display-mode: minimal-ui)').matches) ||
+        (navigator as any).standalone ||
+        document.referrer?.startsWith('android-app://')
+    );
 
-    if (isMobile && !hasMobileCookie) {
+    if (isMobile && !hasMobileCookie && !isStandalone) {
       navigate('/mobile', { replace: true });
     }
   }, [navigate]);

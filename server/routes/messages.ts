@@ -467,6 +467,122 @@ router.post('/conversations/:conversationId/messages', requireAuth, async (req: 
   }
 });
 
+router.delete(
+  '/conversations/:conversationId/messages/:messageId',
+  requireAuth,
+  async (req: any, res: Response) => {
+    try {
+      const userId = req.session.userId;
+      const { conversationId, messageId } = req.params;
+
+      const participant = await prisma.conversationParticipant.findUnique({
+        where: {
+          conversationId_userId: {
+            conversationId,
+            userId
+          }
+        }
+      });
+
+      if (!participant) {
+        return res.status(403).json({ error: 'You are not a participant in this conversation' });
+      }
+
+      const message = await prisma.message.findUnique({
+        where: { id: messageId },
+        include: {
+          conversation: {
+            select: {
+              id: true,
+              lastMessageId: true
+            }
+          }
+        }
+      });
+
+      if (!message || message.conversationId !== conversationId) {
+        return res.status(404).json({ error: 'Message not found' });
+      }
+
+      if (message.senderId !== userId) {
+        return res.status(403).json({ error: 'You can only delete your own messages' });
+      }
+
+      const result = await prisma.$transaction(async (tx) => {
+        await tx.messageRead.deleteMany({ where: { messageId } });
+        await tx.message.delete({ where: { id: messageId } });
+
+        const wasLastMessage = message.conversation?.lastMessageId === messageId;
+
+        if (wasLastMessage) {
+          const nextLastMessage = await tx.message.findFirst({
+            where: { conversationId },
+            orderBy: { createdAt: 'desc' },
+            include: {
+              sender: {
+                select: {
+                  id: true,
+                  username: true,
+                  profile: {
+                    select: {
+                      displayName: true,
+                      avatar: true
+                    }
+                  }
+                }
+              }
+            }
+          });
+
+          await tx.conversation.update({
+            where: { id: conversationId },
+            data: {
+              lastMessageId: nextLastMessage?.id ?? null,
+              updatedAt: nextLastMessage?.createdAt ?? new Date()
+            }
+          });
+
+          return {
+            lastMessage: nextLastMessage
+          };
+        }
+
+        await tx.conversation.update({
+          where: { id: conversationId },
+          data: {
+            updatedAt: new Date()
+          }
+        });
+
+        return { lastMessage: null };
+      });
+
+      const participants = await prisma.conversationParticipant.findMany({
+        where: { conversationId },
+        select: { userId: true }
+      });
+
+      const recipientIds = participants.map((p) => p.userId);
+      const sanitizedLastMessage = result.lastMessage ? sanitizeMessage(result.lastMessage) : null;
+
+      broadcastToUsers(recipientIds, {
+        event: 'message:deleted',
+        data: {
+          conversationId,
+          messageId,
+          lastMessage: sanitizedLastMessage,
+          deletedBy: userId
+        }
+      });
+
+  res.json({ success: true, lastMessage: sanitizedLastMessage });
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+
 router.post('/conversations/:conversationId/typing', requireAuth, async (req: any, res: Response) => {
   try {
     const userId = req.session.userId;

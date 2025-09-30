@@ -83,7 +83,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       }
       case 'message:new':
       case 'message:sent':
-      case 'message:typing': {
+      case 'message:typing':
+      case 'message:deleted': {
         window.dispatchEvent(
           new CustomEvent('ws-message', {
             detail: {

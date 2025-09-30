@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import '../css/mobile.scss';
 import '../css/buttons.scss';
-import { Button } from 'react-bootstrap';
+import { Button, Modal } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { Download, ChevronRight } from 'react-bootstrap-icons';
 
@@ -14,14 +14,15 @@ interface MobilePageProps {
 
 const MobilePage: React.FC<MobilePageProps> = ({
   code,
-  message = 'For the best experience, please use the Axioris mobile app.',
+  message = 'Axioris runs beautifully as a Progressive Web App. Install it to stay connected on the go without downloading anything from the store.',
   logoSrc = '/logo.png',
-  title = 'You are on mobile.'
+  title = 'Install the Axioris PWA'
 }) => {
   const navigate = useNavigate();
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
 
   useEffect(() => {
-    document.title = 'Mobile Warning - Axioris';
+    document.title = 'Install Axioris PWA';
   }, []);
 
   return (
@@ -41,10 +42,10 @@ const MobilePage: React.FC<MobilePageProps> = ({
         <Button
           variant="primary"
           className="btn d-flex align-items-center justify-content-center"
-          onClick={() => navigate('/')}
+          onClick={() => setShowInstallGuide(true)}
         >
           <Download size={20} />
-          Download App
+          Install the PWA
         </Button>
 
         <Button
@@ -61,6 +62,45 @@ const MobilePage: React.FC<MobilePageProps> = ({
           Continue on Website
         </Button>
       </div>
+
+      <Modal
+        show={showInstallGuide}
+        onHide={() => setShowInstallGuide(false)}
+        centered
+        aria-labelledby="pwa-install-guide-title"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title id="pwa-install-guide-title">How to install on your phone</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="pwa-install-guide">
+          <p className="mb-3">
+            Add Axioris to your home screen so it behaves like a fully native app. It only takes a few seconds:
+          </p>
+          <h6>On iPhone or iPad (Safari)</h6>
+          <ol>
+            <li>Tap the <strong>Share</strong> icon in the browser toolbar.</li>
+            <li>Select <strong>Add to Home Screen</strong>.</li>
+            <li>Confirm by tapping <strong>Add</strong>.</li>
+          </ol>
+          <h6 className="mt-3">On Android (Chrome)</h6>
+          <ol>
+            <li>Tap the <strong>⋮</strong> menu in the top right corner.</li>
+            <li>Choose <strong>Install app</strong> or <strong>Add to home screen</strong>.</li>
+            <li>Confirm the prompt to finish.</li>
+          </ol>
+          <p className="mb-0 text-muted">
+            Once installed, open Axioris from your home screen for the full-screen, distraction-free experience.
+          </p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowInstallGuide(false)}>
+            Close
+          </Button>
+          <Button variant="primary" onClick={() => setShowInstallGuide(false)}>
+            Got it
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 };
