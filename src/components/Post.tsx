@@ -73,7 +73,7 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
 
   const handlePostClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
-    if (target.closest('button') || target.closest('a') || target.closest('.user-info')) {
+    if (target.closest('button') || target.closest('a') || target.closest('.user-info') || target.closest('.post-media')) {
       return;
     }
     navigate(`/post/${post.id}`);
