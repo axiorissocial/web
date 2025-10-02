@@ -95,6 +95,10 @@
     font-size: 28px;
     font-weight: 600;
     border: 3px solid var(--bs-border-color);
+
+    &.gradient {
+      border-color: transparent;
+    }
   }
   
   .avatar-controls {
@@ -103,6 +107,105 @@
     .form-control {
       margin-bottom: 8px;
     }
+  }
+}
+
+.banner-section {
+  .banner-preview-wrapper {
+    width: 100%;
+  }
+
+  .banner-preview,
+  .banner-gradient-preview {
+    width: 100%;
+    height: 140px;
+    border-radius: 16px;
+    border: 3px solid var(--bs-border-color);
+    object-fit: cover;
+  }
+
+  .banner-gradient-preview {
+    background-size: 180% 180%;
+  }
+
+  .banner-placeholder {
+    width: 100%;
+    height: 140px;
+    border-radius: 16px;
+    border: 2px dashed var(--bs-border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bs-secondary-color);
+    gap: 8px;
+    font-weight: 500;
+  }
+}
+
+.gradient-selector {
+  .gradient-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+  }
+
+  .gradient-option {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    padding: 10px;
+    background: transparent;
+    color: var(--bs-body-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover:not(:disabled) {
+      border-color: var(--bs-primary);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+    }
+
+    &.selected {
+      border-color: var(--bs-primary);
+      box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb), 0.2);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: progress;
+    }
+  }
+
+  .gradient-swatch {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    color: white;
+
+    &.banner {
+      width: 100%;
+      height: 48px;
+      border-radius: 12px;
+    }
+
+    &.gradient-swatch-none {
+      background: var(--bs-secondary-bg);
+      color: var(--bs-secondary-color);
+      border-style: dashed;
+    }
+  }
+
+  .gradient-label {
+    font-size: 0.9rem;
+    text-align: center;
   }
 }
 

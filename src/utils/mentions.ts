@@ -21,7 +21,26 @@ export const extractMentions = (content: string): string[] => {
 };
 
 export const processMentions = (content: string): string => {
-  return content;
+  if (!content || typeof content !== 'string') {
+    return content;
+  }
+
+  const mentionRegex = /(^|[^\w@])@([a-zA-Z0-9_.]{1,32})\b/g;
+  let hasMatches = false;
+
+  const processed = content.replace(mentionRegex, (_match, prefix, username) => {
+    hasMatches = true;
+    const safePrefix = prefix ?? '';
+    const escapedUsername = username;
+    const mentionLink = `<a href="/profile/${escapedUsername}" class="mention-link" data-username="${escapedUsername}">@${escapedUsername}</a>`;
+    return `${safePrefix}${mentionLink}`;
+  });
+
+  if (!hasMatches) {
+    return content;
+  }
+
+  return processed;
 };
 
 export const searchUsersForMention = async (query: string): Promise<MentionUser[]> => {

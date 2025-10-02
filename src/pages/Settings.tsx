@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import Sidebar from '../components/singles/Navbar';
 import { Card, Form, Button, Tabs, Tab, Alert, Spinner, Modal, InputGroup } from 'react-bootstrap';
-import { Eye, EyeSlash, PersonCircle, Gear, Palette, Shield, Upload, Bell } from 'react-bootstrap-icons';
+import { Eye, EyeSlash, PersonCircle, Gear, Palette, Shield, Upload, Bell, Image as ImageIcon } from 'react-bootstrap-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import '../css/settings.scss';
 import { useTranslation } from 'react-i18next';
+import { profileGradients, getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
 
 interface ProfileData {
   displayName: string;
@@ -14,6 +15,9 @@ interface ProfileData {
   website: string;
   birthDate: string;
   avatar?: string;
+  banner?: string;
+  avatarGradient?: string | null;
+  bannerGradient?: string | null;
 }
 
 interface AccountData {
@@ -66,6 +70,14 @@ const SettingsPage: React.FC = () => {
   const [avatarPreview, setAvatarPreview] = useState<string>('');
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedAvatarGradient, setSelectedAvatarGradient] = useState<string | null>(null);
+  const [gradientLoading, setGradientLoading] = useState({ avatar: false, banner: false });
+
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const [bannerPreview, setBannerPreview] = useState<string>('');
+  const [bannerLoading, setBannerLoading] = useState(false);
+  const [showBannerDeleteConfirm, setShowBannerDeleteConfirm] = useState(false);
+  const [selectedBannerGradient, setSelectedBannerGradient] = useState<string | null>(null);
   
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
@@ -91,6 +103,7 @@ const SettingsPage: React.FC = () => {
   const [languageError, setLanguageError] = useState('');
   
   const [activeTab, setActiveTab] = useState('account');
+  const usernameInitial = user?.username?.charAt(0)?.toUpperCase() ?? '?';
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') || 'dark';
@@ -158,7 +171,11 @@ const SettingsPage: React.FC = () => {
           bio: userData.profile?.bio || userData.bio || '',
           location: userData.profile?.location || '',
           website: userData.profile?.website || '',
-          birthDate: userData.profile?.birthDate ? userData.profile.birthDate.split('T')[0] : ''
+          birthDate: userData.profile?.birthDate ? userData.profile.birthDate.split('T')[0] : '',
+          avatar: userData.profile?.avatar || undefined,
+          banner: userData.profile?.banner || undefined,
+          avatarGradient: userData.profile?.avatarGradient ?? null,
+          bannerGradient: userData.profile?.bannerGradient ?? null
         });
         
         setAccountData(prev => ({
@@ -167,9 +184,10 @@ const SettingsPage: React.FC = () => {
           email: userData.email || ''
         }));
         
-        if (userData.profile?.avatar) {
-          setAvatarPreview(userData.profile.avatar);
-        }
+        setAvatarPreview(userData.profile?.avatar || '');
+        setSelectedAvatarGradient(userData.profile?.avatarGradient ?? null);
+        setBannerPreview(userData.profile?.banner || '');
+        setSelectedBannerGradient(userData.profile?.bannerGradient ?? null);
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -404,7 +422,13 @@ const SettingsPage: React.FC = () => {
       if (response.ok) {
         const result = await response.json();
         setAvatarPreview(result.avatar);
+        setSelectedAvatarGradient(result.gradients?.avatarGradient ?? null);
         setAvatarFile(null);
+        setProfileData(prev => ({
+          ...prev,
+          avatar: result.avatar,
+          avatarGradient: result.gradients?.avatarGradient ?? null
+        }));
         setProfileSuccess(t('settings.profile.feedback.avatarUploadSuccess'));
       } else {
         const error = await response.json();
@@ -429,6 +453,10 @@ const SettingsPage: React.FC = () => {
       if (response.ok) {
         setAvatarPreview('');
         setAvatarFile(null);
+        setProfileData(prev => ({
+          ...prev,
+          avatar: undefined
+        }));
         setProfileSuccess(t('settings.profile.feedback.avatarRemoveSuccess'));
       } else {
         const error = await response.json();
@@ -439,6 +467,187 @@ const SettingsPage: React.FC = () => {
     } finally {
       setAvatarLoading(false);
       setShowDeleteConfirm(false);
+    }
+  };
+
+  const handleBannerFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        setProfileError(t('settings.profile.errors.invalidImageType'));
+        return;
+      }
+
+      if (file.size > 8 * 1024 * 1024) {
+        setProfileError(t('settings.profile.errors.invalidBannerSize'));
+        return;
+      }
+
+      setBannerFile(file);
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setBannerPreview(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+      setProfileError('');
+    }
+  };
+
+  const handleBannerUpload = async () => {
+    if (!bannerFile) return;
+
+    setBannerLoading(true);
+    const formData = new FormData();
+    formData.append('banner', bannerFile);
+
+    try {
+      const response = await fetch('/api/users/profile/banner', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setBannerPreview(result.banner);
+        setSelectedBannerGradient(result.gradients?.bannerGradient ?? null);
+        setBannerFile(null);
+        setProfileData(prev => ({
+          ...prev,
+          banner: result.banner,
+          bannerGradient: result.gradients?.bannerGradient ?? null
+        }));
+        setProfileSuccess(t('settings.profile.feedback.bannerUploadSuccess'));
+      } else {
+        const error = await response.json();
+        setProfileError(error.error || t('settings.profile.feedback.bannerUploadError'));
+      }
+    } catch (error) {
+      setProfileError(t('settings.profile.feedback.bannerUploadError'));
+    } finally {
+      setBannerLoading(false);
+    }
+  };
+
+  const handleBannerDelete = async () => {
+    setBannerLoading(true);
+
+    try {
+      const response = await fetch('/api/users/profile/banner', {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        setBannerPreview('');
+        setBannerFile(null);
+        setProfileData(prev => ({
+          ...prev,
+          banner: undefined
+        }));
+        setProfileSuccess(t('settings.profile.feedback.bannerRemoveSuccess'));
+      } else {
+        const error = await response.json();
+        setProfileError(error.error || t('settings.profile.feedback.bannerRemoveError'));
+      }
+    } catch (error) {
+      setProfileError(t('settings.profile.feedback.bannerRemoveError'));
+    } finally {
+      setBannerLoading(false);
+      setShowBannerDeleteConfirm(false);
+    }
+  };
+
+  const handleAvatarGradientSelect = async (gradientId: string | null) => {
+    setProfileError('');
+    setProfileSuccess('');
+    setGradientLoading(prev => ({ ...prev, avatar: true }));
+
+    try {
+      const response = await fetch('/api/users/profile/gradients', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          avatarGradient: gradientId,
+          clearAvatar: !!gradientId
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const updatedGradient = result.gradients?.avatarGradient ?? null;
+        const updatedAvatar = result.media?.avatar ?? null;
+        setSelectedAvatarGradient(updatedGradient);
+        setProfileData(prev => ({
+          ...prev,
+          avatarGradient: updatedGradient,
+          avatar: updatedAvatar ?? undefined
+        }));
+        setAvatarPreview(typeof updatedAvatar === 'string' ? updatedAvatar : '');
+        setAvatarFile(null);
+        setProfileSuccess(
+          gradientId
+            ? t('settings.profile.feedback.avatarGradientApplied')
+            : t('settings.profile.feedback.avatarGradientCleared')
+        );
+      } else {
+        const error = await response.json();
+        setProfileError(error.error || t('settings.profile.feedback.avatarGradientError'));
+      }
+    } catch (error) {
+      setProfileError(t('settings.profile.feedback.avatarGradientError'));
+    } finally {
+      setGradientLoading(prev => ({ ...prev, avatar: false }));
+    }
+  };
+
+  const handleBannerGradientSelect = async (gradientId: string | null) => {
+    setProfileError('');
+    setProfileSuccess('');
+    setGradientLoading(prev => ({ ...prev, banner: true }));
+
+    try {
+      const response = await fetch('/api/users/profile/gradients', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          bannerGradient: gradientId,
+          clearBanner: !!gradientId
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const updatedGradient = result.gradients?.bannerGradient ?? null;
+        const updatedBanner = result.media?.banner ?? null;
+        setSelectedBannerGradient(updatedGradient);
+        setProfileData(prev => ({
+          ...prev,
+          bannerGradient: updatedGradient,
+          banner: updatedBanner ?? undefined
+        }));
+        setBannerPreview(typeof updatedBanner === 'string' ? updatedBanner : '');
+        setBannerFile(null);
+        setProfileSuccess(
+          gradientId
+            ? t('settings.profile.feedback.bannerGradientApplied')
+            : t('settings.profile.feedback.bannerGradientCleared')
+        );
+      } else {
+        const error = await response.json();
+        setProfileError(error.error || t('settings.profile.feedback.bannerGradientError'));
+      }
+    } catch (error) {
+      setProfileError(t('settings.profile.feedback.bannerGradientError'));
+    } finally {
+      setGradientLoading(prev => ({ ...prev, banner: false }));
     }
   };
 
@@ -626,32 +835,134 @@ const SettingsPage: React.FC = () => {
                   
                   <div className="avatar-section mb-4">
                     <h6 className="mb-3">{t('settings.profile.picture.title')}</h6>
-                    <div className="d-flex align-items-center gap-3">
+                    <div className="d-flex flex-column flex-md-row align-items-start gap-3">
                       <div className="current-avatar">
                         {avatarPreview ? (
                           <img src={avatarPreview} alt={t('settings.profile.picture.alt')} className="avatar-preview" />
                         ) : (
-                          <div className="avatar-placeholder">
-                            {user.username.charAt(0).toUpperCase()}
+                          <div
+                            className={`avatar-placeholder${selectedAvatarGradient ? ' gradient' : ''}`}
+                            style={selectedAvatarGradient ? { background: getProfileGradientCss(selectedAvatarGradient), color: getProfileGradientTextColor(selectedAvatarGradient) } : undefined}
+                          >
+                            {usernameInitial}
                           </div>
                         )}
                       </div>
-                      <div className="avatar-controls">
+                      <div className="flex-grow-1 avatar-controls">
                         <Form.Control 
                           type="file" 
                           accept="image/*" 
                           onChange={handleAvatarFileChange}
                           className="mb-2"
                         />
-                        {avatarFile && (
-                          <Button 
-                            variant="primary" 
-                            size="sm" 
-                            onClick={handleAvatarUpload}
-                            disabled={avatarLoading}
-                            className="me-2"
+                        <div className="d-flex flex-wrap gap-2">
+                          {avatarFile && (
+                            <Button 
+                              variant="primary" 
+                              size="sm" 
+                              onClick={handleAvatarUpload}
+                              disabled={avatarLoading}
+                            >
+                              {avatarLoading ? (
+                                <>
+                                  <Spinner size="sm" className="me-1" />
+                                  {t('settings.profile.statuses.uploading')}
+                                </>
+                              ) : (
+                                <>
+                                  <Upload className="me-1" />
+                                  {t('settings.profile.picture.upload')}
+                                </>
+                              )}
+                            </Button>
+                          )}
+                          {avatarPreview && (
+                            <Button 
+                              variant="outline-danger" 
+                              size="sm"
+                              onClick={() => setShowDeleteConfirm(true)}
+                              disabled={avatarLoading}
+                            >
+                              {t('settings.profile.picture.remove')}
+                            </Button>
+                          )}
+                        </div>
+                        <p className="text-muted mt-2 mb-2">
+                          {t('settings.profile.picture.description')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="gradient-selector mt-3">
+                      <h6 className="mb-2">{t('settings.profile.picture.gradientTitle')}</h6>
+                      <div className="gradient-grid">
+                        <button
+                          type="button"
+                          className={`gradient-option ${!selectedAvatarGradient ? 'selected' : ''}`}
+                          onClick={() => handleAvatarGradientSelect(null)}
+                          disabled={gradientLoading.avatar}
+                          aria-pressed={!selectedAvatarGradient}
+                        >
+                          <span className="gradient-swatch gradient-swatch-none">Ø</span>
+                          <span className="gradient-label">{t('settings.profile.gradients.none')}</span>
+                        </button>
+                        {profileGradients.map((gradient) => {
+                          const isSelected = selectedAvatarGradient === gradient.id;
+                          return (
+                            <button
+                              key={`avatar-${gradient.id}`}
+                              type="button"
+                              className={`gradient-option ${isSelected ? 'selected' : ''}`}
+                              onClick={() => handleAvatarGradientSelect(gradient.id)}
+                              disabled={gradientLoading.avatar}
+                              aria-pressed={isSelected}
+                            >
+                              <span
+                                className="gradient-swatch"
+                                style={{ background: getProfileGradientCss(gradient.id), color: getProfileGradientTextColor(gradient.id) }}
+                              >
+                                {usernameInitial}
+                              </span>
+                              <span className="gradient-label">{gradient.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="banner-section mb-4">
+                    <h6 className="mb-3">{t('settings.profile.banner.title')}</h6>
+                    <div className="banner-preview-wrapper mb-3">
+                      {bannerPreview ? (
+                        <img src={bannerPreview} alt={t('settings.profile.banner.alt')} className="banner-preview" />
+                      ) : selectedBannerGradient ? (
+                        <div
+                          className="banner-gradient-preview"
+                          style={{ background: getProfileGradientCss(selectedBannerGradient) }}
+                        />
+                      ) : (
+                        <div className="banner-placeholder">
+                          <ImageIcon className="me-2" />
+                          {t('settings.profile.banner.placeholder')}
+                        </div>
+                      )}
+                    </div>
+                    <div className="d-flex flex-column flex-md-row align-items-start gap-2 gap-md-3 mb-3">
+                      <Form.Control
+                        type="file"
+                        accept="image/*"
+                        onChange={handleBannerFileChange}
+                        className="mb-2 mb-md-0"
+                      />
+                      <div className="d-flex flex-wrap gap-2">
+                        {bannerFile && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={handleBannerUpload}
+                            disabled={bannerLoading}
                           >
-                            {avatarLoading ? (
+                            {bannerLoading ? (
                               <>
                                 <Spinner size="sm" className="me-1" />
                                 {t('settings.profile.statuses.uploading')}
@@ -659,21 +970,56 @@ const SettingsPage: React.FC = () => {
                             ) : (
                               <>
                                 <Upload className="me-1" />
-                                {t('settings.profile.picture.upload')}
+                                {t('settings.profile.banner.upload')}
                               </>
                             )}
                           </Button>
                         )}
-                        {avatarPreview && (
-                          <Button 
-                            variant="outline-danger" 
+                        {bannerPreview && (
+                          <Button
+                            variant="outline-danger"
                             size="sm"
-                            onClick={() => setShowDeleteConfirm(true)}
-                            disabled={avatarLoading}
+                            onClick={() => setShowBannerDeleteConfirm(true)}
+                            disabled={bannerLoading}
                           >
-                            {t('settings.profile.picture.remove')}
+                            {t('settings.profile.banner.remove')}
                           </Button>
                         )}
+                      </div>
+                    </div>
+                    <p className="text-muted mb-3">{t('settings.profile.banner.description')}</p>
+                    <div className="gradient-selector">
+                      <h6 className="mb-2">{t('settings.profile.banner.gradientTitle')}</h6>
+                      <div className="gradient-grid">
+                        <button
+                          type="button"
+                          className={`gradient-option ${!selectedBannerGradient ? 'selected' : ''}`}
+                          onClick={() => handleBannerGradientSelect(null)}
+                          disabled={gradientLoading.banner}
+                          aria-pressed={!selectedBannerGradient}
+                        >
+                          <span className="gradient-swatch gradient-swatch-none">Ø</span>
+                          <span className="gradient-label">{t('settings.profile.gradients.none')}</span>
+                        </button>
+                        {profileGradients.map((gradient) => {
+                          const isSelected = selectedBannerGradient === gradient.id;
+                          return (
+                            <button
+                              key={`banner-${gradient.id}`}
+                              type="button"
+                              className={`gradient-option ${isSelected ? 'selected' : ''}`}
+                              onClick={() => handleBannerGradientSelect(gradient.id)}
+                              disabled={gradientLoading.banner}
+                              aria-pressed={isSelected}
+                            >
+                              <span
+                                className="gradient-swatch banner"
+                                style={{ background: getProfileGradientCss(gradient.id) }}
+                              />
+                              <span className="gradient-label">{gradient.label}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -1069,6 +1415,30 @@ const SettingsPage: React.FC = () => {
                 </>
               ) : (
                 t('settings.profile.picture.removeModal.cta')
+              )}
+            </Button>
+          </Modal.Footer>
+        </Modal>
+
+        <Modal show={showBannerDeleteConfirm} onHide={() => setShowBannerDeleteConfirm(false)} centered>
+          <Modal.Header closeButton>
+            <Modal.Title>{t('settings.profile.banner.removeModal.title')}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {t('settings.profile.banner.removeModal.description')}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowBannerDeleteConfirm(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant="danger" onClick={handleBannerDelete} disabled={bannerLoading}>
+              {bannerLoading ? (
+                <>
+                  <Spinner size="sm" className="me-2" />
+                  {t('settings.profile.statuses.removing')}
+                </>
+              ) : (
+                t('settings.profile.banner.removeModal.cta')
               )}
             </Button>
           </Modal.Footer>

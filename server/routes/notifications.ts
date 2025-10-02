@@ -45,7 +45,9 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
             profile: {
               select: {
                 displayName: true,
-                avatar: true
+                avatar: true,
+                avatarGradient: true,
+                bannerGradient: true
               }
             }
           }

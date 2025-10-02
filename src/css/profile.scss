@@ -3,11 +3,11 @@
   min-height: 100vh;
   background: var(--background-primary, var(--background-color));
 
-  @media (max-width: 992px) {
+  @media (orientation: landscape) {
     padding: 1.5rem 1rem 5rem;
   }
 
-  @media (max-width: 576px) {
+  @media (orientation: portrait) {
     padding: 1rem 0.75rem 5.5rem;
   }
 }
@@ -357,6 +357,10 @@
 @media (orientation: portrait) {
   .profile-main {
     padding: 0.5rem;
+  }
+
+  .profile-stats {
+    visibility: hidden;
   }
 
   .profile-card {

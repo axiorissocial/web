@@ -28,3 +28,4 @@ dist-ssr
 prisma/dev.db
 public/uploads
 sessions/
+temp/

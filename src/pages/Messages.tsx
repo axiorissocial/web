@@ -10,6 +10,7 @@ import DOMPurify from 'dompurify';
 import twemoji from 'twemoji';
 import { EMOJIS } from '../utils/emojis';
 import { useTranslation } from 'react-i18next';
+import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
 
 interface User {
   id: string;
@@ -17,6 +18,8 @@ interface User {
   profile?: {
     displayName?: string;
     avatar?: string;
+    avatarGradient?: string | null;
+    bannerGradient?: string | null;
   };
 }
 
@@ -685,6 +688,22 @@ useEffect(() => {
     return conversation.otherParticipants[0]?.user?.profile?.avatar;
   };
 
+  const getProfileGradientStyle = (profile?: User['profile']) => {
+    if (!profile || profile.avatar) {
+      return undefined;
+    }
+
+    const gradientId = profile.avatarGradient ?? null;
+    if (!gradientId) {
+      return undefined;
+    }
+
+    return {
+      background: getProfileGradientCss(gradientId),
+      color: getProfileGradientTextColor(gradientId)
+    } as React.CSSProperties;
+  };
+
   const getOtherParticipantId = (conversation: Conversation) => {
     return conversation.otherParticipants[0]?.user?.id;
   };
@@ -793,7 +812,6 @@ useEffect(() => {
       <Sidebar activeId="messages" />
       <main className="messages-main">
         <div className="messages-container">
-          {/* Conversations Sidebar */}
           <Card className="conversations-sidebar">
             <Card.Header>
               <h5 className="mb-0">{t('messagesCenter.sidebar.title')}</h5>
@@ -834,7 +852,12 @@ useEffect(() => {
                                 className="avatar-img"
                               />
                             ) : (
-                              <div className="avatar-placeholder">
+                              <div
+                                className="avatar-placeholder"
+                                style={getProfileGradientStyle(
+                                  conversation.otherParticipants[0]?.user?.profile
+                                )}
+                              >
                                 {getOtherParticipantName(conversation).charAt(0).toUpperCase()}
                               </div>
                             )}
@@ -889,7 +912,6 @@ useEffect(() => {
             </Card.Body>
           </Card>
 
-          {/* Messages Area */}
           <Card className="messages-area">
             {activeConversation ? (
               <>

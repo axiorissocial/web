@@ -7,6 +7,7 @@ import Feed from '../components/Feed';
 import { useAuth } from '../contexts/AuthContext';
 import '../css/profile.scss';
 import { useTranslation } from 'react-i18next';
+import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
 
 interface UserProfile {
   id: string;
@@ -27,6 +28,8 @@ interface UserProfile {
     bio?: string;
     birthDate?: string;
     joinedAt: string;
+    avatarGradient?: string | null;
+    bannerGradient?: string | null;
   };
   _count: {
     posts: number;
@@ -211,6 +214,17 @@ const ProfilePage: React.FC = () => {
         timeStyle: 'short'
       })
     : null;
+  const avatarGradientId = !profile.profile?.avatar ? profile.profile?.avatarGradient ?? null : null;
+  const avatarPlaceholderStyle = avatarGradientId
+    ? {
+        background: getProfileGradientCss(avatarGradientId),
+        color: getProfileGradientTextColor(avatarGradientId)
+      }
+    : undefined;
+  const bannerGradientId = !profile.profile?.banner ? profile.profile?.bannerGradient ?? null : null;
+  const bannerStyle = bannerGradientId
+    ? { background: getProfileGradientCss(bannerGradientId) }
+    : undefined;
 
   const handleMessage = async () => {
     if (!profile || !currentUser) return;
@@ -260,7 +274,7 @@ const ProfilePage: React.FC = () => {
                   className="banner-image"
                 />
               ) : (
-                <div className="banner-placeholder" />
+                <div className="banner-placeholder" style={bannerStyle} />
               )}
             </div>
             
@@ -274,7 +288,7 @@ const ProfilePage: React.FC = () => {
                       className="profile-avatar"
                     />
                   ) : (
-                    <div className="profile-avatar-placeholder">
+                    <div className="profile-avatar-placeholder" style={avatarPlaceholderStyle}>
                       {displayName.charAt(0).toUpperCase()}
                     </div>
                   )}
@@ -491,7 +505,6 @@ const ProfilePage: React.FC = () => {
         </div>
       </main>
       
-      {/* Mobile Floating Action Button - Only show on own profile */}
       {isMobile && currentUser && profile?.isOwn && (
         <Button
           variant="primary"

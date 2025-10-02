@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import '../css/notifications.scss';
 import { useTranslation } from 'react-i18next';
+import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
 
 interface NotificationUser {
   id: string;
@@ -14,6 +15,8 @@ interface NotificationUser {
   profile?: {
     displayName?: string;
     avatar?: string;
+    avatarGradient?: string | null;
+    bannerGradient?: string | null;
   };
 }
 
@@ -77,6 +80,22 @@ const NotificationsPage: React.FC = () => {
       : 'notificationsCenter.documentTitle';
     document.title = t(titleKey, { count: unreadCount, app: t('app.name') });
   }, [unreadCount, t, i18n.language]);
+
+  const buildPlaceholderStyle = (profile?: NotificationUser['profile']) => {
+    if (!profile || profile.avatar) {
+      return undefined;
+    }
+
+    const gradientId = profile.avatarGradient ?? null;
+    if (!gradientId) {
+      return undefined;
+    }
+
+    return {
+      background: getProfileGradientCss(gradientId),
+      color: getProfileGradientTextColor(gradientId)
+    } as React.CSSProperties;
+  };
 
   const fetchNotifications = useCallback(async (pageNum = 1, targetView = view) => {
     if (!user) return;
@@ -437,7 +456,6 @@ const NotificationsPage: React.FC = () => {
     <div className="app-container">
       <Sidebar activeId="notifications" />
       <main className="notifications-main">
-        <div className="container-fluid">
           <div className="notifications-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
             <div>
               <h1>{t('notificationsCenter.title')}</h1>
@@ -523,23 +541,34 @@ const NotificationsPage: React.FC = () => {
                   <Card.Body className="py-3">
                     <div className="d-flex align-items-start">
                       <div className="me-3">
-                        {notification.sender?.profile?.avatar ? (
-                          <img
-                            src={notification.sender.profile.avatar}
-                            alt={notification.sender.username}
-                            className="rounded-circle"
-                            width={40}
-                            height={40}
-                            style={{ objectFit: 'cover' }}
-                          />
-                        ) : (
-                          <div
-                            className="rounded-circle bg-secondary d-flex align-items-center justify-content-center text-white"
-                            style={{ width: '40px', height: '40px' }}
-                          >
-                            {notification.sender?.username?.charAt(0).toUpperCase() || '?'}
-                          </div>
-                        )}
+                        {(() => {
+                          const placeholderStyle = buildPlaceholderStyle(notification.sender?.profile);
+                          const placeholderClassName = `rounded-circle d-flex align-items-center justify-content-center ${
+                            placeholderStyle ? '' : 'bg-secondary text-white'
+                          }`;
+
+                          return notification.sender?.profile?.avatar ? (
+                            <img
+                              src={notification.sender.profile.avatar}
+                              alt={notification.sender.username}
+                              className="rounded-circle"
+                              width={40}
+                              height={40}
+                              style={{ objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <div
+                              className={placeholderClassName}
+                              style={{
+                                width: '40px',
+                                height: '40px',
+                                ...(placeholderStyle ?? {})
+                              }}
+                            >
+                              {notification.sender?.username?.charAt(0).toUpperCase() || '?'}
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       <div className="flex-grow-1">
@@ -646,7 +675,6 @@ const NotificationsPage: React.FC = () => {
             )}
           </>
         )}
-        </div>
       </main>
       <Modal show={showArchiveModal} onHide={closeArchiveModal} centered>
         <Modal.Header closeButton>

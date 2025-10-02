@@ -45,7 +45,9 @@ router.get('/conversations', requireAuth, async (req: any, res: Response) => {
                 profile: {
                   select: {
                     displayName: true,
-                    avatar: true
+                    avatar: true,
+                    avatarGradient: true,
+                    bannerGradient: true
                   }
                 }
               }
@@ -61,7 +63,9 @@ router.get('/conversations', requireAuth, async (req: any, res: Response) => {
                 profile: {
                   select: {
                     displayName: true,
-                    avatar: true
+                    avatar: true,
+                    avatarGradient: true,
+                    bannerGradient: true
                   }
                 }
               }
@@ -159,7 +163,9 @@ router.post('/conversations', requireAuth, async (req: any, res: Response) => {
                 profile: {
                   select: {
                     displayName: true,
-                    avatar: true
+                    avatar: true,
+                    avatarGradient: true,
+                    bannerGradient: true
                   }
                 }
               }
@@ -195,7 +201,9 @@ router.post('/conversations', requireAuth, async (req: any, res: Response) => {
                 profile: {
                   select: {
                     displayName: true,
-                    avatar: true
+                    avatar: true,
+                    avatarGradient: true,
+                    bannerGradient: true
                   }
                 }
               }
@@ -248,7 +256,9 @@ router.get('/conversations/:conversationId/messages', requireAuth, async (req: a
             profile: {
               select: {
                 displayName: true,
-                avatar: true
+                avatar: true,
+                avatarGradient: true,
+                bannerGradient: true
               }
             }
           }
@@ -334,7 +344,9 @@ router.post('/conversations/:conversationId/messages', requireAuth, async (req: 
               profile: {
                 select: {
                   displayName: true,
-                  avatar: true
+                  avatar: true,
+                  avatarGradient: true,
+                  bannerGradient: true
                 }
               }
             }
@@ -365,7 +377,9 @@ router.post('/conversations/:conversationId/messages', requireAuth, async (req: 
             profile: {
               select: {
                 displayName: true,
-                avatar: true
+                avatar: true,
+                avatarGradient: true,
+                bannerGradient: true
               }
             }
           }
@@ -526,7 +540,9 @@ router.delete(
                   profile: {
                     select: {
                       displayName: true,
-                      avatar: true
+                      avatar: true,
+                      avatarGradient: true,
+                      bannerGradient: true
                     }
                   }
                 }

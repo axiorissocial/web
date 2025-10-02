@@ -10,6 +10,119 @@ import { VideoProcessor } from '../utils/videoProcessor.js';
 
 const viewCache = new Map<string, number>();
 
+const POST_REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '🎉'] as const;
+type PostReactionEmoji = typeof POST_REACTION_EMOJIS[number];
+type ReactionCounts = Partial<Record<PostReactionEmoji, number>>;
+
+const isValidReactionEmoji = (emoji: string): emoji is PostReactionEmoji =>
+  POST_REACTION_EMOJIS.includes(emoji as PostReactionEmoji);
+
+type ReactionSummaryItem = {
+  emoji: PostReactionEmoji;
+  count: number;
+  isSelected: boolean;
+};
+
+type PostReactionSummary = {
+  availableEmojis: readonly PostReactionEmoji[];
+  summary: ReactionSummaryItem[];
+  totalCount: number;
+  currentUserReaction: PostReactionEmoji | null;
+};
+
+const buildReactionSummary = (
+  counts: ReactionCounts,
+  currentUserReaction: PostReactionEmoji | null
+): PostReactionSummary => {
+  const summary = POST_REACTION_EMOJIS.map(emoji => {
+    const count = counts[emoji] ?? 0;
+    return {
+      emoji,
+      count,
+      isSelected: currentUserReaction === emoji,
+    } satisfies ReactionSummaryItem;
+  });
+
+  const totalCount = summary.reduce((acc, item) => acc + item.count, 0);
+
+  return {
+    availableEmojis: POST_REACTION_EMOJIS,
+    summary,
+    totalCount,
+    currentUserReaction,
+  };
+};
+
+const getReactionSummaryForPosts = async (
+  postIds: string[],
+  userId?: string
+): Promise<Map<string, PostReactionSummary>> => {
+  if (!postIds.length) {
+    return new Map();
+  }
+
+  const countsPromise = prisma.postReaction.groupBy({
+    by: ['postId', 'emoji'],
+    where: { postId: { in: postIds } },
+    _count: { _all: true },
+  });
+
+  const userReactionsPromise = userId
+    ? prisma.postReaction.findMany({
+        where: {
+          postId: { in: postIds },
+          userId,
+        },
+        select: {
+          postId: true,
+          emoji: true,
+        },
+      })
+    : Promise.resolve([] as { postId: string; emoji: PostReactionEmoji }[]);
+
+  const [groupedCounts, userReactions] = await Promise.all([countsPromise, userReactionsPromise]);
+
+  const countsByPost = new Map<string, ReactionCounts>();
+  for (const item of groupedCounts) {
+    const emoji = item.emoji as PostReactionEmoji;
+    if (!isValidReactionEmoji(emoji)) continue;
+
+    const countValue = typeof item._count === 'object' && item._count !== null && '_all' in item._count
+      ? Number(item._count._all)
+      : 0;
+
+    const existing = countsByPost.get(item.postId) ?? {};
+    existing[emoji] = countValue;
+    countsByPost.set(item.postId, existing);
+  }
+
+  const userReactionByPost = new Map<string, PostReactionEmoji | null>();
+  if (Array.isArray(userReactions)) {
+    for (const reaction of userReactions as { postId: string; emoji: string }[]) {
+      if (isValidReactionEmoji(reaction.emoji)) {
+        userReactionByPost.set(reaction.postId, reaction.emoji);
+      }
+    }
+  }
+
+  const result = new Map<string, PostReactionSummary>();
+  for (const postId of postIds) {
+    const counts = countsByPost.get(postId) ?? {};
+    const currentUserReaction = userReactionByPost.get(postId) ?? null;
+    result.set(postId, buildReactionSummary(counts, currentUserReaction));
+  }
+
+  return result;
+};
+
+const getReactionSummaryForPost = async (
+  postId: string,
+  userId?: string
+): Promise<PostReactionSummary> => {
+  const summaryMap = await getReactionSummaryForPosts([postId], userId);
+  return summaryMap.get(postId) ?? buildReactionSummary({}, null);
+};
+
 const deleteMediaFiles = (mediaItems: any[]): void => {
   if (!Array.isArray(mediaItems)) return;
   
@@ -157,6 +270,8 @@ router.get('/posts', optionalAuth, async (req: AuthenticatedRequest, res: Respon
               select: {
                 displayName: true,
                 avatar: true,
+                avatarGradient: true,
+                bannerGradient: true,
               }
             }
           }
@@ -169,6 +284,7 @@ router.get('/posts', optionalAuth, async (req: AuthenticatedRequest, res: Respon
         _count: {
           select: {
             likes: true,
+            comments: true,
           }
         }
       },
@@ -180,10 +296,15 @@ router.get('/posts', optionalAuth, async (req: AuthenticatedRequest, res: Respon
       take: limit,
     });
 
+    const postIds = posts.map(post => post.id);
+    const reactionsByPost = await getReactionSummaryForPosts(postIds, req.userId);
+
     const postsWithLikeStatus = posts.map(post => ({
       ...post,
       isLiked: req.userId ? post.likes.some(like => like.userId === req.userId) : false,
       likes: undefined,
+      commentsCount: post._count?.comments ?? 0,
+      reactions: reactionsByPost.get(post.id) ?? buildReactionSummary({}, null),
     }));
 
     const totalPosts = await prisma.post.count({ where });
@@ -224,6 +345,8 @@ router.get('/posts/:id', optionalAuth, async (req: AuthenticatedRequest, res: Re
               select: {
                 displayName: true,
                 avatar: true,
+                avatarGradient: true,
+                bannerGradient: true,
               }
             }
           }
@@ -246,36 +369,66 @@ router.get('/posts/:id', optionalAuth, async (req: AuthenticatedRequest, res: Re
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    const userAgent = req.get('User-Agent') || '';
-    const clientIP = req.ip || req.connection.remoteAddress || '';
-    const sessionId = req.userId ? `user_${req.userId}` : `${clientIP}_${userAgent.slice(0, 50)}`;
-    
-    const viewKey = `${sessionId}_${id}`;
-    const lastViewTime = viewCache.get(viewKey);
-    const now = Date.now();
-    
-    if (!lastViewTime || (now - lastViewTime) > 30 * 60 * 1000) {
-      await prisma.post.update({
-        where: { id },
-        data: { viewsCount: { increment: 1 } }
-      });
-      
-      viewCache.set(viewKey, now);
-      
-      if (viewCache.size > 10000) {
-        const entries = Array.from(viewCache.entries()) as [string, number][];
-        entries.sort((a, b) => a[1] - b[1]);
-        viewCache.clear();
-        entries.slice(-5000).forEach(([key, time]) => {
-          viewCache.set(key, time);
-        });
+    const isPostOwner = Boolean(req.userId && req.userId === post.userId);
+
+    if (!isPostOwner) {
+      const sessionData = req.session as typeof req.session & { viewedPosts?: Record<string, number> };
+      const now = Date.now();
+      let viewRecorded = false;
+
+      if (sessionData) {
+        if (!sessionData.viewedPosts) {
+          sessionData.viewedPosts = {};
+        }
+
+        if (!sessionData.viewedPosts[id]) {
+          await prisma.post.update({
+            where: { id },
+            data: { viewsCount: { increment: 1 } }
+          });
+          sessionData.viewedPosts[id] = now;
+          viewRecorded = true;
+        } else {
+          viewRecorded = true;
+        }
+      }
+
+      if (!viewRecorded) {
+        const userAgent = req.get('User-Agent') || '';
+        const clientIP = req.ip || req.connection.remoteAddress || '';
+        const sessionId = req.userId ? `user_${req.userId}` : `${clientIP}_${userAgent.slice(0, 50)}`;
+
+        const viewKey = `${sessionId}_${id}`;
+        const lastViewTime = viewCache.get(viewKey);
+
+        if (!lastViewTime || (now - lastViewTime) > 30 * 60 * 1000) {
+          await prisma.post.update({
+            where: { id },
+            data: { viewsCount: { increment: 1 } }
+          });
+
+          viewCache.set(viewKey, now);
+
+          if (viewCache.size > 10000) {
+            const entries = Array.from(viewCache.entries()) as [string, number][];
+            entries.sort((a, b) => a[1] - b[1]);
+            viewCache.clear();
+            entries.slice(-5000).forEach(([key, time]) => {
+              viewCache.set(key, time);
+            });
+          }
+        }
       }
     }
+
+    const reactionSummary = await getReactionSummaryForPost(id, req.userId);
 
     const postWithLikeStatus = {
       ...post,
       isLiked: req.userId ? post.likes.some(like => like.userId === req.userId) : false,
       likes: undefined,
+      commentsCount: post._count?.comments ?? 0,
+      reactions: reactionSummary,
     };
 
     res.json(postWithLikeStatus);
@@ -390,6 +543,8 @@ router.post('/posts', requireAuth, async (req: AuthenticatedRequest, res: Respon
               select: {
                 displayName: true,
                 avatar: true,
+                avatarGradient: true,
+                bannerGradient: true,
               }
             }
           }
@@ -397,6 +552,7 @@ router.post('/posts', requireAuth, async (req: AuthenticatedRequest, res: Respon
         _count: {
           select: {
             likes: true,
+            comments: true,
           }
         }
       }
@@ -409,6 +565,8 @@ router.post('/posts', requireAuth, async (req: AuthenticatedRequest, res: Respon
       post: {
         ...post,
         isLiked: false,
+        commentsCount: 0,
+        reactions: buildReactionSummary({}, null),
       }
     });
 
@@ -492,6 +650,120 @@ router.post('/posts/:id/like', requireAuth, async (req: AuthenticatedRequest, re
   }
 });
 
+router.post('/posts/:id/reactions', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId!;
+    const emojiInput = typeof req.body?.emoji === 'string' ? req.body.emoji : '';
+    const emoji = emojiInput.trim();
+
+    if (!isValidReactionEmoji(emoji)) {
+      return res.status(400).json({ message: 'Invalid reaction emoji' });
+    }
+
+    const post = await prisma.post.findFirst({
+      where: {
+        id,
+        isPrivate: false,
+      }
+    });
+
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    const existingReaction = await prisma.postReaction.findUnique({
+      where: {
+        postId_userId: {
+          postId: id,
+          userId,
+        }
+      }
+    });
+
+    let action: 'added' | 'removed' | 'changed' = 'added';
+
+    if (existingReaction) {
+      if (existingReaction.emoji === emoji) {
+        await prisma.postReaction.delete({
+          where: {
+            id: existingReaction.id,
+          }
+        });
+        action = 'removed';
+      } else {
+        await prisma.postReaction.update({
+          where: {
+            id: existingReaction.id,
+          },
+          data: {
+            emoji,
+          }
+        });
+        action = 'changed';
+      }
+    } else {
+      await prisma.postReaction.create({
+        data: {
+          postId: id,
+          userId,
+          emoji,
+        }
+      });
+    }
+
+    const reactions = await getReactionSummaryForPost(id, userId);
+
+    res.json({
+      message:
+        action === 'added'
+          ? 'Reaction added'
+          : action === 'changed'
+            ? 'Reaction updated'
+            : 'Reaction removed',
+      action,
+      reactions,
+    });
+  } catch (error) {
+    console.error('Error updating reaction:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+router.delete('/posts/:id/reactions', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId!;
+
+    const existingReaction = await prisma.postReaction.findUnique({
+      where: {
+        postId_userId: {
+          postId: id,
+          userId,
+        }
+      }
+    });
+
+    if (existingReaction) {
+      await prisma.postReaction.delete({
+        where: {
+          id: existingReaction.id,
+        }
+      });
+    }
+
+    const reactions = await getReactionSummaryForPost(id, userId);
+
+    res.json({
+      message: existingReaction ? 'Reaction removed' : 'No reaction to remove',
+      reactions,
+    });
+  } catch (error) {
+    console.error('Error removing reaction:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 router.get('/users/search', async (req: Request, res: Response) => {
   try {
     const query = req.query.q as string;
@@ -521,6 +793,8 @@ router.get('/users/search', async (req: Request, res: Response) => {
           select: {
             displayName: true,
             avatar: true,
+            avatarGradient: true,
+            bannerGradient: true,
           }
         },
         _count: {
@@ -636,6 +910,8 @@ router.put('/posts/:id', requireAuth, async (req: AuthenticatedRequest, res: Res
               select: {
                 displayName: true,
                 avatar: true,
+                avatarGradient: true,
+                bannerGradient: true,
               }
             }
           }
@@ -805,6 +1081,8 @@ router.get('/posts/:id/comments', optionalAuth, async (req: AuthenticatedRequest
               select: {
                 displayName: true,
                 avatar: true,
+                avatarGradient: true,
+                bannerGradient: true,
               }
             }
           }
@@ -827,6 +1105,8 @@ router.get('/posts/:id/comments', optionalAuth, async (req: AuthenticatedRequest
                   select: {
                     displayName: true,
                     avatar: true,
+                    avatarGradient: true,
+                    bannerGradient: true,
                   }
                 }
               }
@@ -849,6 +1129,8 @@ router.get('/posts/:id/comments', optionalAuth, async (req: AuthenticatedRequest
                       select: {
                         displayName: true,
                         avatar: true,
+                        avatarGradient: true,
+                        bannerGradient: true,
                       }
                     }
                   }
@@ -953,6 +1235,8 @@ router.post('/posts/:id/comments', requireAuth, async (req: AuthenticatedRequest
               select: {
                 displayName: true,
                 avatar: true,
+                avatarGradient: true,
+                bannerGradient: true,
               }
             }
           }
@@ -1154,7 +1438,9 @@ router.put('/comments/:id', requireAuth, async (req: AuthenticatedRequest, res: 
             profile: {
               select: {
                 displayName: true,
-                avatar: true
+                avatar: true,
+                avatarGradient: true,
+                bannerGradient: true
               }
             }
           }

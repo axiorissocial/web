@@ -12,7 +12,12 @@
     "skipLibCheck": true,
     "types": ["node"],
     "declaration": true,
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "baseUrl": "..",
+    "paths": {
+      "@shared/*": ["shared/*"],
+      "@src/*": ["src/*"]
+    }
   },
   "include": ["./**/*"],
   "exclude": ["node_modules", "dist"]

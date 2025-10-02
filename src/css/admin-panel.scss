@@ -1,4 +1,3 @@
-/* Admin panel styling */
 .admin-content {
   background-color: var(--card-bg);
   border: 1px solid var(--card-border);
@@ -6,7 +5,6 @@
   border-radius: 8px;
 }
 
-/* Align admin main content with the fixed sidebar and prevent overflow */
 .app-container {
   --sidebar-width: clamp(220px, 20vw, 320px);
 }
@@ -23,13 +21,12 @@
 @media (orientation: portrait) {
   .main-content {
     margin-left: 0;
-    margin-bottom: 60px; /* Account for mobile navbar */
+    margin-bottom: 60px;
     width: 100vw;
     max-width: 100vw;
   }
 }
 
-/* Ensure tables in admin panel inherit theme colors (fix black text in dark mode) */
 .admin-content table {
   color: var(--text-primary);
   background-color: transparent;
@@ -47,10 +44,9 @@
 }
 
 .admin-content .table-striped > tbody > tr:nth-of-type(odd) {
-  background-color: rgba(0,0,0,0.02); /* subtle stripe; will still be fine in dark mode */
+  background-color: rgba(0,0,0,0.02);
 }
 
-/* Ensure text is readable in dark mode */
 body[data-theme="dark"] .admin-content {
   color: var(--text-primary);
 }
@@ -61,7 +57,6 @@ body[data-theme="dark"] .admin-content h4 {
   color: var(--text-primary);
 }
 
-/* Additional table styling for better dark mode support */
 body[data-theme="dark"] .admin-content table {
   --bs-table-bg: transparent;
 }

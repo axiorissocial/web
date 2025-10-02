@@ -26,6 +26,7 @@ model User {
   likes       Like[]    // relation to post likes
   commentLikes CommentLike[] // relation to comment likes
   comments    Comment[] // relation to comments
+  postReactions PostReaction[]
   settings    UserSettings?
   profile     Profile?
   
@@ -54,6 +55,8 @@ model Profile {
   displayName String?
   avatar      String?  // URL to profile picture
   banner      String?  // URL to banner image
+  avatarGradient String? // Identifier for default avatar gradient
+  bannerGradient String? // Identifier for default banner gradient
   location    String?
   website     String?
   bio         String?  // Extended bio
@@ -91,6 +94,7 @@ model Post {
 
   likes         Like[]
   comments      Comment[]
+  reactions     PostReaction[]
   notifications Notification[]
   reports       Report[]  // Reports against this post
 }
@@ -136,6 +140,20 @@ model CommentLike {
   createdAt DateTime @default(now())
 
   @@id([userId, commentId]) // composite primary key
+}
+
+model PostReaction {
+  id        String   @id @default(uuid())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([postId, userId])
+  @@index([postId, emoji])
 }
 
 model UserSettings {

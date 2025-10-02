@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button, Dropdown, Form, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { ChatSquareText, Heart, HeartFill, ChevronDown, ChevronUp, ThreeDotsVertical, Trash, PencilSquare, EmojiSmile } from 'react-bootstrap-icons';
@@ -10,6 +10,7 @@ import MentionTextarea from './MentionTextarea';
 import EmojiPicker from './EmojiPicker';
 import '../css/comment.scss';
 import { useTranslation } from 'react-i18next';
+import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
 
 interface CommentUser {
   id: string;
@@ -17,6 +18,8 @@ interface CommentUser {
   profile?: {
     displayName?: string;
     avatar?: string;
+    avatarGradient?: string | null;
+    bannerGradient?: string | null;
   };
 }
 
@@ -215,13 +218,29 @@ const CommentComponent: React.FC<CommentProps> = ({
     });
   };
 
+  const [avatarFailed, setAvatarFailed] = useState(false);
+
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [comment.user.profile?.avatar]);
+
   const getAvatarUrl = (user: CommentUser) => {
-    if (user.profile?.avatar) {
-      return user.profile.avatar.startsWith('http') 
-        ? user.profile.avatar 
-        : `/uploads/avatars/${user.profile.avatar}`;
+    const avatar = user.profile?.avatar;
+    if (!avatar) return undefined;
+
+    if (/^(https?:)?\/\//i.test(avatar) || avatar.startsWith('data:') || avatar.startsWith('blob:')) {
+      return avatar;
     }
-    return null;
+
+    if (avatar.startsWith('/')) {
+      return avatar;
+    }
+
+    if (avatar.startsWith('uploads/')) {
+      return `/${avatar}`;
+    }
+
+    return `/uploads/avatars/${avatar}`;
   };
 
   const handleReplySubmit = async (e: React.FormEvent) => {
@@ -288,6 +307,16 @@ const CommentComponent: React.FC<CommentProps> = ({
 
   const displayName = comment.user.profile?.displayName || comment.user.username;
   const { content, showExpandButton } = processCommentContent(comment.content);
+  const avatarUrl = getAvatarUrl(comment.user);
+  const showAvatarImage = Boolean(avatarUrl) && !avatarFailed;
+  const placeholderInitial = displayName.charAt(0).toUpperCase();
+  const placeholderGradientId = comment.user.profile?.avatarGradient ?? null;
+  const placeholderStyle = placeholderGradientId
+    ? {
+        background: getProfileGradientCss(placeholderGradientId),
+        color: getProfileGradientTextColor(placeholderGradientId)
+      }
+    : undefined;
 
   return (
     <div 
@@ -297,15 +326,17 @@ const CommentComponent: React.FC<CommentProps> = ({
     >
       <div className="d-flex mb-3">
         <Link to={`/profile/${comment.user.username}`} className="text-decoration-none">
-          {getAvatarUrl(comment.user) ? (
-            <img 
-              src={getAvatarUrl(comment.user)!} 
+          {showAvatarImage && (
+            <img
+              src={avatarUrl}
               alt={t('comment.avatarAlt', { name: displayName })}
               className="comment-avatar me-3"
+              onError={() => setAvatarFailed(true)}
             />
-          ) : (
-            <div className="comment-avatar-placeholder me-3">
-              {displayName.charAt(0).toUpperCase()}
+          )}
+          {!showAvatarImage && (
+            <div className="comment-avatar-placeholder me-3" style={placeholderStyle}>
+              {placeholderInitial}
             </div>
           )}
         </Link>
@@ -323,7 +354,6 @@ const CommentComponent: React.FC<CommentProps> = ({
               {comment.editedAt && ` ${t('comment.time.edited')}`}
             </small>
             
-            {/* Delete dropdown for comment author */}
             {currentUser && currentUser.id === comment.user.id && (
               <Dropdown align="end">
                 <Dropdown.Toggle variant="link" size="sm" className="p-0 text-muted">

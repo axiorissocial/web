@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import { prisma } from '../index.js';
+import { getRandomGradientId } from '@shared/profileGradients';
 
 const router = Router();
 
@@ -12,6 +13,7 @@ declare module 'express-session' {
       username: string;
       email: string;
     };
+    viewedPosts?: Record<string, number>;
   }
 }
 
@@ -49,6 +51,12 @@ router.post('/register', async (req: Request, res: Response) => {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    const avatarGradient = getRandomGradientId();
+    let bannerGradient = getRandomGradientId();
+    while (bannerGradient === avatarGradient) {
+      bannerGradient = getRandomGradientId();
+    }
+
     const user = await prisma.user.create({
       data: {
         username: name,
@@ -57,7 +65,9 @@ router.post('/register', async (req: Request, res: Response) => {
         profile: {
           create: {
             displayName: name,
-          }
+            avatarGradient,
+            bannerGradient
+          } as any
         }
       },
       select: {
@@ -70,7 +80,9 @@ router.post('/register', async (req: Request, res: Response) => {
           select: {
             id: true,
             displayName: true,
-          }
+            avatarGradient: true,
+            bannerGradient: true
+          } as any
         }
       }
     });
@@ -90,6 +102,7 @@ router.post('/register', async (req: Request, res: Response) => {
         username: user.username,
         email: user.email,
         isAdmin: user.isAdmin ?? false,
+        profile: (user as any).profile
       }
     });
 
@@ -198,7 +211,10 @@ router.get('/me', async (req: Request, res: Response) => {
             avatar: true,
             location: true,
             website: true,
-          }
+            banner: true,
+            avatarGradient: true,
+            bannerGradient: true
+          } as any
         }
       }
     });

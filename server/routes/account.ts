@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs';
 
 const AVATARS_DIR = path.join(process.cwd(), 'public', 'uploads', 'avatars');
+const BANNERS_DIR = path.join(process.cwd(), 'public', 'uploads', 'banners');
 import { PrismaClient } from '../../src/generated/prisma/index.js';
 
 const router = express.Router();
@@ -36,6 +37,34 @@ const upload = multer({
   storage,
   limits: {
     fileSize: 5 * 1024 * 1024,
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
+
+const bannerStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    if (!fs.existsSync(BANNERS_DIR)) {
+      fs.mkdirSync(BANNERS_DIR, { recursive: true });
+    }
+    cb(null, BANNERS_DIR);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, `banner-${uniqueSuffix}${ext}`);
+  }
+});
+
+const bannerUpload = multer({
+  storage: bannerStorage,
+  limits: {
+    fileSize: 8 * 1024 * 1024,
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
@@ -186,6 +215,89 @@ router.put('/users/profile', requireAuth, async (req: any, res: any) => {
   }
 });
 
+router.put('/users/profile/gradients', requireAuth, async (req: any, res: any) => {
+  try {
+    const userId = req.session.userId;
+    const { avatarGradient, bannerGradient, clearAvatar, clearBanner } = req.body ?? {};
+
+    const updateData: {
+      avatarGradient?: string | null;
+      bannerGradient?: string | null;
+      avatar?: string | null;
+      banner?: string | null;
+    } = {};
+
+    const shouldClearAvatar = Boolean(clearAvatar);
+    const shouldClearBanner = Boolean(clearBanner);
+
+    if (avatarGradient !== undefined) {
+      if (avatarGradient !== null && typeof avatarGradient !== 'string') {
+        return res.status(400).json({ error: 'Invalid avatar gradient' });
+      }
+      updateData.avatarGradient = avatarGradient ? String(avatarGradient) : null;
+    }
+
+    if (bannerGradient !== undefined) {
+      if (bannerGradient !== null && typeof bannerGradient !== 'string') {
+        return res.status(400).json({ error: 'Invalid banner gradient' });
+      }
+      updateData.bannerGradient = bannerGradient ? String(bannerGradient) : null;
+    }
+
+    const currentProfile = await prisma.profile.findUnique({ where: { userId } });
+
+    if (shouldClearAvatar) {
+      if (currentProfile?.avatar) {
+        const avatarPath = path.join(process.cwd(), 'public', currentProfile.avatar);
+        if (fs.existsSync(avatarPath)) {
+          fs.unlinkSync(avatarPath);
+        }
+      }
+      updateData.avatar = null;
+    }
+
+    if (shouldClearBanner) {
+      if (currentProfile?.banner) {
+        const bannerPath = path.join(process.cwd(), 'public', currentProfile.banner);
+        if (fs.existsSync(bannerPath)) {
+          fs.unlinkSync(bannerPath);
+        }
+      }
+      updateData.banner = null;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: 'No gradient values provided' });
+    }
+
+    const profile = await prisma.profile.upsert({
+      where: { userId },
+      update: updateData as any,
+      create: {
+        userId,
+        ...updateData
+      } as any
+    });
+
+    const profileWithGradients = profile as any;
+
+    res.json({
+      message: 'Profile gradients updated successfully',
+      gradients: {
+        avatarGradient: profileWithGradients.avatarGradient ?? null,
+        bannerGradient: profileWithGradients.bannerGradient ?? null
+      },
+      media: {
+        avatar: profileWithGradients.avatar ?? null,
+        banner: profileWithGradients.banner ?? null
+      }
+    });
+  } catch (error) {
+    console.error('Error updating profile gradients:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.post('/users/profile/avatar', requireAuth, upload.single('avatar'), async (req: any, res: any) => {
   try {
     if (!req.file) {
@@ -209,17 +321,23 @@ router.post('/users/profile/avatar', requireAuth, upload.single('avatar'), async
     const profile = await prisma.profile.upsert({
       where: { userId },
       update: {
-        avatar: avatarPath
-      },
+        avatar: avatarPath,
+        avatarGradient: null
+      } as any,
       create: {
         userId,
-        avatar: avatarPath
-      }
+        avatar: avatarPath,
+        avatarGradient: null
+      } as any
     });
 
     res.json({
       message: 'Avatar uploaded successfully',
-      avatar: avatarPath
+      avatar: avatarPath,
+      gradients: {
+        avatarGradient: null,
+        bannerGradient: (profile as any).bannerGradient ?? null
+      }
     });
   } catch (error) {
     console.error('Error uploading avatar:', error);
@@ -233,6 +351,62 @@ router.post('/users/profile/avatar', requireAuth, upload.single('avatar'), async
       }
     }
     
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/users/profile/banner', requireAuth, bannerUpload.single('banner'), async (req: any, res: any) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const userId = req.session.userId;
+    const bannerPath = `/uploads/banners/${req.file.filename}`;
+
+    const currentProfile = await prisma.profile.findUnique({
+      where: { userId }
+    });
+
+    if (currentProfile?.banner) {
+      const oldBannerPath = path.join(process.cwd(), 'public', currentProfile.banner);
+      if (fs.existsSync(oldBannerPath)) {
+        fs.unlinkSync(oldBannerPath);
+      }
+    }
+
+    const profile = await prisma.profile.upsert({
+      where: { userId },
+      update: {
+        banner: bannerPath,
+        bannerGradient: null
+      } as any,
+      create: {
+        userId,
+        banner: bannerPath,
+        bannerGradient: null
+      } as any
+    });
+
+    res.json({
+      message: 'Banner uploaded successfully',
+      banner: bannerPath,
+      gradients: {
+        bannerGradient: null,
+        avatarGradient: (profile as any).avatarGradient ?? null
+      }
+    });
+  } catch (error) {
+    console.error('Error uploading banner:', error);
+
+    if (req.file) {
+      const filePath = req.file.path;
+      const resolvedPath = path.resolve(filePath);
+      if (resolvedPath.startsWith(BANNERS_DIR) && fs.existsSync(resolvedPath)) {
+        fs.unlinkSync(resolvedPath);
+      }
+    }
+
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -266,6 +440,39 @@ router.delete('/users/profile/avatar', requireAuth, async (req: any, res: any) =
     });
   } catch (error) {
     console.error('Error deleting avatar:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.delete('/users/profile/banner', requireAuth, async (req: any, res: any) => {
+  try {
+    const userId = req.session.userId;
+
+    const currentProfile = await prisma.profile.findUnique({
+      where: { userId }
+    });
+
+    if (!currentProfile?.banner) {
+      return res.status(400).json({ error: 'No banner to delete' });
+    }
+
+    const bannerPath = path.join(process.cwd(), 'public', currentProfile.banner);
+    if (fs.existsSync(bannerPath)) {
+      fs.unlinkSync(bannerPath);
+    }
+
+    await prisma.profile.update({
+      where: { userId },
+      data: {
+        banner: null
+      }
+    });
+
+    res.json({
+      message: 'Banner deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting banner:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -15,6 +15,8 @@ interface User {
     avatar?: string;
     location?: string;
     website?: string;
+    avatarGradient?: string | null;
+    bannerGradient?: string | null;
   };
 }
 

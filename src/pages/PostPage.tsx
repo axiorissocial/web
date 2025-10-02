@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import '../css/post.scss';
 import '../css/comment.scss';
 import { useTranslation } from 'react-i18next';
+import type { PostReactionsState } from '../utils/postReactions';
 
 interface PostUser {
   id: string;
@@ -16,6 +17,8 @@ interface PostUser {
   profile?: {
     displayName?: string;
     avatar?: string;
+    avatarGradient?: string | null;
+    bannerGradient?: string | null;
   };
 }
 
@@ -42,10 +45,12 @@ interface PostData {
   isLiked: boolean;
   isPinned: boolean;
   user: PostUser;
-  _count: {
+  _count?: {
     likes: number;
-    comments: number;
+    comments?: number;
   };
+  commentsCount?: number;
+  reactions?: PostReactionsState;
 }
 
 const PostPage: React.FC = () => {
@@ -140,6 +145,17 @@ const PostPage: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         setComments(data.comments || data);
+        if (typeof data?.pagination?.totalComments === 'number') {
+          const totalComments = data.pagination.totalComments;
+          setPost(prev => prev ? {
+            ...prev,
+            commentsCount: totalComments,
+            _count: {
+              likes: prev._count?.likes ?? prev.likesCount,
+              comments: totalComments,
+            }
+          } : prev);
+        }
       }
     } catch (error) {
       console.error('Failed to load comments:', error);
@@ -196,6 +212,10 @@ const PostPage: React.FC = () => {
       isLiked,
       likesCount: isLiked ? prev.likesCount + 1 : prev.likesCount - 1
     } : null);
+  };
+
+  const handleReactionChange = (postId: string, reactions: PostReactionsState) => {
+    setPost(prev => (prev && prev.id === postId) ? { ...prev, reactions } : prev);
   };
 
   if (loading) {
@@ -256,6 +276,7 @@ const PostPage: React.FC = () => {
           <Post 
             post={post} 
             onLikeToggle={handleLikeToggle} 
+            onReactionChange={handleReactionChange}
             showFullContent={true} 
           />
 
@@ -263,7 +284,7 @@ const PostPage: React.FC = () => {
             <Card.Header>
               <h5 className="mb-0 d-flex align-items-center">
                 <ChatSquareText className="me-2" />
-                {t('postPage.comments.title', { count: post._count.comments })}
+                {t('postPage.comments.title', { count: post.commentsCount ?? post._count?.comments ?? 0 })}
               </h5>
             </Card.Header>
             

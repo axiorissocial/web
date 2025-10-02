@@ -318,7 +318,6 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
         style={{ display: 'none' }}
       />
       
-      {/* Upload Progress Indicators */}
       {uploadProgress.length > 0 && (
         <div className="mb-3">
           <h6>{t('createPost.upload.heading')}</h6>

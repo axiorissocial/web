@@ -36,7 +36,6 @@ const HomePage: React.FC = () => {
         <Feed />
       </main>
       
-      {/* Mobile Floating Action Button */}
       {isMobile && user && (
         <Button
           variant="primary"

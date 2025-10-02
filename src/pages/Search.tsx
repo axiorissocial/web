@@ -7,6 +7,7 @@ import Sidebar from '../components/singles/Navbar';
 import Feed from '../components/Feed';
 import { useAuth } from '../contexts/AuthContext';
 import '../css/search.scss';
+import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
 
 interface User {
   id: string;
@@ -17,6 +18,8 @@ interface User {
   profile?: {
     displayName?: string;
     avatar?: string;
+    avatarGradient?: string | null;
+    bannerGradient?: string | null;
   };
   _count: {
     posts: number;
@@ -133,6 +136,13 @@ const SearchPage: React.FC = () => {
   const UserCard: React.FC<{ user: User }> = ({ user }) => {
     const displayName = user.profile?.displayName || user.username;
     const isCurrentUser = currentUser?.id === user.id;
+    const avatarGradientId = !user.profile?.avatar ? user.profile?.avatarGradient ?? null : null;
+    const placeholderStyle = avatarGradientId
+      ? {
+          background: getProfileGradientCss(avatarGradientId),
+          color: getProfileGradientTextColor(avatarGradientId)
+        }
+      : undefined;
     
     return (
       <Card className="user-card mb-3">
@@ -151,7 +161,7 @@ const SearchPage: React.FC = () => {
                     className="user-avatar"
                   />
                 ) : (
-                  <div className="user-avatar-placeholder">
+                  <div className="user-avatar-placeholder" style={placeholderStyle}>
                     {displayName.charAt(0).toUpperCase()}
                   </div>
                 )}

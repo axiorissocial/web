@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import Post from './Post';
 import { useAuth } from '../contexts/AuthContext';
 import '../css/post.scss';
+import type { PostReactionsState } from '../utils/postReactions';
 
 interface PostData {
   id: string;
@@ -22,11 +23,16 @@ interface PostData {
     profile?: {
       displayName?: string;
       avatar?: string;
+      avatarGradient?: string | null;
+      bannerGradient?: string | null;
     };
   };
-  _count: {
+  _count?: {
     likes: number;
+    comments?: number;
   };
+  commentsCount?: number;
+  reactions?: PostReactionsState;
 }
 
 interface FeedProps {
@@ -106,6 +112,14 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
     ));
   };
 
+  const handleReactionChange = (postId: string, nextReactions: PostReactionsState) => {
+    setPosts(prev => prev.map(post =>
+      post.id === postId
+        ? { ...post, reactions: nextReactions }
+        : post
+    ));
+  };
+
   const handlePostDelete = (postId: string) => {
     setPosts(prev => prev.filter(post => post.id !== postId));
   };
@@ -179,6 +193,7 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
           key={post.id}
           post={post}
           onLikeToggle={handleLikeToggle}
+          onReactionChange={handleReactionChange}
           onDelete={handlePostDelete}
           showFullContent={false}
         />

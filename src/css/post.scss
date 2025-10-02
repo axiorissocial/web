@@ -271,6 +271,14 @@
   align-items: center;
   padding-top: 12px;
   border-top: 1px solid var(--border-color);
+  gap: 16px;
+
+  .post-actions-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
 
   .action-btn {
     display: flex;
@@ -296,6 +304,53 @@
 
       &.liked {
         color: var(--danger-color);
+      }
+    }
+  }
+
+  .reaction-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &.is-loading {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .reaction-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 18px;
+      border: 1px solid transparent;
+      background-color: var(--card-bg);
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      line-height: 1;
+      transition: all 0.2s ease;
+      cursor: pointer;
+
+      &:hover {
+        background-color: var(--hover-bg);
+        color: var(--text-primary);
+      }
+
+      &.selected {
+        border-color: var(--primary-color);
+        background-color: color-mix(in srgb, var(--primary-color) 15%, transparent);
+        color: var(--primary-color);
+      }
+
+      .emoji {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .count {
+        font-weight: 600;
       }
     }
   }

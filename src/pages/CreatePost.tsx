@@ -137,6 +137,7 @@ const CreatePostPage: React.FC = () => {
     try {
       const mentionsProcessed = processMentions(content);
       const processedContent = renderEmojisInPreview(mentionsProcessed);
+      const payloadContent = content;
       
       const response = await fetch('/api/posts', {
         method: 'POST',
@@ -145,7 +146,8 @@ const CreatePostPage: React.FC = () => {
         },
         credentials: 'include',
         body: JSON.stringify({
-          content: processedContent,
+          content: payloadContent,
+          previewHtml: processedContent,
           title: title || null,
           media: uploadedMedia
         }),

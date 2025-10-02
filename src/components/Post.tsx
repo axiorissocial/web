@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, Button, Badge, Modal, Spinner, Dropdown } from 'react-bootstrap';
-import { Heart, HeartFill, Eye, Calendar, ThreeDotsVertical, PencilSquare, Trash, Play } from 'react-bootstrap-icons';
+import { Heart, HeartFill, Eye, Calendar, ThreeDotsVertical, PencilSquare, Trash, Play, ChatSquareText } from 'react-bootstrap-icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import DOMPurify from 'dompurify';
@@ -14,6 +14,10 @@ import ReportModal from './ReportModal';
 import HlsVideo from './HlsVideo';
 import '../css/post.scss';
 import '../css/mentions.scss';
+import { useTranslation } from 'react-i18next';
+import { createEmptyReactionsState } from '../utils/postReactions';
+import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
+import type { PostReactionsState, PostReactionEmoji } from '../utils/postReactions';
 
 interface PostUser {
   id: string;
@@ -21,6 +25,8 @@ interface PostUser {
   profile?: {
     displayName?: string;
     avatar?: string;
+    avatarGradient?: string | null;
+    bannerGradient?: string | null;
   };
 }
 
@@ -42,24 +48,40 @@ interface PostData {
   isLiked: boolean;
   isPinned: boolean;
   user: PostUser;
-  _count: {
+  _count?: {
     likes: number;
+    comments?: number;
   };
+  reactions?: PostReactionsState;
+  commentsCount?: number;
 }
 
 interface PostProps {
   post: PostData;
   onLikeToggle?: (postId: string, isLiked: boolean) => void;
+  onReactionChange?: (postId: string, reactions: PostReactionsState) => void;
   onDelete?: (postId: string) => void;
   showFullContent?: boolean;
 }
 
-const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullContent = false }) => {
+const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDelete, showFullContent = false }) => {
   const [isLiked, setIsLiked] = useState(post.isLiked);
   const [likesCount, setLikesCount] = useState(post.likesCount || post._count?.likes || 0);
   const [isLiking, setIsLiking] = useState(false);
+  const [reactions, setReactions] = useState<PostReactionsState>(post.reactions ?? createEmptyReactionsState());
+  const [reactionLoading, setReactionLoading] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useTranslation();
+  const commentsCount = post.commentsCount ?? post._count?.comments ?? 0;
+  const hasCommentsStat = commentsCount > 0;
+  const hasViewsStat = post.viewsCount > 0;
+  const shouldShowStats = hasCommentsStat || hasViewsStat;
+  const editModalMedia = post.media?.map(mediaItem => ({
+    url: mediaItem.url,
+    type: mediaItem.type,
+    originalName: mediaItem.originalName,
+  })) ?? [];
   
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -70,6 +92,10 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
   
   const isOwner = user?.id === post.user.id;
   const isAdmin = (user?.level || 0) >= 10;
+
+  useEffect(() => {
+    setReactions(post.reactions ?? createEmptyReactionsState());
+  }, [post.reactions]);
 
   const handlePostClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -106,6 +132,51 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
       console.error('Error toggling like:', error);
     } finally {
       setIsLiking(false);
+    }
+  };
+
+  const getEmojiMarkup = (emoji: string) => ({
+    __html: twemoji.parse(emoji, {
+      folder: 'svg',
+      ext: '.svg',
+      className: 'twemoji-emoji',
+    })
+  });
+
+  const handleReactionToggle = async (
+    emoji: PostReactionEmoji,
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    event.stopPropagation();
+    if (reactionLoading) return;
+
+    setReactionLoading(true);
+    try {
+      const response = await fetch(`/api/posts/${post.id}/reactions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ emoji }),
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/account/login';
+        return;
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.reactions) {
+          setReactions(data.reactions as PostReactionsState);
+          onReactionChange?.(post.id, data.reactions as PostReactionsState);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating reaction:', error);
+    } finally {
+      setReactionLoading(false);
     }
   };
   
@@ -331,7 +402,6 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
                 </div>
               )}
               
-              {/* +X more overlay when there are 3+ items */}
               {post.media.length > 2 && (
                 <div className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-75 text-white rounded">
                   <span className="fw-bold fs-4">+{post.media.length - 2}</span>
@@ -406,6 +476,13 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
 
   const { html: contentHtml, isTruncated } = processContent(post.content);
   const displayName = post.user.profile?.displayName || post.user.username;
+  const avatarGradientId = post.user.profile?.avatarGradient ?? null;
+  const placeholderStyle = avatarGradientId
+    ? {
+        background: getProfileGradientCss(avatarGradientId),
+        color: getProfileGradientTextColor(avatarGradientId)
+      }
+    : undefined;
 
   return (
     <Card 
@@ -429,7 +506,7 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
                 className="user-avatar"
               />
             ) : (
-              <div className="user-avatar-placeholder">
+              <div className="user-avatar-placeholder" style={placeholderStyle}>
                 {displayName.charAt(0).toUpperCase()}
               </div>
             )}
@@ -510,22 +587,51 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
         )}
 
         <div className="post-actions mt-3">
-          <Button
-            variant="link"
-            className={`action-btn like-btn ${isLiked ? 'liked' : ''}`}
-            onClick={handleLikeToggle}
-            disabled={isLiking}
-          >
-            {isLiked ? <HeartFill /> : <Heart />}
-            <span className="ms-1">{likesCount}</span>
-          </Button>
+          <div className="post-actions-left">
+            <Button
+              variant="link"
+              className={`action-btn like-btn ${isLiked ? 'liked' : ''}`}
+              onClick={handleLikeToggle}
+              disabled={isLiking}
+            >
+              {isLiked ? <HeartFill /> : <Heart />}
+              <span className="ms-1">{likesCount}</span>
+            </Button>
 
-          <div className="post-stats">
-            <span className="stat">
-              <Eye size={14} />
-              <span className="ms-1">{post.viewsCount}</span>
-            </span>
+            <div className={`reaction-buttons ${reactionLoading ? 'is-loading' : ''}`} role="group" aria-label={t('post.reactions')}>
+              {reactions.summary.map(item => (
+                <button
+                  key={item.emoji}
+                  type="button"
+                  className={`reaction-button ${item.isSelected ? 'selected' : ''}`}
+                  onClick={(event) => handleReactionToggle(item.emoji, event)}
+                  disabled={reactionLoading}
+                  title={item.isSelected ? t('post.reactionsPicker.remove', { emoji: item.emoji }) : t('post.reactionsPicker.add', { emoji: item.emoji })}
+                  aria-pressed={item.isSelected}
+                >
+                  <span className="emoji" dangerouslySetInnerHTML={getEmojiMarkup(item.emoji)} />
+                  {item.count > 0 && <span className="count">{item.count}</span>}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {shouldShowStats && (
+            <div className="post-stats">
+              {hasCommentsStat && (
+                <span className="stat">
+                  <ChatSquareText size={14} />
+                  <span className="ms-1">{commentsCount}</span>
+                </span>
+              )}
+              {hasViewsStat && (
+                <span className="stat">
+                  <Eye size={14} />
+                  <span className="ms-1">{post.viewsCount}</span>
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </Card.Body>
       
@@ -583,7 +689,7 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onDelete, showFullConte
           id: post.id,
           title: post.title,
           content: post.content,
-          media: (post.media as any) || []
+          media: editModalMedia
         }}
       />
       <ReportModal
