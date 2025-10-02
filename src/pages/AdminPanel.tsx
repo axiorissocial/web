@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button, Table, Modal, Nav, Tab, Form, Pagination, Spinner } from 'react-bootstrap';
 import Sidebar from '../components/singles/Navbar';
 import '../css/admin-panel.scss';
+import { useTranslation } from 'react-i18next';
 
 const PAGE_SIZES = [10, 50, 100];
 type ReportScope = 'all' | 'post' | 'comment';
@@ -18,6 +19,7 @@ type ReportFetchOptions = FetchOptions & {
 
 const AdminPanel: React.FC = () => {
   const { user } = useAuth();
+  const { t, i18n } = useTranslation();
   const [users, setUsers] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
@@ -72,7 +74,7 @@ const AdminPanel: React.FC = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data?.error || 'Failed to load users');
+        throw new Error(data?.error || t('admin.errors.loadUsers'));
       }
 
       setUsers(data.users || []);
@@ -87,7 +89,8 @@ const AdminPanel: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to load users', err);
-      showAlert(err instanceof Error ? err.message : 'Failed to load users', 'danger');
+      const fallback = t('admin.errors.loadUsers');
+      showAlert(err instanceof Error ? err.message : fallback, 'danger');
     } finally {
       setLoading(false);
     }
@@ -120,7 +123,7 @@ const AdminPanel: React.FC = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data?.error || 'Failed to load reports');
+        throw new Error(data?.error || t('admin.errors.loadReports'));
       }
 
       setReports(data.reports || []);
@@ -138,7 +141,8 @@ const AdminPanel: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to load reports', err);
-      showAlert(err instanceof Error ? err.message : 'Failed to load reports', 'danger');
+      const fallback = t('admin.errors.loadReports');
+      showAlert(err instanceof Error ? err.message : fallback, 'danger');
     } finally {
       setLoading(false);
     }
@@ -166,7 +170,7 @@ const AdminPanel: React.FC = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data?.error || data?.message || 'Failed to load posts');
+        throw new Error(data?.error || data?.message || t('admin.errors.loadPosts'));
       }
 
       setPosts(data.posts || []);
@@ -186,7 +190,8 @@ const AdminPanel: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to load posts', err);
-      showAlert(err instanceof Error ? err.message : 'Failed to load posts', 'danger');
+      const fallback = t('admin.errors.loadPosts');
+      showAlert(err instanceof Error ? err.message : fallback, 'danger');
     } finally {
       setLoading(false);
     }
@@ -198,6 +203,10 @@ const AdminPanel: React.FC = () => {
     fetchReports();
     fetchPosts();
   }, [user]);
+
+  useEffect(() => {
+    document.title = t('admin.meta.documentTitle', { app: t('app.name') });
+  }, [t, i18n.language]);
 
   const showAlert = (message: string, type: 'success' | 'danger') => {
     setAlertMessage(message);
@@ -220,7 +229,7 @@ const AdminPanel: React.FC = () => {
     if (totalPages <= 1) {
       return (
         <div className="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
-          <span>Showing {startItem} to {endItem} of {totalItems} items</span>
+          <span>{t('admin.pagination.range', { start: startItem, end: endItem, total: totalItems })}</span>
         </div>
       );
     }
@@ -240,14 +249,14 @@ const AdminPanel: React.FC = () => {
 
     return (
       <div className="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
-        <span>Showing {startItem} to {endItem} of {totalItems} items</span>
+        <span>{t('admin.pagination.range', { start: startItem, end: endItem, total: totalItems })}</span>
         <Pagination className="mb-0">{items}</Pagination>
       </div>
     );
   };
 
   if (!user || !(user as any).isAdmin) {
-    return <div className="p-4">Admin access required</div>;
+    return <div className="p-4">{t('admin.accessRequired')}</div>;
   }
 
   const planConfirm = (message: string, action: () => Promise<void>) => {
@@ -275,14 +284,14 @@ const AdminPanel: React.FC = () => {
       if (res.ok) {
         setUsers(u => u.filter(x => x.id !== id));
         setUsersTotal(total => Math.max(0, total - 1));
-        showAlert('User deleted successfully', 'success');
+        showAlert(t('admin.users.feedback.deleteSuccess'), 'success');
       } else {
         const error = await res.json();
-        throw new Error(error.error || 'Failed to delete user');
+        throw new Error(error.error || t('admin.errors.deleteUser'));
       }
     } catch (error) {
       console.error('Error deleting user:', error);
-      showAlert(error instanceof Error ? error.message : 'Failed to delete user', 'danger');
+      showAlert(error instanceof Error ? error.message : t('admin.errors.deleteUser'), 'danger');
     }
   };
 
@@ -291,14 +300,14 @@ const AdminPanel: React.FC = () => {
       const res = await fetch(`/api/admin/user/${id}/ban`, { method: 'PATCH', credentials: 'include' });
       if (res.ok) {
         setUsers(u => u.map(x => (x.id === id ? { ...x, isPrivate: true } : x)));
-        showAlert('User banned successfully', 'success');
+        showAlert(t('admin.users.feedback.banSuccess'), 'success');
       } else {
         const error = await res.json();
-        throw new Error(error.error || 'Failed to ban user');
+        throw new Error(error.error || t('admin.errors.banUser'));
       }
     } catch (error) {
       console.error('Error banning user:', error);
-      showAlert(error instanceof Error ? error.message : 'Failed to ban user', 'danger');
+      showAlert(error instanceof Error ? error.message : t('admin.errors.banUser'), 'danger');
     }
   };
 
@@ -307,14 +316,14 @@ const AdminPanel: React.FC = () => {
       const res = await fetch(`/api/admin/user/${id}/unban`, { method: 'PATCH', credentials: 'include' });
       if (res.ok) {
         setUsers(u => u.map(x => (x.id === id ? { ...x, isPrivate: false } : x)));
-        showAlert('User unbanned successfully', 'success');
+        showAlert(t('admin.users.feedback.unbanSuccess'), 'success');
       } else {
         const error = await res.json();
-        throw new Error(error.error || 'Failed to unban user');
+        throw new Error(error.error || t('admin.errors.unbanUser'));
       }
     } catch (error) {
       console.error('Error unbanning user:', error);
-      showAlert(error instanceof Error ? error.message : 'Failed to unban user', 'danger');
+      showAlert(error instanceof Error ? error.message : t('admin.errors.unbanUser'), 'danger');
     }
   };
 
@@ -324,14 +333,14 @@ const AdminPanel: React.FC = () => {
       if (res.ok) {
         setPosts(p => p.filter(x => x.id !== id));
         setPostsTotal(total => Math.max(0, total - 1));
-        showAlert('Post deleted successfully', 'success');
+        showAlert(t('admin.posts.feedback.deleteSuccess'), 'success');
       } else {
         const error = await res.json();
-        throw new Error(error.error || 'Failed to delete post');
+        throw new Error(error.error || t('admin.errors.deletePost'));
       }
     } catch (error) {
       console.error('Error deleting post:', error);
-      showAlert(error instanceof Error ? error.message : 'Failed to delete post', 'danger');
+      showAlert(error instanceof Error ? error.message : t('admin.errors.deletePost'), 'danger');
     }
   };
 
@@ -346,14 +355,14 @@ const AdminPanel: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         setReports(r => r.map(rr => (rr.id === id ? data.report : rr)));
-        showAlert(`Report ${status.toLowerCase()} successfully`, 'success');
+        showAlert(t('admin.reports.feedback.statusUpdated', { status: t(`admin.reports.status.${status.toLowerCase()}`) }), 'success');
       } else {
         const error = await res.json();
-        throw new Error(error.error || 'Failed to update report');
+        throw new Error(error.error || t('admin.errors.updateReport'));
       }
     } catch (error) {
       console.error('Error updating report:', error);
-      showAlert(error instanceof Error ? error.message : 'Failed to update report', 'danger');
+      showAlert(error instanceof Error ? error.message : t('admin.errors.updateReport'), 'danger');
     }
   };
 
@@ -418,7 +427,7 @@ const AdminPanel: React.FC = () => {
       <Sidebar activeId="admin" />
       <main className="main-content">
         <div className="container-fluid p-4">
-          <h1>Admin Panel</h1>
+          <h1>{t('admin.title')}</h1>
           {alertMessage && (
             <div className={`alert alert-${alertType} alert-dismissible fade show`} role="alert">
               {alertMessage}
@@ -427,77 +436,77 @@ const AdminPanel: React.FC = () => {
           )}
 
           <div className="admin-content">
-        <h2 className="visually-hidden">Admin Panel</h2>
+  <h2 className="visually-hidden">{t('admin.title')}</h2>
 
         <Tab.Container activeKey={activeKey} onSelect={(k) => setActiveKey(k || 'users')}>
           <Nav variant="tabs" className="d-none d-md-flex">
             <Nav.Item>
-              <Nav.Link eventKey="users">Users</Nav.Link>
+              <Nav.Link eventKey="users">{t('admin.tabs.users')}</Nav.Link>
             </Nav.Item>
             <Nav.Item>
-              <Nav.Link eventKey="reports">Reports</Nav.Link>
+              <Nav.Link eventKey="reports">{t('admin.tabs.reports')}</Nav.Link>
             </Nav.Item>
             <Nav.Item>
-              <Nav.Link eventKey="posts">Posts</Nav.Link>
+              <Nav.Link eventKey="posts">{t('admin.tabs.posts')}</Nav.Link>
             </Nav.Item>
           </Nav>
 
           <Tab.Content className="mt-3">
             <Tab.Pane eventKey="users">
-              <h4>Users</h4>
+              <h4>{t('admin.users.heading')}</h4>
                 <div className="d-flex flex-column flex-xl-row gap-3 align-items-start align-items-xl-center justify-content-between">
                   <Form className="d-flex flex-wrap gap-2" onSubmit={handleUsersSearchSubmit}>
                     <Form.Control
                       type="text"
-                      placeholder="Search by username or user ID"
+                      placeholder={t('admin.users.searchPlaceholder')}
                       value={usersSearchInput}
                       onChange={(e) => setUsersSearchInput(e.target.value)}
                     />
-                    <Button type="submit" variant="primary">Search</Button>
+                    <Button type="submit" variant="primary">{t('admin.actions.search')}</Button>
                     <Button
                       type="button"
                       variant="outline-secondary"
                       onClick={handleUsersSearchClear}
                       disabled={!usersSearchTerm && usersSearchInput === ''}
                     >
-                      Clear
+                      {t('admin.actions.clear')}
                     </Button>
                   </Form>
                   <Form.Select value={usersLimit} onChange={handleUsersLimitChange} style={{ maxWidth: '180px' }}>
                     {PAGE_SIZES.map(size => (
-                      <option key={size} value={size}>{size} per page</option>
+                      <option key={size} value={size}>{t('admin.pagination.perPage', { count: size })}</option>
                     ))}
                   </Form.Select>
                 </div>
 
-                {loading && <Spinner animation="border" size="sm" className="me-2 mt-3" />}
+                {loading && <Spinner animation="border" size="sm" className="me-2 mt-3" role="status" aria-label={t('common.statuses.loading')} />}
 
                 <Table striped bordered hover className="mt-3">
                   <thead>
                     <tr>
-                      <th>Username</th>
-                      <th>Email</th>
-                      <th>Admin</th>
-                      <th>Banned</th>
-                      <th>Actions</th>
+                      <th>{t('admin.users.table.username')}</th>
+                      <th>{t('admin.users.table.email')}</th>
+                      <th>{t('admin.users.table.admin')}</th>
+                      <th>{t('admin.users.table.banned')}</th>
+                      <th>{t('admin.users.table.actions')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {users.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="text-center py-3 text-muted">No users found.</td>
+                        <td colSpan={5} className="text-center py-3 text-muted">{t('admin.users.empty')}</td>
                       </tr>
                     ) : (
                       users.map(u => (
                         <tr key={u.id}>
                           <td>{u.username}</td>
                           <td>{u.email}</td>
-                          <td>{u.isAdmin ? 'Yes' : 'No'}</td>
-                          <td>{u.isPrivate ? 'Yes' : 'No'}</td>
+                          <td>{u.isAdmin ? t('common.statuses.yes') : t('common.statuses.no')}</td>
+                          <td>{u.isPrivate ? t('common.statuses.yes') : t('common.statuses.no')}</td>
                           <td>
-                            <Button variant="warning" size="sm" onClick={() => planConfirm('Ban this user?', () => banUser(u.id))}>Ban</Button>{' '}
-                            <Button variant="secondary" size="sm" onClick={() => planConfirm('Unban this user?', () => unbanUser(u.id))}>Unban</Button>{' '}
-                            <Button variant="danger" size="sm" onClick={() => planConfirm('Delete this user? This cannot be undone.', () => deleteUser(u.id))}>Delete</Button>
+                            <Button variant="warning" size="sm" onClick={() => planConfirm(t('admin.users.confirm.ban'), () => banUser(u.id))}>{t('admin.users.actions.ban')}</Button>{' '}
+                            <Button variant="secondary" size="sm" onClick={() => planConfirm(t('admin.users.confirm.unban'), () => unbanUser(u.id))}>{t('admin.users.actions.unban')}</Button>{' '}
+                            <Button variant="danger" size="sm" onClick={() => planConfirm(t('admin.users.confirm.delete'), () => deleteUser(u.id))}>{t('admin.users.actions.delete')}</Button>
                           </td>
                         </tr>
                       ))
@@ -508,68 +517,68 @@ const AdminPanel: React.FC = () => {
             </Tab.Pane>
 
             <Tab.Pane eventKey="reports">
-              <h4>Reports</h4>
+              <h4>{t('admin.reports.heading')}</h4>
                 <div className="d-flex flex-column flex-xl-row gap-3 align-items-start align-items-xl-center justify-content-between">
                   <Form className="d-flex flex-wrap gap-2" onSubmit={handleReportsSearchSubmit}>
                     <Form.Control
                       type="text"
-                      placeholder="Search reports, reporters, or related content"
+                      placeholder={t('admin.reports.searchPlaceholder')}
                       value={reportsSearchInput}
                       onChange={(e) => setReportsSearchInput(e.target.value)}
                     />
-                    <Button type="submit" variant="primary">Search</Button>
+                    <Button type="submit" variant="primary">{t('admin.actions.search')}</Button>
                     <Button
                       type="button"
                       variant="outline-secondary"
                       onClick={handleReportsSearchClear}
                       disabled={!reportsSearchTerm && reportsSearchInput === ''}
                     >
-                      Clear
+                      {t('admin.actions.clear')}
                     </Button>
                   </Form>
                   <div className="d-flex flex-wrap gap-2">
                     <Form.Select value={reportScope} onChange={handleReportScopeChange} style={{ maxWidth: '200px' }}>
-                      <option value="all">All report types</option>
-                      <option value="post">Post reports</option>
-                      <option value="comment">Comment reports</option>
+                      <option value="all">{t('admin.reports.filters.all')}</option>
+                      <option value="post">{t('admin.reports.filters.post')}</option>
+                      <option value="comment">{t('admin.reports.filters.comment')}</option>
                     </Form.Select>
                     <Form.Select value={reportsLimit} onChange={handleReportsLimitChange} style={{ maxWidth: '160px' }}>
                       {PAGE_SIZES.map(size => (
-                        <option key={size} value={size}>{size} per page</option>
+                        <option key={size} value={size}>{t('admin.pagination.perPage', { count: size })}</option>
                       ))}
                     </Form.Select>
                   </div>
                 </div>
 
-                {loading && <Spinner animation="border" size="sm" className="me-2 mt-3" />}
+                {loading && <Spinner animation="border" size="sm" className="me-2 mt-3" role="status" aria-label={t('common.statuses.loading')} />}
 
                 <Table striped bordered hover className="mt-3">
                   <thead>
                     <tr>
-                      <th>ID</th>
-                      <th>Type</th>
-                      <th>Reason</th>
-                      <th>Description</th>
-                      <th>Status</th>
-                      <th>Actions</th>
+                      <th>{t('admin.reports.table.id')}</th>
+                      <th>{t('admin.reports.table.type')}</th>
+                      <th>{t('admin.reports.table.reason')}</th>
+                      <th>{t('admin.reports.table.description')}</th>
+                      <th>{t('admin.reports.table.status')}</th>
+                      <th>{t('admin.reports.table.actions')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {reports.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="text-center py-3 text-muted">No reports found.</td>
+                        <td colSpan={6} className="text-center py-3 text-muted">{t('admin.reports.empty')}</td>
                       </tr>
                     ) : (
                       reports.map(r => (
                         <tr key={r.id}>
                           <td>{r.id}</td>
-                          <td>{r.post ? 'Post' : r.comment ? 'Comment' : 'Unknown'}</td>
+                          <td>{r.post ? t('admin.reports.types.post') : r.comment ? t('admin.reports.types.comment') : t('admin.reports.types.unknown')}</td>
                           <td>{r.reason}</td>
                           <td>{r.description}</td>
                           <td>{r.status}</td>
                           <td>
-                            <Button variant="success" size="sm" onClick={() => planConfirm('Mark report resolved?', () => updateReportStatus(r.id, 'RESOLVED'))}>Resolve</Button>{' '}
-                            <Button variant="secondary" size="sm" onClick={() => planConfirm('Dismiss this report?', () => updateReportStatus(r.id, 'DISMISSED'))}>Dismiss</Button>
+                            <Button variant="success" size="sm" onClick={() => planConfirm(t('admin.reports.confirm.resolve'), () => updateReportStatus(r.id, 'RESOLVED'))}>{t('admin.reports.actions.resolve')}</Button>{' '}
+                            <Button variant="secondary" size="sm" onClick={() => planConfirm(t('admin.reports.confirm.dismiss'), () => updateReportStatus(r.id, 'DISMISSED'))}>{t('admin.reports.actions.dismiss')}</Button>
                           </td>
                         </tr>
                       ))
@@ -580,59 +589,59 @@ const AdminPanel: React.FC = () => {
             </Tab.Pane>
 
             <Tab.Pane eventKey="posts">
-              <h4>Posts</h4>
+              <h4>{t('admin.posts.heading')}</h4>
                 <div className="d-flex flex-column flex-xl-row gap-3 align-items-start align-items-xl-center justify-content-between">
                   <Form className="d-flex flex-wrap gap-2" onSubmit={handlePostsSearchSubmit}>
                     <Form.Control
                       type="text"
-                      placeholder="Search by post title, content, user, or ID"
+                      placeholder={t('admin.posts.searchPlaceholder')}
                       value={postsSearchInput}
                       onChange={(e) => setPostsSearchInput(e.target.value)}
                     />
-                    <Button type="submit" variant="primary">Search</Button>
+                    <Button type="submit" variant="primary">{t('admin.actions.search')}</Button>
                     <Button
                       type="button"
                       variant="outline-secondary"
                       onClick={handlePostsSearchClear}
                       disabled={!postsSearchTerm && postsSearchInput === ''}
                     >
-                      Clear
+                      {t('admin.actions.clear')}
                     </Button>
                   </Form>
                   <Form.Select value={postsLimit} onChange={handlePostsLimitChange} style={{ maxWidth: '160px' }}>
                     {PAGE_SIZES.map(size => (
-                      <option key={size} value={size}>{size} per page</option>
+                      <option key={size} value={size}>{t('admin.pagination.perPage', { count: size })}</option>
                     ))}
                   </Form.Select>
                 </div>
 
                 <Form className="mb-3 mt-3" onSubmit={(e) => { e.preventDefault(); }}>
                 <Form.Group>
-                  <Form.Label>Delete post by ID</Form.Label>
-                  <Form.Control id="delete-post-id" placeholder="Enter post ID to delete" />
+                  <Form.Label>{t('admin.posts.quickDelete.label')}</Form.Label>
+                  <Form.Control id="delete-post-id" placeholder={t('admin.posts.quickDelete.placeholder')} />
                 </Form.Group>
                 <Button className="mt-2" variant="danger" onClick={() => {
                   const el = document.getElementById('delete-post-id') as HTMLInputElement | null;
                   if (!el || !el.value) return;
-                  planConfirm('Delete this post?', () => deletePost(el.value));
-                }}>Delete Post</Button>
+                  planConfirm(t('admin.posts.confirm.delete'), () => deletePost(el.value));
+                }}>{t('admin.posts.quickDelete.submit')}</Button>
               </Form>
 
-                {loading && <Spinner animation="border" size="sm" className="me-2 mt-3" />}
+                {loading && <Spinner animation="border" size="sm" className="me-2 mt-3" role="status" aria-label={t('common.statuses.loading')} />}
 
                 <Table striped bordered hover>
                 <thead>
                   <tr>
-                    <th>ID</th>
-                    <th>Snippet</th>
-                    <th>User</th>
-                    <th>Actions</th>
+                    <th>{t('admin.posts.table.id')}</th>
+                    <th>{t('admin.posts.table.snippet')}</th>
+                    <th>{t('admin.posts.table.user')}</th>
+                    <th>{t('admin.posts.table.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
                     {posts.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="text-center py-3 text-muted">No posts found.</td>
+                        <td colSpan={4} className="text-center py-3 text-muted">{t('admin.posts.empty')}</td>
                       </tr>
                     ) : (
                       posts.map(p => (
@@ -641,7 +650,7 @@ const AdminPanel: React.FC = () => {
                           <td>{(p.content || '').substring(0, 80)}</td>
                           <td>{p.user?.username}</td>
                           <td>
-                            <Button variant="danger" size="sm" onClick={() => planConfirm('Delete post?', () => deletePost(p.id))}>Delete</Button>
+                            <Button variant="danger" size="sm" onClick={() => planConfirm(t('admin.posts.confirm.delete'), () => deletePost(p.id))}>{t('admin.posts.actions.delete')}</Button>
                           </td>
                         </tr>
                       ))
@@ -655,12 +664,12 @@ const AdminPanel: React.FC = () => {
 
         <Modal show={showConfirm} onHide={() => setShowConfirm(false)}>
           <Modal.Header closeButton>
-            <Modal.Title>Confirm</Modal.Title>
+            <Modal.Title>{t('admin.confirmation.title')}</Modal.Title>
           </Modal.Header>
           <Modal.Body>{confirmMessage}</Modal.Body>
           <Modal.Footer>
-            <Button variant="secondary" onClick={() => setShowConfirm(false)}>Cancel</Button>
-            <Button variant="danger" onClick={runConfirm}>Confirm</Button>
+            <Button variant="secondary" onClick={() => setShowConfirm(false)}>{t('common.cancel')}</Button>
+            <Button variant="danger" onClick={runConfirm}>{t('admin.confirmation.confirm')}</Button>
           </Modal.Footer>
         </Modal>
         </div>

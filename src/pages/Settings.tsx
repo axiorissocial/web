@@ -5,6 +5,7 @@ import { Eye, EyeSlash, PersonCircle, Gear, Palette, Shield, Upload, Bell } from
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import '../css/settings.scss';
+import { useTranslation } from 'react-i18next';
 
 interface ProfileData {
   displayName: string;
@@ -26,6 +27,7 @@ interface AccountData {
 const SettingsPage: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
   
   const [profileData, setProfileData] = useState<ProfileData>({
     displayName: '',
@@ -81,12 +83,16 @@ const SettingsPage: React.FC = () => {
   const [notificationLoading, setNotificationLoading] = useState(false);
   const [notificationError, setNotificationError] = useState('');
   const [notificationSuccess, setNotificationSuccess] = useState('');
+
+  const [availableLanguages, setAvailableLanguages] = useState<string[]>([]);
+  const [language, setLanguage] = useState(() => (i18n.resolvedLanguage ?? i18n.language ?? 'en').split('-')[0]);
+  const [languageLoading, setLanguageLoading] = useState(false);
+  const [languageSuccess, setLanguageSuccess] = useState('');
+  const [languageError, setLanguageError] = useState('');
   
   const [activeTab, setActiveTab] = useState('account');
 
   useEffect(() => {
-    document.title = 'Settings - Axioris';
-    
     const savedTheme = localStorage.getItem('theme') || 'dark';
     if (!localStorage.getItem('theme')) {
       localStorage.setItem('theme', 'dark');
@@ -96,9 +102,47 @@ const SettingsPage: React.FC = () => {
     
     if (user) {
       loadUserData();
-      loadNotificationSettings();
+      loadUserSettings();
     }
   }, [user]);
+
+  useEffect(() => {
+    const fetchLanguages = async () => {
+      try {
+        const response = await fetch('/api/i18n/languages', {
+          credentials: 'include'
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch languages');
+        }
+
+        const data = await response.json();
+        if (Array.isArray(data.languages)) {
+          const normalized = Array.from(
+            new Set<string>(
+              data.languages.filter((code: unknown): code is string => typeof code === 'string')
+            )
+          ).sort((a, b) => a.localeCompare(b));
+          setAvailableLanguages(normalized);
+        }
+      } catch (error) {
+        console.error('Error loading available languages:', error);
+        setAvailableLanguages(prev => {
+          if (prev.length > 0) {
+            return prev;
+          }
+          return [(i18n.resolvedLanguage ?? i18n.language ?? 'en').split('-')[0]];
+        });
+      }
+    };
+
+    fetchLanguages();
+  }, []);
+
+  useEffect(() => {
+    document.title = t('settings.documentTitle', { app: t('app.name') });
+  }, [t, i18n.language]);
 
   const loadUserData = async () => {
     try {
@@ -132,20 +176,64 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  const loadNotificationSettings = async () => {
+  const loadUserSettings = async () => {
     try {
       const response = await fetch('/api/users/me/settings', {
         credentials: 'include'
       });
-      
+
       if (response.ok) {
         const data = await response.json();
-        if (data.settings && data.settings.notifications) {
-          setNotificationSettings(data.settings.notifications);
+        if (data.settings) {
+          if (data.settings.notifications) {
+            setNotificationSettings(data.settings.notifications);
+          }
+
+          if (data.settings.language) {
+            setLanguage(data.settings.language);
+          }
+
+          if (data.settings.theme) {
+            setTheme(data.settings.theme);
+            localStorage.setItem('theme', data.settings.theme);
+            document.documentElement.setAttribute('data-theme', data.settings.theme);
+          }
         }
       }
     } catch (error) {
-      console.error('Error loading notification settings:', error);
+      console.error('Error loading user settings:', error);
+    }
+  };
+
+  const handleLanguageSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!language) return;
+
+    setLanguageLoading(true);
+    setLanguageError('');
+    setLanguageSuccess('');
+
+    try {
+      const response = await fetch('/api/users/me/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ language })
+      });
+
+      if (response.ok) {
+        await i18n.changeLanguage(language);
+        setLanguageSuccess(t('settings.appearance.feedback.languageSuccess'));
+      } else {
+        const error = await response.json();
+        setLanguageError(error.error || t('settings.appearance.feedback.languageError'));
+      }
+    } catch (error) {
+      setLanguageError(t('settings.appearance.feedback.languageError'));
+    } finally {
+      setLanguageLoading(false);
     }
   };
 
@@ -168,13 +256,13 @@ const SettingsPage: React.FC = () => {
       });
       
       if (response.ok) {
-        setNotificationSuccess('Notification settings updated successfully!');
+        setNotificationSuccess(t('settings.notifications.feedback.success'));
       } else {
         const error = await response.json();
-        setNotificationError(error.error || 'Failed to update notification settings');
+        setNotificationError(error.error || t('settings.notifications.feedback.error'));
       }
     } catch (error) {
-      setNotificationError('Failed to update notification settings');
+      setNotificationError(t('settings.notifications.feedback.error'));
     } finally {
       setNotificationLoading(false);
     }
@@ -197,13 +285,13 @@ const SettingsPage: React.FC = () => {
       });
       
       if (response.ok) {
-        setProfileSuccess('Profile updated successfully!');
+        setProfileSuccess(t('settings.profile.feedback.updateSuccess'));
       } else {
         const error = await response.json();
-        setProfileError(error.error || 'Failed to update profile');
+        setProfileError(error.error || t('settings.profile.feedback.updateError'));
       }
     } catch (error) {
-      setProfileError('Failed to update profile');
+      setProfileError(t('settings.profile.feedback.updateError'));
     } finally {
       setProfileLoading(false);
     }
@@ -217,13 +305,13 @@ const SettingsPage: React.FC = () => {
     
     if (accountData.newPassword) {
       if (accountData.newPassword !== accountData.confirmPassword) {
-        setAccountError('New passwords do not match');
+        setAccountError(t('settings.account.validation.passwordMismatch'));
         setAccountLoading(false);
         return;
       }
       
       if (accountData.newPassword.length < 6) {
-        setAccountError('New password must be at least 6 characters');
+        setAccountError(t('settings.account.validation.passwordLength'));
         setAccountLoading(false);
         return;
       }
@@ -245,7 +333,7 @@ const SettingsPage: React.FC = () => {
       });
       
       if (response.ok) {
-        setAccountSuccess('Account updated successfully!');
+        setAccountSuccess(t('settings.account.feedback.success'));
         setAccountData(prev => ({
           ...prev,
           currentPassword: '',
@@ -254,10 +342,10 @@ const SettingsPage: React.FC = () => {
         }));
       } else {
         const error = await response.json();
-        setAccountError(error.error || 'Failed to update account');
+        setAccountError(error.error || t('settings.account.feedback.error'));
       }
     } catch (error) {
-      setAccountError('Failed to update account');
+      setAccountError(t('settings.account.feedback.error'));
     } finally {
       setAccountLoading(false);
     }
@@ -279,12 +367,12 @@ const SettingsPage: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith('image/')) {
-        setProfileError('Please select an image file');
+        setProfileError(t('settings.profile.errors.invalidImageType'));
         return;
       }
       
       if (file.size > 5 * 1024 * 1024) {
-        setProfileError('Image must be smaller than 5MB');
+        setProfileError(t('settings.profile.errors.invalidImageSize'));
         return;
       }
       
@@ -317,13 +405,13 @@ const SettingsPage: React.FC = () => {
         const result = await response.json();
         setAvatarPreview(result.avatar);
         setAvatarFile(null);
-        setProfileSuccess('Profile picture updated successfully!');
+        setProfileSuccess(t('settings.profile.feedback.avatarUploadSuccess'));
       } else {
         const error = await response.json();
-        setProfileError(error.error || 'Failed to upload profile picture');
+        setProfileError(error.error || t('settings.profile.feedback.avatarUploadError'));
       }
     } catch (error) {
-      setProfileError('Failed to upload profile picture');
+      setProfileError(t('settings.profile.feedback.avatarUploadError'));
     } finally {
       setAvatarLoading(false);
     }
@@ -341,13 +429,13 @@ const SettingsPage: React.FC = () => {
       if (response.ok) {
         setAvatarPreview('');
         setAvatarFile(null);
-        setProfileSuccess('Profile picture removed successfully!');
+        setProfileSuccess(t('settings.profile.feedback.avatarRemoveSuccess'));
       } else {
         const error = await response.json();
-        setProfileError(error.error || 'Failed to remove profile picture');
+        setProfileError(error.error || t('settings.profile.feedback.avatarRemoveError'));
       }
     } catch (error) {
-      setProfileError('Failed to remove profile picture');
+      setProfileError(t('settings.profile.feedback.avatarRemoveError'));
     } finally {
       setAvatarLoading(false);
       setShowDeleteConfirm(false);
@@ -383,10 +471,10 @@ const SettingsPage: React.FC = () => {
         navigate('/account/login');
       } else {
         const error = await response.json();
-        setDeleteError(error.error || 'Failed to delete account');
+        setDeleteError(error.error || t('settings.danger.feedback.deleteError'));
       }
     } catch (error) {
-      setDeleteError('Failed to delete account');
+      setDeleteError(t('settings.danger.feedback.deleteError'));
     } finally {
       setDeleteLoading(false);
     }
@@ -399,7 +487,7 @@ const SettingsPage: React.FC = () => {
         <main className="settings-main flex-grow-1 p-4 d-flex justify-content-center align-items-center">
           <div className="text-center">
             <Spinner animation="border" />
-            <div className="mt-2">Loading...</div>
+            <div className="mt-2">{t('common.loading')}</div>
           </div>
         </main>
       </div>
@@ -411,17 +499,17 @@ const SettingsPage: React.FC = () => {
       <Sidebar activeId="settings" />
       <main className="settings-main flex-grow-1 p-4">
         <div className="settings-container">
-          <h1 className="mb-4">Settings</h1>
+          <h1 className="mb-4">{t('settings.title')}</h1>
           
           <Tabs 
             activeKey={activeTab} 
             onSelect={(tab) => setActiveTab(tab || 'account')}
             className="settings-tabs mb-4"
           >
-            <Tab eventKey="account" title={<><Gear className="me-2" />Account</>}>
+            <Tab eventKey="account" title={<><Gear className="me-2" />{t('settings.tabs.account')}</>}>
               <Card className="settings-card">
                 <Card.Header>
-                  <h5 className="mb-0"><Shield className="me-2" />Account Settings</h5>
+                  <h5 className="mb-0"><Shield className="me-2" />{t('settings.account.sectionTitle')}</h5>
                 </Card.Header>
                 <Card.Body>
                   {accountError && <Alert variant="danger">{accountError}</Alert>}
@@ -429,39 +517,39 @@ const SettingsPage: React.FC = () => {
                   
                   <Form onSubmit={handleAccountSubmit}>
                     <Form.Group className="mb-3" controlId="username">
-                      <Form.Label>Username</Form.Label>
+                      <Form.Label>{t('settings.account.fields.username.label')}</Form.Label>
                       <Form.Control 
                         type="text" 
                         value={accountData.username}
                         onChange={(e) => setAccountData(prev => ({ ...prev, username: e.target.value }))}
-                        placeholder="Enter your username"
+                        placeholder={t('settings.account.fields.username.placeholder')}
                         required
                       />
                     </Form.Group>
                     
                     <Form.Group className="mb-3" controlId="email">
-                      <Form.Label>Email</Form.Label>
+                      <Form.Label>{t('settings.account.fields.email.label')}</Form.Label>
                       <Form.Control 
                         type="email" 
                         value={accountData.email}
                         onChange={(e) => setAccountData(prev => ({ ...prev, email: e.target.value }))}
-                        placeholder="Enter your email"
+                        placeholder={t('settings.account.fields.email.placeholder')}
                         required
                       />
                     </Form.Group>
                     
                     <hr className="my-4" />
                     
-                    <h6 className="mb-3">Change Password</h6>
+                    <h6 className="mb-3">{t('settings.account.changePassword')}</h6>
                     
                     <Form.Group className="mb-3" controlId="currentPassword">
-                      <Form.Label>Current Password</Form.Label>
+                      <Form.Label>{t('settings.account.fields.currentPassword.label')}</Form.Label>
                       <InputGroup>
                         <Form.Control 
                           type={showPasswords.current ? "text" : "password"}
                           value={accountData.currentPassword}
                           onChange={(e) => setAccountData(prev => ({ ...prev, currentPassword: e.target.value }))}
-                          placeholder="Enter current password to make changes"
+                          placeholder={t('settings.account.fields.currentPassword.placeholder')}
                         />
                         <Button 
                           variant="outline-secondary" 
@@ -473,13 +561,13 @@ const SettingsPage: React.FC = () => {
                     </Form.Group>
                     
                     <Form.Group className="mb-3" controlId="newPassword">
-                      <Form.Label>New Password (optional)</Form.Label>
+                      <Form.Label>{t('settings.account.fields.newPassword.label')}</Form.Label>
                       <InputGroup>
                         <Form.Control 
                           type={showPasswords.new ? "text" : "password"}
                           value={accountData.newPassword}
                           onChange={(e) => setAccountData(prev => ({ ...prev, newPassword: e.target.value }))}
-                          placeholder="Enter new password"
+                          placeholder={t('settings.account.fields.newPassword.placeholder')}
                         />
                         <Button 
                           variant="outline-secondary" 
@@ -491,13 +579,13 @@ const SettingsPage: React.FC = () => {
                     </Form.Group>
                     
                     <Form.Group className="mb-4" controlId="confirmPassword">
-                      <Form.Label>Confirm New Password</Form.Label>
+                      <Form.Label>{t('settings.account.fields.confirmPassword.label')}</Form.Label>
                       <InputGroup>
                         <Form.Control 
                           type={showPasswords.confirm ? "text" : "password"}
                           value={accountData.confirmPassword}
                           onChange={(e) => setAccountData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                          placeholder="Confirm new password"
+                          placeholder={t('settings.account.fields.confirmPassword.placeholder')}
                         />
                         <Button 
                           variant="outline-secondary" 
@@ -516,10 +604,10 @@ const SettingsPage: React.FC = () => {
                       {accountLoading ? (
                         <>
                           <Spinner size="sm" className="me-2" />
-                          Saving...
+                          {t('common.statuses.saving')}
                         </>
                       ) : (
-                        'Save Account Changes'
+                        t('settings.account.actions.save')
                       )}
                     </Button>
                   </Form>
@@ -527,21 +615,21 @@ const SettingsPage: React.FC = () => {
               </Card>
             </Tab>
             
-            <Tab eventKey="profile" title={<><PersonCircle className="me-2" />Profile</>}>
+            <Tab eventKey="profile" title={<><PersonCircle className="me-2" />{t('settings.tabs.profile')}</>}>
               <Card className="settings-card">
                 <Card.Header>
-                  <h5 className="mb-0"><PersonCircle className="me-2" />Profile Settings</h5>
+                  <h5 className="mb-0"><PersonCircle className="me-2" />{t('settings.profile.sectionTitle')}</h5>
                 </Card.Header>
                 <Card.Body>
                   {profileError && <Alert variant="danger">{profileError}</Alert>}
                   {profileSuccess && <Alert variant="success">{profileSuccess}</Alert>}
                   
                   <div className="avatar-section mb-4">
-                    <h6 className="mb-3">Profile Picture</h6>
+                    <h6 className="mb-3">{t('settings.profile.picture.title')}</h6>
                     <div className="d-flex align-items-center gap-3">
                       <div className="current-avatar">
                         {avatarPreview ? (
-                          <img src={avatarPreview} alt="Profile" className="avatar-preview" />
+                          <img src={avatarPreview} alt={t('settings.profile.picture.alt')} className="avatar-preview" />
                         ) : (
                           <div className="avatar-placeholder">
                             {user.username.charAt(0).toUpperCase()}
@@ -566,12 +654,12 @@ const SettingsPage: React.FC = () => {
                             {avatarLoading ? (
                               <>
                                 <Spinner size="sm" className="me-1" />
-                                Uploading...
+                                {t('settings.profile.statuses.uploading')}
                               </>
                             ) : (
                               <>
                                 <Upload className="me-1" />
-                                Upload
+                                {t('settings.profile.picture.upload')}
                               </>
                             )}
                           </Button>
@@ -583,7 +671,7 @@ const SettingsPage: React.FC = () => {
                             onClick={() => setShowDeleteConfirm(true)}
                             disabled={avatarLoading}
                           >
-                            Remove
+                            {t('settings.profile.picture.remove')}
                           </Button>
                         )}
                       </div>
@@ -592,57 +680,57 @@ const SettingsPage: React.FC = () => {
                   
                   <Form onSubmit={handleProfileSubmit}>
                     <Form.Group className="mb-3" controlId="displayName">
-                      <Form.Label>Display Name</Form.Label>
+                      <Form.Label>{t('settings.profile.fields.displayName.label')}</Form.Label>
                       <Form.Control 
                         type="text" 
                         value={profileData.displayName}
                         onChange={(e) => setProfileData(prev => ({ ...prev, displayName: e.target.value }))}
-                        placeholder="Enter your display name"
+                        placeholder={t('settings.profile.fields.displayName.placeholder')}
                         maxLength={50}
                       />
                       <Form.Text className="text-muted">
-                        {profileData.displayName.length}/50 characters
+                        {t('settings.profile.fields.displayName.count', { count: profileData.displayName.length, limit: 50 })}
                       </Form.Text>
                     </Form.Group>
                     
                     <Form.Group className="mb-3" controlId="bio">
-                      <Form.Label>Bio</Form.Label>
+                      <Form.Label>{t('settings.profile.fields.bio.label')}</Form.Label>
                       <Form.Control 
                         as="textarea" 
                         rows={3} 
                         value={profileData.bio}
                         onChange={(e) => setProfileData(prev => ({ ...prev, bio: e.target.value }))}
-                        placeholder="Write something about yourself..."
+                        placeholder={t('settings.profile.fields.bio.placeholder')}
                         maxLength={500}
                       />
                       <Form.Text className="text-muted">
-                        {profileData.bio.length}/500 characters
+                        {t('settings.profile.fields.bio.count', { count: profileData.bio.length, limit: 500 })}
                       </Form.Text>
                     </Form.Group>
                     
                     <Form.Group className="mb-3" controlId="location">
-                      <Form.Label>Location</Form.Label>
+                      <Form.Label>{t('settings.profile.fields.location.label')}</Form.Label>
                       <Form.Control 
                         type="text" 
                         value={profileData.location}
                         onChange={(e) => setProfileData(prev => ({ ...prev, location: e.target.value }))}
-                        placeholder="Enter your location"
+                        placeholder={t('settings.profile.fields.location.placeholder')}
                         maxLength={100}
                       />
                     </Form.Group>
                     
                     <Form.Group className="mb-3" controlId="website">
-                      <Form.Label>Website</Form.Label>
+                      <Form.Label>{t('settings.profile.fields.website.label')}</Form.Label>
                       <Form.Control 
                         type="url" 
                         value={profileData.website}
                         onChange={(e) => setProfileData(prev => ({ ...prev, website: e.target.value }))}
-                        placeholder="https://yourwebsite.com"
+                        placeholder={t('settings.profile.fields.website.placeholder')}
                       />
                     </Form.Group>
                     
                     <Form.Group className="mb-4" controlId="birthDate">
-                      <Form.Label>Birth Date</Form.Label>
+                      <Form.Label>{t('settings.profile.fields.birthDate.label')}</Form.Label>
                       <Form.Control 
                         type="date" 
                         value={profileData.birthDate}
@@ -654,10 +742,10 @@ const SettingsPage: React.FC = () => {
                       {profileLoading ? (
                         <>
                           <Spinner size="sm" className="me-2" />
-                          Saving...
+                          {t('common.statuses.saving')}
                         </>
                       ) : (
-                        'Save Profile Changes'
+                        t('settings.profile.actions.save')
                       )}
                     </Button>
                   </Form>
@@ -665,15 +753,58 @@ const SettingsPage: React.FC = () => {
               </Card>
             </Tab>
             
-            <Tab eventKey="appearance" title={<><Palette className="me-2" />Appearance</>}>
+            <Tab eventKey="appearance" title={<><Palette className="me-2" />{t('settings.tabs.appearance')}</>}>
               <Card className="settings-card">
                 <Card.Header>
-                  <h5 className="mb-0"><Palette className="me-2" />Appearance</h5>
+                  <h5 className="mb-0"><Palette className="me-2" />{t('settings.appearance.sectionTitle')}</h5>
                 </Card.Header>
                 <Card.Body>
+                  {languageError && <Alert variant="danger">{languageError}</Alert>}
+                  {languageSuccess && <Alert variant="success">{languageSuccess}</Alert>}
+
+                  <Form onSubmit={handleLanguageSubmit} className="mb-4">
+                    <Form.Group className="mb-3" controlId="language">
+                      <Form.Label>{t('settings.languageLabel')}</Form.Label>
+                      <Form.Select
+                        value={language}
+                        onChange={(e) => {
+                          setLanguage(e.target.value);
+                          setLanguageSuccess('');
+                          setLanguageError('');
+                        }}
+                        disabled={availableLanguages.length === 0 || languageLoading}
+                      >
+                        {availableLanguages.map(code => (
+                          <option key={code} value={code}>
+                            {t(`common.languages.${code}`)}
+                          </option>
+                        ))}
+                      </Form.Select>
+                      <Form.Text className="text-muted">
+                        {t('settings.languageHelper')}
+                      </Form.Text>
+                    </Form.Group>
+                    <div className="d-flex align-items-center gap-2">
+                      <Button
+                        type="submit"
+                        variant="primary"
+                        disabled={languageLoading || availableLanguages.length === 0}
+                      >
+                        {languageLoading ? (
+                          <>
+                            <Spinner size="sm" className="me-2" />
+                            {t('common.statuses.saving')}
+                          </>
+                        ) : (
+                          t('settings.appearance.actions.saveLanguage')
+                        )}
+                      </Button>
+                    </div>
+                  </Form>
+
                   <Form>
                     <Form.Group className="mb-4" controlId="theme">
-                      <Form.Label>Theme</Form.Label>
+                      <Form.Label>{t('settings.appearance.fields.theme')}</Form.Label>
                       <div className="theme-options">
                         <div 
                           className={`theme-option ${theme === 'light' ? 'selected' : ''}`}
@@ -683,7 +814,7 @@ const SettingsPage: React.FC = () => {
                             <div className="preview-header"></div>
                             <div className="preview-content"></div>
                           </div>
-                          <div className="theme-name">Light</div>
+                          <div className="theme-name">{t('settings.appearance.options.light')}</div>
                         </div>
                         
                         <div 
@@ -694,14 +825,14 @@ const SettingsPage: React.FC = () => {
                             <div className="preview-header"></div>
                             <div className="preview-content"></div>
                           </div>
-                          <div className="theme-name">Dark</div>
+                          <div className="theme-name">{t('settings.appearance.options.dark')}</div>
                         </div>
                       </div>
                       
                       {themeLoading && (
                         <div className="text-center mt-3">
                           <Spinner size="sm" className="me-2" />
-                          Applying theme...
+                          {t('settings.appearance.status.applying')}
                         </div>
                       )}
                     </Form.Group>
@@ -710,10 +841,10 @@ const SettingsPage: React.FC = () => {
               </Card>
             </Tab>
             
-            <Tab eventKey="notifications" title={<><Bell className="me-2" />Notifications</>}>
+            <Tab eventKey="notifications" title={<><Bell className="me-2" />{t('settings.tabs.notifications')}</>}>
               <Card className="settings-card">
                 <Card.Header>
-                  <h5 className="mb-0"><Bell className="me-2" />Notification Settings</h5>
+                  <h5 className="mb-0"><Bell className="me-2" />{t('settings.notifications.sectionTitle')}</h5>
                 </Card.Header>
                 <Card.Body>
                   {notificationError && <Alert variant="danger">{notificationError}</Alert>}
@@ -721,80 +852,80 @@ const SettingsPage: React.FC = () => {
                   
                   <Form onSubmit={handleNotificationSubmit}>
                     <p className="text-muted mb-4">
-                      Choose which notifications you'd like to receive when other users interact with your content.
+                      {t('settings.notifications.intro')}
                     </p>
                     
                     <div className="notification-settings">
                       <Form.Check
                         type="switch"
                         id="notif-likes"
-                        label="Post Likes"
+                        label={t('settings.notifications.toggles.likes.label')}
                         checked={notificationSettings.likes}
                         onChange={(e) => setNotificationSettings(prev => ({ ...prev, likes: e.target.checked }))}
                         className="mb-3"
                       />
                       <Form.Text className="text-muted d-block mb-3">
-                        Get notified when someone likes your posts
+                        {t('settings.notifications.toggles.likes.description')}
                       </Form.Text>
                       
                       <Form.Check
                         type="switch"
                         id="notif-comments"
-                        label="Comments"
+                        label={t('settings.notifications.toggles.comments.label')}
                         checked={notificationSettings.comments}
                         onChange={(e) => setNotificationSettings(prev => ({ ...prev, comments: e.target.checked }))}
                         className="mb-3"
                       />
                       <Form.Text className="text-muted d-block mb-3">
-                        Get notified when someone comments on your posts
+                        {t('settings.notifications.toggles.comments.description')}
                       </Form.Text>
                       
                       <Form.Check
                         type="switch"
                         id="notif-follows"
-                        label="New Followers"
+                        label={t('settings.notifications.toggles.follows.label')}
                         checked={notificationSettings.follows}
                         onChange={(e) => setNotificationSettings(prev => ({ ...prev, follows: e.target.checked }))}
                         className="mb-3"
                       />
                       <Form.Text className="text-muted d-block mb-3">
-                        Get notified when someone follows you
+                        {t('settings.notifications.toggles.follows.description')}
                       </Form.Text>
                       
                       <Form.Check
                         type="switch"
                         id="notif-mentions"
-                        label="Mentions"
+                        label={t('settings.notifications.toggles.mentions.label')}
                         checked={notificationSettings.mentions}
                         onChange={(e) => setNotificationSettings(prev => ({ ...prev, mentions: e.target.checked }))}
                         className="mb-3"
                       />
                       <Form.Text className="text-muted d-block mb-3">
-                        Get notified when someone mentions you with @username
+                        {t('settings.notifications.toggles.mentions.description')}
                       </Form.Text>
                       
                       <Form.Check
                         type="switch"
                         id="notif-replies"
-                        label="Comment Replies"
+                        label={t('settings.notifications.toggles.replies.label')}
                         checked={notificationSettings.replies}
                         onChange={(e) => setNotificationSettings(prev => ({ ...prev, replies: e.target.checked }))}
                         className="mb-3"
                       />
                       <Form.Text className="text-muted d-block mb-3">
-                        Get notified when someone replies to your comments
+                        {t('settings.notifications.toggles.replies.description')}
                       </Form.Text>
                       
                       <Form.Check
                         type="switch"
                         id="notif-comment-likes"
-                        label="Comment Likes"
+                        label={t('settings.notifications.toggles.commentLikes.label')}
                         checked={notificationSettings.commentLikes}
                         onChange={(e) => setNotificationSettings(prev => ({ ...prev, commentLikes: e.target.checked }))}
                         className="mb-3"
                       />
                       <Form.Text className="text-muted d-block mb-4">
-                        Get notified when someone likes your comments
+                        {t('settings.notifications.toggles.commentLikes.description')}
                       </Form.Text>
                     </div>
                     
@@ -806,10 +937,10 @@ const SettingsPage: React.FC = () => {
                       {notificationLoading ? (
                         <>
                           <Spinner size="sm" className="me-2" />
-                          Saving...
+                          {t('common.statuses.saving')}
                         </>
                       ) : (
-                        'Save Notification Settings'
+                        t('settings.notifications.actions.save')
                       )}
                     </Button>
                   </Form>
@@ -820,16 +951,16 @@ const SettingsPage: React.FC = () => {
           
           <Card className="settings-card danger-zone">
             <Card.Header>
-              <h5 className="mb-0 text-danger">Danger Zone</h5>
+              <h5 className="mb-0 text-danger">{t('settings.danger.title')}</h5>
             </Card.Header>
             <Card.Body>
               <div className="d-flex justify-content-between align-items-center mb-3">
                 <div>
-                  <h6 className="mb-1">Sign Out</h6>
-                  <p className="text-muted mb-0">Sign out of your account on this device.</p>
+                  <h6 className="mb-1">{t('settings.danger.signOut.title')}</h6>
+                  <p className="text-muted mb-0">{t('settings.danger.signOut.description')}</p>
                 </div>
                 <Button variant="danger" onClick={handleLogout}>
-                  Sign Out
+                  {t('settings.danger.signOut.cta')}
                 </Button>
               </div>
               
@@ -837,16 +968,16 @@ const SettingsPage: React.FC = () => {
               
               <div className="d-flex justify-content-between align-items-center">
                 <div>
-                  <h6 className="mb-1 text-danger">Delete Account</h6>
+                  <h6 className="mb-1 text-danger">{t('settings.danger.delete.title')}</h6>
                   <p className="text-muted mb-0">
-                    Permanently delete your account and all associated data. This action cannot be undone.
+                    {t('settings.danger.delete.description')}
                   </p>
                 </div>
                 <Button 
                   variant="outline-danger" 
                   onClick={() => setShowDeleteAccount(true)}
                 >
-                  Delete Account
+                  {t('settings.danger.delete.cta')}
                 </Button>
               </div>
             </Card.Body>
@@ -863,24 +994,24 @@ const SettingsPage: React.FC = () => {
           centered
         >
           <Modal.Header closeButton className="border-0 pb-0">
-            <Modal.Title className="text-danger">Delete Account</Modal.Title>
+            <Modal.Title className="text-danger">{t('settings.danger.modal.title')}</Modal.Title>
           </Modal.Header>
           <Modal.Body>
             <div className="mb-3">
               <Alert variant="danger" className="mb-3">
                 <i className="bi bi-exclamation-triangle-fill me-2"></i>
-                <strong>Warning:</strong> This action cannot be undone. This will permanently delete your account and all associated data.
+                <strong>{t('settings.danger.modal.warningTitle')}</strong> {t('settings.danger.modal.warningDescription')}
               </Alert>
               
               <p className="text-muted mb-3">
-                Please enter your password to confirm account deletion.
+                {t('settings.danger.modal.prompt')}
               </p>
               
               <Form.Group>
-                <Form.Label>Password</Form.Label>
+                <Form.Label>{t('settings.danger.modal.passwordLabel')}</Form.Label>
                 <Form.Control
                   type="password"
-                  placeholder="Enter your password"
+                  placeholder={t('settings.danger.modal.passwordPlaceholder')}
                   value={deletePassword}
                   onChange={(e) => setDeletePassword(e.target.value)}
                   isInvalid={!!deleteError}
@@ -900,7 +1031,7 @@ const SettingsPage: React.FC = () => {
                 setDeleteError('');
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button 
               variant="danger" 
@@ -910,10 +1041,10 @@ const SettingsPage: React.FC = () => {
               {deleteLoading ? (
                 <>
                   <Spinner as="span" animation="border" size="sm" className="me-2" />
-                  Deleting Account...
+                  {t('settings.danger.modal.status.deleting')}
                 </>
               ) : (
-                'Delete Account'
+                t('settings.danger.modal.confirm')
               )}
             </Button>
           </Modal.Footer>
@@ -921,23 +1052,23 @@ const SettingsPage: React.FC = () => {
         
         <Modal show={showDeleteConfirm} onHide={() => setShowDeleteConfirm(false)} centered>
           <Modal.Header closeButton>
-            <Modal.Title>Remove Profile Picture</Modal.Title>
+            <Modal.Title>{t('settings.profile.picture.removeModal.title')}</Modal.Title>
           </Modal.Header>
           <Modal.Body>
-            Are you sure you want to remove your profile picture? This action cannot be undone.
+            {t('settings.profile.picture.removeModal.description')}
           </Modal.Body>
           <Modal.Footer>
             <Button variant="secondary" onClick={() => setShowDeleteConfirm(false)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button variant="danger" onClick={handleAvatarDelete} disabled={avatarLoading}>
               {avatarLoading ? (
                 <>
                   <Spinner size="sm" className="me-2" />
-                  Removing...
+                  {t('settings.profile.statuses.removing')}
                 </>
               ) : (
-                'Remove Picture'
+                t('settings.profile.picture.removeModal.cta')
               )}
             </Button>
           </Modal.Footer>

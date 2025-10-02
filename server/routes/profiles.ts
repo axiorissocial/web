@@ -4,6 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { createNotification } from './notifications.js';
+import { getAvailableLanguages } from '../i18n.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -313,6 +314,8 @@ router.get('/me/profile', requireAuth, async (req: any, res: Response) => {
 router.get('/me/settings', requireAuth, async (req: any, res: Response) => {
   try {
     const currentUserId = req.session.userId;
+    const availableLanguages = getAvailableLanguages();
+    const defaultLanguage = availableLanguages[0] || 'en';
     
     const userSettings = await prisma.userSettings.findUnique({
       where: { userId: currentUserId }
@@ -322,6 +325,7 @@ router.get('/me/settings', requireAuth, async (req: any, res: Response) => {
       res.json({
         settings: {
           theme: userSettings.theme,
+          language: userSettings.language || defaultLanguage,
           notifications: userSettings.notifications || {
             likes: true,
             comments: true,
@@ -336,6 +340,7 @@ router.get('/me/settings', requireAuth, async (req: any, res: Response) => {
       res.json({
         settings: {
           theme: 'dark',
+          language: defaultLanguage,
           notifications: {
             likes: true,
             comments: true,
@@ -356,7 +361,7 @@ router.get('/me/settings', requireAuth, async (req: any, res: Response) => {
 router.put('/me/settings', requireAuth, async (req: any, res: Response) => {
   try {
     const currentUserId = req.session.userId;
-    const { notifications, theme } = req.body;
+    const { notifications, theme, language } = req.body;
     
     const updateData: any = {};
     if (notifications) {
@@ -364,6 +369,13 @@ router.put('/me/settings', requireAuth, async (req: any, res: Response) => {
     }
     if (theme) {
       updateData.theme = theme;
+    }
+    if (language) {
+      const availableLanguages = getAvailableLanguages();
+      if (!availableLanguages.includes(language)) {
+        return res.status(400).json({ error: 'Unsupported language selection' });
+      }
+      updateData.language = language;
     }
     
     const userSettings = await prisma.userSettings.upsert({

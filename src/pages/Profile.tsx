@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { Card, Button, Spinner, Tabs, Tab, Badge, Row, Col } from 'react-bootstrap';
-import { Calendar, GeoAlt, Link45deg, PersonPlus, PersonDash, Envelope, ChatSquareText, Plus } from 'react-bootstrap-icons';
+import { Calendar, GeoAlt, Link45deg, PersonPlus, PersonDash, Envelope, ChatSquareText, Plus, Info } from 'react-bootstrap-icons';
 import Sidebar from '../components/singles/Navbar';
 import Feed from '../components/Feed';
 import { useAuth } from '../contexts/AuthContext';
 import '../css/profile.scss';
+import { useTranslation } from 'react-i18next';
 
 interface UserProfile {
   id: string;
@@ -40,6 +41,7 @@ const ProfilePage: React.FC = () => {
   const { username } = useParams<{ username: string }>();
   const { user: currentUser, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -77,36 +79,34 @@ const ProfilePage: React.FC = () => {
     const cleanUsername = username.startsWith('@') ? username.slice(1) : username;
     
     setLoading(true);
-    setError('');
+  setError('');
 
     try {
-      console.log(`Fetching profile for username: ${cleanUsername}`);
       const response = await fetch(`/api/users/${cleanUsername}/profile`, {
         credentials: 'include'
       });
       
-      console.log(`Profile API response status: ${response.status}`);
-      
       if (!response.ok) {
         if (response.status === 404) {
-          setError('User not found');
-          console.error(`User not found: ${cleanUsername}`);
+          setError(t('profilePage.errors.notFound'));
         } else {
           const errorText = await response.text();
-          setError('Failed to load profile');
+          setError(t('profilePage.errors.loadFailed'));
           console.error(`Profile fetch failed: ${response.status} - ${errorText}`);
         }
         return;
       }
 
       const data = await response.json();
-      console.log(`Profile data loaded for ${username}:`, data);
       setProfile(data);
       setFollowing(data.isFollowing || false);
-      document.title = `${data.profile?.displayName || data.username} - Axioris`;
+      document.title = t('profilePage.documentTitle', {
+        name: data.profile?.displayName || data.username,
+        app: t('app.name')
+      });
     } catch (err) {
       console.error('Error fetching profile for %s:', username, err);
-      setError('Failed to load profile');
+      setError(t('profilePage.errors.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -157,8 +157,8 @@ const ProfilePage: React.FC = () => {
         <Sidebar activeId="profile" />
         <main>
           <div className="text-center py-5">
-            <Spinner animation="border" />
-            <div className="mt-2">Loading profile...</div>
+            <Spinner animation="border" role="status" aria-label={t('profilePage.loading')} />
+            <div className="mt-2">{t('profilePage.loading')}</div>
           </div>
         </main>
       </div>
@@ -171,8 +171,8 @@ const ProfilePage: React.FC = () => {
         <Sidebar activeId="profile" />
         <main>
           <div className="text-center py-5">
-            <Spinner animation="border" />
-            <div className="mt-2">Redirecting...</div>
+            <Spinner animation="border" role="status" aria-label={t('profilePage.redirecting')} />
+            <div className="mt-2">{t('profilePage.redirecting')}</div>
           </div>
         </main>
       </div>
@@ -186,10 +186,10 @@ const ProfilePage: React.FC = () => {
         <main>
           <div className="text-center py-5">
             <div className="error-state">
-              <h3>Profile Not Found</h3>
-              <p className="">{error || 'The requested profile could not be found.'}</p>
+              <h3>{t('profilePage.error.title')}</h3>
+              <p className="">{error || t('profilePage.error.description')}</p>
               <Button variant="primary" onClick={() => window.history.back()}>
-                Go Back
+                {t('profilePage.error.back')}
               </Button>
             </div>
           </div>
@@ -200,10 +200,17 @@ const ProfilePage: React.FC = () => {
 
   const displayName = profile.profile?.displayName || profile.username;
   const isOwn = profile.isOwn || currentUser?.id === profile.id;
-  const joinDate = new Date(profile.profile?.joinedAt || profile.createdAt).toLocaleDateString('en-US', {
+  const joinDate = new Date(profile.profile?.joinedAt || profile.createdAt).toLocaleDateString(i18n.language, {
     year: 'numeric',
-    month: 'long'
+    month: 'long',
+    day: 'numeric'
   });
+  const lastActiveDisplay = profile.lastLogin
+    ? new Date(profile.lastLogin).toLocaleString(i18n.language, {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      })
+    : null;
 
   const handleMessage = async () => {
     if (!profile || !currentUser) return;
@@ -247,7 +254,11 @@ const ProfilePage: React.FC = () => {
           <Card className="profile-card">
             <div className="profile-banner">
               {profile.profile?.banner ? (
-                <img src={profile.profile.banner} alt="Profile banner" className="banner-image" />
+                <img
+                  src={profile.profile.banner}
+                  alt={t('profilePage.media.bannerAlt', { name: displayName })}
+                  className="banner-image"
+                />
               ) : (
                 <div className="banner-placeholder" />
               )}
@@ -259,7 +270,7 @@ const ProfilePage: React.FC = () => {
                   {profile.profile?.avatar ? (
                     <img 
                       src={profile.profile.avatar} 
-                      alt={`${displayName}'s avatar`}
+                      alt={t('profilePage.media.avatarAlt', { name: displayName })}
                       className="profile-avatar"
                     />
                   ) : (
@@ -278,7 +289,7 @@ const ProfilePage: React.FC = () => {
                       </h1>
                       <p className="username">@{profile.username}</p>
                       <div className="profile-level">
-                        <Badge bg="secondary">Level {profile.level}</Badge>
+                        <Badge bg="secondary">{t('profilePage.level', { level: profile.level })}</Badge>
                       </div>
                     </div>
                   </div>
@@ -293,13 +304,13 @@ const ProfilePage: React.FC = () => {
                         className="me-2"
                       >
                         <Plus className="me-1" />
-                        Create Post
+                        {t('profilePage.actions.createPost')}
                       </Button>
                       <Button 
                         variant="outline-primary"
                         onClick={() => window.location.href = '/settings'}
                       >
-                        Edit Profile
+                        {t('profilePage.actions.editProfile')}
                       </Button>
                     </>
                   ) : (
@@ -317,16 +328,17 @@ const ProfilePage: React.FC = () => {
                         ) : (
                           <PersonPlus className="me-1" />
                         )}
-                        {following ? 'Unfollow' : 'Follow'}
+                        {following ? t('profilePage.actions.unfollow') : t('profilePage.actions.follow')}
                       </Button>
                       <Button 
                         variant="outline-secondary" 
                         className="message-btn"
                         onClick={handleMessage}
-                        title="Send Message"
+                        title={t('profilePage.actions.sendMessage')}
+                        aria-label={t('profilePage.actions.sendMessage')}
                         disabled={messageLoading}
                       >
-                        {messageLoading ? <Spinner size="sm" /> : <Envelope />}
+                        {messageLoading ? <Spinner size="sm" role="status" aria-label={t('profilePage.statuses.messaging')} /> : <Envelope />}
                       </Button>
                     </>
                   )}
@@ -336,15 +348,15 @@ const ProfilePage: React.FC = () => {
               {isMobile && (
                 <div className="profile-mobile-stats">
                   <div className="stat-chip">
-                    <span className="label">Posts</span>
+                    <span className="label">{t('profilePage.stats.posts')}</span>
                     <span className="value">{profile._count.posts}</span>
                   </div>
                   <div className="stat-chip">
-                    <span className="label">Following</span>
+                    <span className="label">{t('profilePage.stats.following')}</span>
                     <span className="value">{profile._count.following}</span>
                   </div>
                   <div className="stat-chip">
-                    <span className="label">Followers</span>
+                    <span className="label">{t('profilePage.stats.followers')}</span>
                     <span className="value">{profile._count.followers}</span>
                   </div>
                 </div>
@@ -374,7 +386,7 @@ const ProfilePage: React.FC = () => {
                   )}
                   <Col xs="auto" className="meta-item">
                     <Calendar className="me-1" />
-                    <span>Joined {joinDate}</span>
+                    <span>{t('profilePage.meta.joined', { date: joinDate })}</span>
                   </Col>
                 </Row>
               </div>
@@ -383,15 +395,15 @@ const ProfilePage: React.FC = () => {
                 <Row>
                   <Col className="stat-item">
                     <div className="stat-number">{profile._count.posts}</div>
-                    <div className="stat-label">Posts</div>
+                    <div className="stat-label">{t('profilePage.stats.posts')}</div>
                   </Col>
                   <Col className="stat-item">
                     <div className="stat-number">{profile._count.following}</div>
-                    <div className="stat-label">Following</div>
+                    <div className="stat-label">{t('profilePage.stats.following')}</div>
                   </Col>
                   <Col className="stat-item">
                     <div className="stat-number">{profile._count.followers}</div>
-                    <div className="stat-label">Followers</div>
+                    <div className="stat-label">{t('profilePage.stats.followers')}</div>
                   </Col>
                 </Row>
               </div>
@@ -400,61 +412,75 @@ const ProfilePage: React.FC = () => {
           
           <Tabs 
             activeKey={activeTab} 
-            onSelect={(tab) => setActiveTab(tab as 'posts' | 'about')}
+            onSelect={(tab) => setActiveTab((tab as 'posts' | 'about') || 'posts')}
             className="profile-tabs"
           >
-            <Tab eventKey="posts" title={(
-              <>
-                <ChatSquareText className="me-2" />
-                Posts
-              </>
-            )}>
+            <Tab
+              eventKey="posts"
+              title={(
+                <>
+                  <ChatSquareText className="me-2" />
+                  {t('profilePage.tabs.posts')}
+                </>
+              )}
+            >
               <div className="tab-content">
                 <Feed userId={profile.id} />
               </div>
             </Tab>
             
-            <Tab eventKey="about" title="About">
+            <Tab
+              eventKey="about"
+              title={(
+                <>
+                  <Info className="me-2" />
+                  {t('profilePage.tabs.about')}
+                </>
+              )}
+            >
               <div className="tab-content">
                 <Card className="about-card">
                   <Card.Body>
-                    <h5>About {displayName}</h5>
+                    <h5>{t('profilePage.about.title', { name: displayName })}</h5>
                     
                     <div className="about-content">
                       {profile.profile?.bio || profile.bio ? (
                         <p>{profile.profile?.bio || profile.bio}</p>
                       ) : (
-                        <p className="">No bio available.</p>
+                        <p className="">{t('profilePage.about.values.noBio')}</p>
                       )}
                       
                       <div className="about-details">
                         <div className="detail-row">
-                          <strong>Username:</strong> @{profile.username}
+                          <strong>{t('profilePage.about.details.username')}</strong>
+                          <span>{t('profilePage.about.values.username', { username: profile.username })}</span>
                         </div>
                         {profile.profile?.location && (
                           <div className="detail-row">
-                            <strong>Location:</strong> {profile.profile.location}
+                            <strong>{t('profilePage.about.details.location')}</strong>
+                            <span>{profile.profile.location}</span>
                           </div>
                         )}
                         {profile.profile?.website && (
                           <div className="detail-row">
-                            <strong>Website:</strong> 
+                            <strong>{t('profilePage.about.details.website')}</strong>
                             <a href={profile.profile.website} target="_blank" rel="noopener noreferrer" className="ms-2">
                               {profile.profile.website}
                             </a>
                           </div>
                         )}
                         <div className="detail-row">
-                          <strong>Joined:</strong> {new Date(profile.createdAt).toLocaleDateString()}
+                          <strong>{t('profilePage.about.details.memberSince')}</strong>
+                          <span>{joinDate}</span>
                         </div>
                         <div className="detail-row">
-                          <strong>Level:</strong> {profile.level}
+                          <strong>{t('profilePage.about.details.level')}</strong>
+                          <span>{profile.level}</span>
                         </div>
-                        {profile.lastLogin && (
-                          <div className="detail-row">
-                            <strong>Last Active:</strong> {new Date(profile.lastLogin).toLocaleDateString()}
-                          </div>
-                        )}
+                        <div className="detail-row">
+                          <strong>{t('profilePage.about.details.lastActive')}</strong>
+                          <span>{lastActiveDisplay || t('profilePage.about.values.unknown')}</span>
+                        </div>
                       </div>
                     </div>
                   </Card.Body>
@@ -472,6 +498,8 @@ const ProfilePage: React.FC = () => {
           className="mobile-fab"
           onClick={handleCreatePost}
           size="lg"
+          aria-label={t('profilePage.actions.createPost')}
+          title={t('profilePage.actions.createPost')}
         >
           <Plus size={24} />
         </Button>

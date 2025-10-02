@@ -8,6 +8,7 @@ import CommentComponent from '../components/Comment';
 import { useAuth } from '../contexts/AuthContext';
 import '../css/post.scss';
 import '../css/comment.scss';
+import { useTranslation } from 'react-i18next';
 
 interface PostUser {
   id: string;
@@ -51,6 +52,7 @@ const PostPage: React.FC = () => {
   const { postId } = useParams<{ postId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useTranslation();
   
   const [post, setPost] = useState<PostData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,15 +117,14 @@ const PostPage: React.FC = () => {
       
       if (response.ok) {
         const postData = await response.json();
-        setPost(postData);
-        document.title = `${postData.title || 'Post'} - Axioris`;
+  setPost(postData);
       } else if (response.status === 404) {
-        setError('Post not found');
+        setError(t('postPage.errors.notFound'));
       } else {
-        setError('Failed to load post');
+  setError(t('postPage.errors.loadFailed'));
       }
     } catch (error) {
-      setError('Failed to load post');
+  setError(t('postPage.errors.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -147,16 +148,25 @@ const PostPage: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (post) {
+      const title = post.title || t('postPage.meta.defaultTitle');
+      document.title = t('postPage.meta.documentTitle', { title, app: t('app.name') });
+    } else {
+      document.title = t('postPage.meta.defaultDocumentTitle', { app: t('app.name') });
+    }
+  }, [post, t]);
+
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim() || commentLoading || !user) return;
     
     if (newComment.trim().length > 1000) {
-      alert('Comment is too long. Maximum 1000 characters allowed.');
+      alert(t('postPage.comments.validation.tooLong', { limit: 1000 }));
       return;
     }
     
-    setCommentLoading(true);
+  setCommentLoading(true);
     try {
       const response = await fetch(`/api/posts/${postId}/comments`, {
         method: 'POST',
@@ -193,7 +203,7 @@ const PostPage: React.FC = () => {
       <div className="app-container d-flex">
         <Sidebar activeId="home" />
         <main className="flex-grow-1 p-4 d-flex justify-content-center align-items-center">
-          <Spinner animation="border" />
+            <Spinner animation="border" role="status" aria-label={t('common.statuses.loading')} />
         </main>
       </div>
     );
@@ -205,12 +215,12 @@ const PostPage: React.FC = () => {
         <Sidebar activeId="home" />
         <main className="flex-grow-1 p-4">
           <Alert variant="danger" className="text-center">
-            {error || 'Post not found'}
+            {error || t('postPage.errors.notFound')}
           </Alert>
           <div className="text-center">
             <Button variant="primary" onClick={() => navigate('/')}>
               <ArrowLeft className="me-2" />
-              Back to Home
+              {t('postPage.navigation.backToHome')}
             </Button>
           </div>
         </main>
@@ -236,11 +246,11 @@ const PostPage: React.FC = () => {
           >
             <ArrowLeft className="me-2" />
             {canGoBack ? 
-              (backContext === 'profile' ? 'Back to Profile' :
-               backContext === 'search' ? 'Back to Search' :
-               backContext === 'home' ? 'Back to Home' :
-               'Back') : 
-              'Back to Home'}
+              (backContext === 'profile' ? t('postPage.navigation.backToProfile') :
+               backContext === 'search' ? t('postPage.navigation.backToSearch') :
+               backContext === 'home' ? t('postPage.navigation.backToHome') :
+               t('postPage.navigation.genericBack')) : 
+              t('postPage.navigation.backToHome')}
           </Button>
 
           <Post 
@@ -253,7 +263,7 @@ const PostPage: React.FC = () => {
             <Card.Header>
               <h5 className="mb-0 d-flex align-items-center">
                 <ChatSquareText className="me-2" />
-                Comments ({post._count.comments})
+                {t('postPage.comments.title', { count: post._count.comments })}
               </h5>
             </Card.Header>
             
@@ -266,13 +276,13 @@ const PostPage: React.FC = () => {
                       rows={3}
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
-                      placeholder="Write a comment..."
+                      placeholder={t('postPage.comments.placeholder')}
                       className="mb-2"
                       maxLength={1000}
                     />
                     <div className="d-flex justify-content-between align-items-center mb-2">
                       <small className={`char-count ${newComment.length > 900 ? 'text-warning' : ''} ${newComment.length >= 1000 ? 'text-danger' : ''}`}>
-                        {newComment.length}/1000 characters
+                        {t('comment.editor.charCount', { count: newComment.length, limit: 1000 })}
                       </small>
                     </div>
                     <Button 
@@ -283,10 +293,10 @@ const PostPage: React.FC = () => {
                       {commentLoading ? (
                         <>
                           <Spinner size="sm" className="me-2" />
-                          Posting...
+                          {t('postPage.comments.status.posting')}
                         </>
                       ) : (
-                        'Post Comment'
+                        t('postPage.comments.actions.submit')
                       )}
                     </Button>
                   </Form.Group>
@@ -313,7 +323,7 @@ const PostPage: React.FC = () => {
                 </div>
               ) : (
                 <div className="text-center text-muted py-4">
-                  No comments yet. Be the first to comment!
+                  {t('postPage.comments.empty')}
                 </div>
               )}
             </Card.Body>

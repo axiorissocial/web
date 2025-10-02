@@ -4,8 +4,11 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './css/index.scss';
+import { I18nextProvider } from 'react-i18next';
 import { AuthProvider } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+import i18n from './i18n/config';
+import './utils/httpClient';
 import Home from './pages/Home';
 import Search from './pages/Search';
 import Notifications from './pages/Notifications';
@@ -63,7 +66,7 @@ function AppRoutes() {
       <Route path="/user/me" element={<Profile />} />
       <Route path="/post/:postId" element={<PostPage />} />
       <Route path="/settings" element={<Settings />} />
-  <Route path="/admin" element={<AdminPanel />} />
+      <Route path="/admin" element={<AdminPanel />} />
       <Route path="/account/login" element={<AccountLogin />} />
       <Route path="/account/register" element={<AccountRegister />} />
       <Route path="/mobile" element={<Mobile />} />
@@ -75,11 +78,13 @@ function AppRoutes() {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <AuthProvider>
-        <NotificationProvider>
-          <AppRoutes />
-        </NotificationProvider>
-      </AuthProvider>
+      <I18nextProvider i18n={i18n}>
+        <AuthProvider>
+          <NotificationProvider>
+            <AppRoutes />
+          </NotificationProvider>
+        </AuthProvider>
+      </I18nextProvider>
     </BrowserRouter>
   </StrictMode>
 );

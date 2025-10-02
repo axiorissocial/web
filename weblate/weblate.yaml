@@ -1,0 +1,23 @@
+project: axioris-website
+components:
+  - name: frontend-common
+    slug: frontend-common
+    basepath: ..
+    filemask: locales/{lang}/common.json
+    template: locales/en/common.json
+    new_lang: true
+    intermediate: false
+    vcs: git
+    branch: main
+    repo: https://github.com/axiorissocial/web.git
+    push: git@github.com:axiorissocial/web.git
+    translation_type: dictionary
+    language_regex: '^[a-z]{2}$'
+    edit_url: ''
+    checks:
+      - same
+      - notags
+      - duplicates
+      - binary
+      - zero
+    priority: 100

@@ -9,6 +9,7 @@ import { processMentions } from '../utils/mentions';
 import MentionTextarea from './MentionTextarea';
 import EmojiPicker from './EmojiPicker';
 import '../css/comment.scss';
+import { useTranslation } from 'react-i18next';
 
 interface CommentUser {
   id: string;
@@ -51,6 +52,7 @@ const CommentComponent: React.FC<CommentProps> = ({
   currentUser,
   onCommentDeleted
 }) => {
+  const { t, i18n } = useTranslation();
   const [showReplyForm, setShowReplyForm] = useState(false);
   const [replyContent, setReplyContent] = useState('');
   const [replyLoading, setReplyLoading] = useState(false);
@@ -73,7 +75,7 @@ const CommentComponent: React.FC<CommentProps> = ({
   const TRUNCATE_LENGTH = 300;
 
   const handleDeleteComment = async () => {
-    if (!window.confirm('Are you sure you want to delete this comment?')) {
+    if (!window.confirm(t('comment.prompts.deleteConfirm'))) {
       return;
     }
 
@@ -87,11 +89,11 @@ const CommentComponent: React.FC<CommentProps> = ({
       if (response.ok) {
         onCommentDeleted?.();
       } else {
-        throw new Error('Failed to delete comment');
+        throw new Error(t('comment.errors.delete'));
       }
     } catch (error) {
       console.error('Error deleting comment:', error);
-      alert('Failed to delete comment. Please try again.');
+      alert(t('comment.errors.delete'));
     } finally {
       setDeleteLoading(false);
     }
@@ -104,7 +106,7 @@ const CommentComponent: React.FC<CommentProps> = ({
     }
 
     if (editContent.length > COMMENT_CHAR_LIMIT) {
-      alert(`Comment is too long. Maximum ${COMMENT_CHAR_LIMIT} characters allowed.`);
+      alert(t('comment.validation.tooLong', { limit: COMMENT_CHAR_LIMIT }));
       return;
     }
 
@@ -128,11 +130,11 @@ const CommentComponent: React.FC<CommentProps> = ({
         setIsEditing(false);
         onReplyAdded?.();
       } else {
-        throw new Error('Failed to update comment');
+        throw new Error(t('comment.errors.update'));
       }
     } catch (error) {
       console.error('Error editing comment:', error);
-      alert('Failed to update comment. Please try again.');
+      alert(t('comment.errors.update'));
     } finally {
       setEditLoading(false);
     }
@@ -160,11 +162,11 @@ const CommentComponent: React.FC<CommentProps> = ({
     const diffHours = Math.floor(diffMinutes / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMinutes < 1) return 'Just now';
-    if (diffMinutes < 60) return `${diffMinutes}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+  if (diffMinutes < 1) return t('comment.time.justNow');
+  if (diffMinutes < 60) return t('comment.time.minutes', { count: diffMinutes });
+  if (diffHours < 24) return t('comment.time.hours', { count: diffHours });
+  if (diffDays < 7) return t('comment.time.days', { count: diffDays });
+    return date.toLocaleDateString(i18n.language);
   };
 
   const processCommentContent = (content: string) => {
@@ -227,7 +229,7 @@ const CommentComponent: React.FC<CommentProps> = ({
     if (!replyContent.trim() || replyLoading) return;
 
     if (replyContent.trim().length > COMMENT_CHAR_LIMIT) {
-      alert(`Reply is too long. Maximum ${COMMENT_CHAR_LIMIT} characters allowed.`);
+      alert(t('comment.validation.replyTooLong', { limit: COMMENT_CHAR_LIMIT }));
       return;
     }
 
@@ -251,10 +253,10 @@ const CommentComponent: React.FC<CommentProps> = ({
         onReplyAdded();
       } else {
         const error = await response.json();
-        console.error('Failed to post reply:', error.error);
+        console.error(t('comment.errors.replyFailed'), error.error);
       }
     } catch (error) {
-      console.error('Error posting reply:', error);
+      console.error(t('comment.errors.replyFailed'), error);
     } finally {
       setReplyLoading(false);
     }
@@ -298,7 +300,7 @@ const CommentComponent: React.FC<CommentProps> = ({
           {getAvatarUrl(comment.user) ? (
             <img 
               src={getAvatarUrl(comment.user)!} 
-              alt={`${displayName}'s avatar`}
+              alt={t('comment.avatarAlt', { name: displayName })}
               className="comment-avatar me-3"
             />
           ) : (
@@ -318,7 +320,7 @@ const CommentComponent: React.FC<CommentProps> = ({
             <small className="text-muted me-2">@{comment.user.username}</small>
             <small className="text-muted me-auto">
               {formatDate(comment.createdAt)}
-              {comment.editedAt && ' (edited)'}
+              {comment.editedAt && ` ${t('comment.time.edited')}`}
             </small>
             
             {/* Delete dropdown for comment author */}
@@ -333,7 +335,7 @@ const CommentComponent: React.FC<CommentProps> = ({
                     disabled={isEditing}
                   >
                     <PencilSquare size={14} className="me-2" />
-                    Edit
+                    {t('common.edit')}
                   </Dropdown.Item>
                   <Dropdown.Item 
                     onClick={handleDeleteComment}
@@ -343,12 +345,12 @@ const CommentComponent: React.FC<CommentProps> = ({
                     {deleteLoading ? (
                       <>
                         <Spinner size="sm" className="me-2" />
-                        Deleting...
+                        {t('common.statuses.deleting')}
                       </>
                     ) : (
                       <>
                         <Trash size={14} className="me-2" />
-                        Delete
+                        {t('common.delete')}
                       </>
                     )}
                   </Dropdown.Item>
@@ -368,10 +370,10 @@ const CommentComponent: React.FC<CommentProps> = ({
               />
               <div className="d-flex justify-content-between align-items-center mb-2">
                 <small className="text-muted">
-                  Supports **markdown**, :emojis:, and @mentions
+                  {t('comment.editor.supports')}
                 </small>
                 <small className={`char-count ${editContent.length > COMMENT_CHAR_LIMIT * 0.9 ? 'text-warning' : ''} ${editContent.length >= COMMENT_CHAR_LIMIT ? 'text-danger' : ''}`}>
-                  {editContent.length}/{COMMENT_CHAR_LIMIT} characters
+                  {t('comment.editor.charCount', { count: editContent.length, limit: COMMENT_CHAR_LIMIT })}
                 </small>
               </div>
               <div className="d-flex gap-2">
@@ -391,10 +393,10 @@ const CommentComponent: React.FC<CommentProps> = ({
                   {editLoading ? (
                     <>
                       <Spinner size="sm" className="me-2" />
-                      Saving...
+                      {t('common.statuses.saving')}
                     </>
                   ) : (
-                    'Save'
+                    t('common.save')
                   )}
                 </Button>
                 <Button 
@@ -406,7 +408,7 @@ const CommentComponent: React.FC<CommentProps> = ({
                   }}
                   disabled={editLoading}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
               </div>
             </Form>
@@ -436,12 +438,12 @@ const CommentComponent: React.FC<CommentProps> = ({
               {isExpanded ? (
                 <>
                   <ChevronUp size={14} className="me-1" />
-                  Show less
+                  {t('common.viewLess')}
                 </>
               ) : (
                 <>
                   <ChevronDown size={14} className="me-1" />
-                  Show more
+                  {t('common.viewMore')}
                 </>
               )}
             </Button>
@@ -467,7 +469,7 @@ const CommentComponent: React.FC<CommentProps> = ({
                 onClick={() => setShowReplyForm(!showReplyForm)}
               >
                 <ChatSquareText size={14} className="me-1" />
-                Reply
+                {t('comment.reply')}
               </Button>
             )}
           </div>
@@ -479,17 +481,17 @@ const CommentComponent: React.FC<CommentProps> = ({
                   <MentionTextarea
                     value={replyContent}
                     onChange={setReplyContent}
-                    placeholder={`Reply to ${displayName}...`}
+                    placeholder={t('comment.editor.replyPlaceholder', { name: displayName })}
                     className="mb-2"
                     rows={3}
                     maxLength={COMMENT_CHAR_LIMIT}
                   />
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <small className="text-muted">
-                      Supports **markdown**, :emojis:, and @mentions
+                      {t('comment.editor.supports')}
                     </small>
                     <small className={`char-count ${replyContent.length > COMMENT_CHAR_LIMIT * 0.9 ? 'text-warning' : ''} ${replyContent.length >= COMMENT_CHAR_LIMIT ? 'text-danger' : ''}`}>
-                      {replyContent.length}/{COMMENT_CHAR_LIMIT} characters
+                      {t('comment.editor.charCount', { count: replyContent.length, limit: COMMENT_CHAR_LIMIT })}
                     </small>
                   </div>
                   <div className="d-flex gap-2">
@@ -509,10 +511,10 @@ const CommentComponent: React.FC<CommentProps> = ({
                       {replyLoading ? (
                         <>
                           <Spinner size="sm" className="me-2" />
-                          Replying...
+                          {t('comment.statuses.replying')}
                         </>
                       ) : (
-                        'Reply'
+                        t('comment.reply')
                       )}
                     </Button>
                     <Button 
@@ -524,7 +526,7 @@ const CommentComponent: React.FC<CommentProps> = ({
                       }}
                       disabled={replyLoading}
                     >
-                      Cancel
+                      {t('common.cancel')}
                     </Button>
                   </div>
                 </Form.Group>

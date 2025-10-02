@@ -20,6 +20,7 @@ import { EMOJIS } from '../utils/emojis';
 import { processMentions } from '../utils/mentions';
 import '../css/postbox.scss';
 import '../css/mentions.scss';
+import { useTranslation } from 'react-i18next';
 
 interface MediaItem {
   url: string;
@@ -40,6 +41,11 @@ const CreatePostPage: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
+
+  useEffect(() => {
+    document.title = t('createPost.documentTitle', { app: t('app.name') });
+  }, [t, i18n.language]);
 
   useEffect(() => {
     setCharCount(content.length);
@@ -51,7 +57,7 @@ const CreatePostPage: React.FC = () => {
 
     const validFiles = Array.from(files).filter(file => {
       if (file.size > 50 * 1024 * 1024) {
-        setError(`File ${file.name} is too large. Maximum size is 50MB.`);
+        setError(t('createPost.errors.fileTooLarge', { file: file.name }));
         return false;
       }
       return true;
@@ -60,7 +66,7 @@ const CreatePostPage: React.FC = () => {
     if (validFiles.length === 0) return;
 
     if (uploadedMedia.length + validFiles.length > 5) {
-      setError('Maximum 5 media files allowed per post');
+      setError(t('createPost.errors.maxFiles', { limit: 5 }));
       return;
     }
 
@@ -82,11 +88,11 @@ const CreatePostPage: React.FC = () => {
         setUploadedMedia(prev => [...prev, ...data.media]);
       } else {
         const errorData = await response.json();
-        setError(errorData.error || 'Failed to upload media');
+        setError(errorData.error || t('createPost.errors.uploadFailed'));
       }
     } catch (error) {
       console.error('Upload error:', error);
-      setError('Failed to upload media files');
+      setError(t('createPost.errors.uploadFailed'));
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
@@ -120,7 +126,10 @@ const CreatePostPage: React.FC = () => {
   };
 
   const handlePost = async () => {
-    if (content.length === 0 || content.length > 1000) return;
+    if (content.length === 0 || content.length > 1000) {
+      setError(t('createPost.errors.contentLength'));
+      return;
+    }
     
     setPosting(true);
     setError('');
@@ -147,11 +156,11 @@ const CreatePostPage: React.FC = () => {
         navigate(-1);
       } else {
         const errorData = await response.json();
-        setError(errorData.message || 'Failed to create post');
+        setError(errorData.message || t('createPost.errors.createFailed'));
       }
     } catch (error) {
       console.error('Error creating post:', error);
-      setError('Network error. Please try again.');
+      setError(t('createPost.errors.network'));
     } finally {
       setPosting(false);
     }
@@ -178,8 +187,8 @@ const CreatePostPage: React.FC = () => {
       <main className="create-post-main">
         <div className="create-post-header d-flex align-items-center justify-content-between mb-4">
           <div>
-            <h1>Create Post</h1>
-            <p className="text-muted mb-0">Share your thoughts with the community</p>
+            <h1>{t('createPost.title')}</h1>
+            <p className="text-muted mb-0">{t('createPost.subtitle')}</p>
           </div>
           <Button 
             variant="primary"
@@ -188,7 +197,7 @@ const CreatePostPage: React.FC = () => {
             className="create-post-submit"
           >
             {posting ? <Spinner size="sm" className="me-2" /> : null}
-            {posting ? 'Posting...' : 'Post'}
+            {posting ? t('createPost.actions.postingStatus') : t('createPost.actions.submit')}
           </Button>
         </div>
 
@@ -228,7 +237,7 @@ const CreatePostPage: React.FC = () => {
           
           {uploadedMedia.length > 0 && (
             <div className="mb-3">
-              <h6>Attached Media ({uploadedMedia.length}/5):</h6>
+              <h6>{t('createPost.upload.attached', { count: uploadedMedia.length, limit: 5 })}</h6>
               <div className="d-flex flex-wrap gap-2">
                 {uploadedMedia.map((media, index) => (
                   <div key={index} className="position-relative" style={{ maxWidth: '100px' }}>
@@ -244,7 +253,7 @@ const CreatePostPage: React.FC = () => {
                            style={{ width: '100px', height: '100px' }}>
                         <CameraVideo size={24} />
                         <small className="position-absolute bottom-0 start-0 p-1 bg-dark text-white small">
-                          Video
+                          {t('createPost.upload.videoLabel')}
                         </small>
                       </div>
                     )}
@@ -276,7 +285,7 @@ const CreatePostPage: React.FC = () => {
             <Form.Group className="mb-3">
               <Form.Control
                 type="text"
-                placeholder="Title (optional)"
+                placeholder={t('createPost.fields.titlePlaceholder')}
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 maxLength={100}
@@ -287,16 +296,16 @@ const CreatePostPage: React.FC = () => {
               onSelect={tab => setActiveTab(tab || 'write')}
               className="mb-3"
             >
-              <Tab eventKey="write" title="Write">
+              <Tab eventKey="write" title={t('createPost.tabs.write')}>
                 <MentionTextarea
                   value={content}
                   onChange={setContent}
-                  placeholder="What's on your mind? (supports Markdown formatting and @mentions)"
+                  placeholder={t('createPost.fields.contentPlaceholder')}
                   rows={8}
                   maxLength={1000}
                 />
               </Tab>
-              <Tab eventKey="preview" title="Preview">
+              <Tab eventKey="preview" title={t('createPost.tabs.preview')}>
                 <div
                   className="markdown-content p-3 border rounded"
                   style={{ minHeight: '200px', fontSize: '1em' }}
@@ -306,13 +315,13 @@ const CreatePostPage: React.FC = () => {
             </Tabs>
             <div className="d-flex justify-content-between align-items-center">
               <div className="text-muted">
-                <small>{charCount}/1000 characters</small>
+                <small>{t('createPost.charCount', { count: charCount })}</small>
               </div>
               <Button 
                 variant="outline-secondary"
                 onClick={() => navigate(-1)}
               >
-                Cancel
+                {t('common.cancel')}
               </Button>
             </div>
           </Form>

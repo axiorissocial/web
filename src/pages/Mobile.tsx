@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import '../css/mobile.scss';
 import '../css/buttons.scss';
 import { Button, Modal } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { Download, ChevronRight } from 'react-bootstrap-icons';
+import { useTranslation } from 'react-i18next';
 
 interface MobilePageProps {
   code?: number;
@@ -14,28 +15,40 @@ interface MobilePageProps {
 
 const MobilePage: React.FC<MobilePageProps> = ({
   code,
-  message = 'Axioris runs beautifully as a Progressive Web App. Install it to stay connected on the go without downloading anything from the store.',
+  message,
   logoSrc = '/logo.png',
-  title = 'Install the Axioris PWA'
+  title
 }) => {
   const navigate = useNavigate();
   const [showInstallGuide, setShowInstallGuide] = useState(false);
+  const { t } = useTranslation();
+
+  const translatedTitle = title ?? t('mobile.pageTitle');
+  const translatedMessage = message ?? t('mobile.message');
+  const iosSteps = useMemo(
+    () => t('mobile.iosSteps', { returnObjects: true }) as string[],
+    [t]
+  );
+  const androidSteps = useMemo(
+    () => t('mobile.androidSteps', { returnObjects: true }) as string[],
+    [t]
+  );
 
   useEffect(() => {
-    document.title = 'Install Axioris PWA';
-  }, []);
+    document.title = t('mobile.browserTitle');
+  }, [t]);
 
   return (
     <div className="err-container">
       <div className="logo-section">
-        <img src={logoSrc} className="logo" alt="Axioris Logo" />
-        <span>Axioris</span>
+        <img src={logoSrc} className="logo" alt={`${t('app.name')} Logo`} />
+        <span>{t('app.name')}</span>
       </div>
 
       <div className="text-section">
-        <h1 className="error-code">{title}</h1>
-        {code && <p className="error-subcode">Error Code: {code}</p>}
-        <p className="error-msg">{message}</p>
+        <h1 className="error-code">{translatedTitle}</h1>
+        {code && <p className="error-subcode">{t('mobile.errorCode', { code })}</p>}
+        <p className="error-msg">{translatedMessage}</p>
       </div>
 
       <div className="button-section">
@@ -45,7 +58,7 @@ const MobilePage: React.FC<MobilePageProps> = ({
           onClick={() => setShowInstallGuide(true)}
         >
           <Download size={20} />
-          Install the PWA
+          {t('mobile.installCta')}
         </Button>
 
         <Button
@@ -59,7 +72,7 @@ const MobilePage: React.FC<MobilePageProps> = ({
           }}
         >
           <ChevronRight size={20} />
-          Continue on Website
+          {t('mobile.continue')}
         </Button>
       </div>
 
@@ -70,34 +83,34 @@ const MobilePage: React.FC<MobilePageProps> = ({
         aria-labelledby="pwa-install-guide-title"
       >
         <Modal.Header closeButton>
-          <Modal.Title id="pwa-install-guide-title">How to install on your phone</Modal.Title>
+          <Modal.Title id="pwa-install-guide-title">{t('mobile.modalTitle')}</Modal.Title>
         </Modal.Header>
         <Modal.Body className="pwa-install-guide">
           <p className="mb-3">
-            Add Axioris to your home screen so it behaves like a fully native app. It only takes a few seconds:
+            {t('mobile.intro')}
           </p>
-          <h6>On iPhone or iPad (Safari)</h6>
+          <h6>{t('mobile.iosTitle')}</h6>
           <ol>
-            <li>Tap the <strong>Share</strong> icon in the browser toolbar.</li>
-            <li>Select <strong>Add to Home Screen</strong>.</li>
-            <li>Confirm by tapping <strong>Add</strong>.</li>
+            {iosSteps.map((step, index) => (
+              <li key={`ios-${index}`} dangerouslySetInnerHTML={{ __html: step }} />
+            ))}
           </ol>
-          <h6 className="mt-3">On Android (Chrome)</h6>
+          <h6 className="mt-3">{t('mobile.androidTitle')}</h6>
           <ol>
-            <li>Tap the <strong>⋮</strong> menu in the top right corner.</li>
-            <li>Choose <strong>Install app</strong> or <strong>Add to home screen</strong>.</li>
-            <li>Confirm the prompt to finish.</li>
+            {androidSteps.map((step, index) => (
+              <li key={`android-${index}`} dangerouslySetInnerHTML={{ __html: step }} />
+            ))}
           </ol>
           <p className="mb-0 text-muted">
-            Once installed, open Axioris from your home screen for the full-screen, distraction-free experience.
+            {t('mobile.closing')}
           </p>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowInstallGuide(false)}>
-            Close
+            {t('mobile.close')}
           </Button>
           <Button variant="primary" onClick={() => setShowInstallGuide(false)}>
-            Got it
+            {t('mobile.confirm')}
           </Button>
         </Modal.Footer>
       </Modal>

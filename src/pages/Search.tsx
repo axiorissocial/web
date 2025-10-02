@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Form, InputGroup, Tabs, Tab, Card, Badge, Button, Spinner } from 'react-bootstrap';
 import { Search as SearchIcon, Person, ChatSquareText, PersonPlus, PersonDash } from 'react-bootstrap-icons';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import Sidebar from '../components/singles/Navbar';
 import Feed from '../components/Feed';
 import { useAuth } from '../contexts/AuthContext';
@@ -24,6 +25,7 @@ interface User {
 }
 
 const SearchPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'posts' | 'users'>('posts');
   const [users, setUsers] = useState<User[]>([]);
@@ -70,8 +72,8 @@ const SearchPage: React.FC = () => {
   const [hasMoreUsers, setHasMoreUsers] = useState(true);
 
   useEffect(() => {
-    document.title = `Search - Axioris`;
-  }, []);
+    document.title = t('search.documentTitle', { app: t('app.name') });
+  }, [t, i18n.language]);
 
   const searchUsers = async (query: string, pageNum = 1, reset = false) => {
     if (!query.trim()) {
@@ -86,7 +88,7 @@ const SearchPage: React.FC = () => {
       const response = await fetch(`/api/users/search?q=${encodeURIComponent(query)}&page=${pageNum}&limit=10`);
       
       if (!response.ok) {
-        throw new Error('Failed to search users');
+        throw new Error(t('search.errors.searchFailed'));
       }
 
       const data = await response.json();
@@ -100,7 +102,7 @@ const SearchPage: React.FC = () => {
       setHasMoreUsers(data.pagination.hasNextPage);
       setUserPage(pageNum);
     } catch (err) {
-      setUserError(err instanceof Error ? err.message : 'Failed to search users');
+      setUserError(err instanceof Error ? err.message : t('search.errors.searchFailed'));
     } finally {
       setUserLoading(false);
     }
@@ -226,8 +228,8 @@ const SearchPage: React.FC = () => {
       <Sidebar activeId="search" />
       <main className="search-main">
         <div className="search-header mb-4">
-          <h1>Search</h1>
-          <p className="">Find posts and users</p>
+          <h1>{t('search.heading')}</h1>
+          <p className="">{t('search.subheading')}</p>
           
           <div className="search-input-container">
             <InputGroup size="lg">
@@ -236,7 +238,7 @@ const SearchPage: React.FC = () => {
               </InputGroup.Text>
               <Form.Control
                 type="text"
-                placeholder="Search for posts or users..."
+                placeholder={t('search.placeholder')}
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
               />
@@ -250,18 +252,18 @@ const SearchPage: React.FC = () => {
             onSelect={handleTabChange}
             className="search-tabs mb-4"
           >
-            <Tab eventKey="posts" title="Posts">
+            <Tab eventKey="posts" title={t('search.tabs.posts')}>
               <div className="search-results">
                 <Feed searchQuery={searchQuery} />
               </div>
             </Tab>
             
-            <Tab eventKey="users" title="Users">
+            <Tab eventKey="users" title={t('search.tabs.users')}>
               <div className="search-results">
                 {userLoading && users.length === 0 ? (
                   <div className="text-center py-4">
                     <Spinner animation="border" />
-                    <div className="mt-2">Searching users...</div>
+                    <div className="mt-2">{t('search.status.searchingUsers')}</div>
                   </div>
                 ) : userError ? (
                   <div className="text-center py-4 text-danger">
@@ -270,8 +272,8 @@ const SearchPage: React.FC = () => {
                 ) : users.length === 0 ? (
                   <div className="text-center py-5 ">
                     <Person size={48} className="mb-3" />
-                    <h5>No users found</h5>
-                    <p>Try searching with different keywords</p>
+                    <h5>{t('search.emptyUsers.title')}</h5>
+                    <p>{t('search.emptyUsers.subtitle')}</p>
                   </div>
                 ) : (
                   <>
@@ -289,10 +291,10 @@ const SearchPage: React.FC = () => {
                           {userLoading ? (
                             <>
                               <Spinner size="sm" className="me-2" />
-                              Loading...
+                              {t('common.statuses.loading')}
                             </>
                           ) : (
-                            'Load More Users'
+                            t('search.actions.loadMoreUsers')
                           )}
                         </Button>
                       </div>
@@ -307,8 +309,8 @@ const SearchPage: React.FC = () => {
         {!searchQuery && (
           <div className="search-empty text-center py-5">
             <SearchIcon size={64} className="mb-3 " />
-            <h3>Start searching</h3>
-            <p className="">Enter a keyword to search for posts and users</p>
+            <h3>{t('search.emptyState.title')}</h3>
+            <p className="">{t('search.emptyState.subtitle')}</p>
           </div>
         )}
       </main>

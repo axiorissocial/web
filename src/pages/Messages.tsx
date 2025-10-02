@@ -9,6 +9,7 @@ import EmojiPicker from '../components/EmojiPicker';
 import DOMPurify from 'dompurify';
 import twemoji from 'twemoji';
 import { EMOJIS } from '../utils/emojis';
+import { useTranslation } from 'react-i18next';
 
 interface User {
   id: string;
@@ -104,6 +105,7 @@ const formatMessagePreview = (content: string) => buildMessageHtml(content, { pr
 
 const Messages: React.FC = () => {
   const { user } = useAuth();
+  const { t, i18n } = useTranslation();
   const location = useLocation();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<string | null>(null);
@@ -197,8 +199,8 @@ const Messages: React.FC = () => {
   }, [markAsRead]);
 
   useEffect(() => {
-    document.title = 'Messages - Axioris';
-  }, []);
+    document.title = t('messagesCenter.documentTitle', { app: t('app.name') });
+  }, [t, i18n.language]);
 
   useEffect(() => {
     if (user) {
@@ -676,7 +678,7 @@ useEffect(() => {
 
   const getOtherParticipantName = (conversation: Conversation) => {
     const otherUser = conversation.otherParticipants[0]?.user;
-    return otherUser?.profile?.displayName || otherUser?.username || 'Unknown User';
+    return otherUser?.profile?.displayName || otherUser?.username || t('messagesCenter.unknownUser');
   };
 
   const getOtherParticipantAvatar = (conversation: Conversation) => {
@@ -714,7 +716,7 @@ useEffect(() => {
           updateAfterMessageDeletion(message.conversationId, message.id, nextLastMessage);
         } else {
           const errorData = await response.json().catch(() => null);
-          const errorMsg = errorData?.error || 'Failed to delete message';
+          const errorMsg = errorData?.error || t('messagesCenter.status.deleteFailure');
           console.error(errorMsg);
         }
       } catch (error) {
@@ -723,7 +725,7 @@ useEffect(() => {
         setDeletingMessageIds(prev => prev.filter(id => id !== message.id));
       }
     },
-    [deletingMessageIds, updateAfterMessageDeletion]
+    [deletingMessageIds, updateAfterMessageDeletion, t]
   );
 
   const insertEmoji = useCallback(
@@ -765,7 +767,7 @@ useEffect(() => {
         <Sidebar activeId="messages" />
         <main>
           <div className="text-center py-5">
-            <h3>Please log in to view messages</h3>
+            <h3>{t('messagesCenter.authRequired')}</h3>
           </div>
         </main>
       </div>
@@ -778,8 +780,8 @@ useEffect(() => {
         <Sidebar activeId="messages" />
         <main>
           <div className="text-center py-5">
-            <Spinner animation="border" />
-            <div className="mt-2">Loading messages...</div>
+            <Spinner animation="border" role="status" aria-label={t('messagesCenter.loading')} />
+            <div className="mt-2">{t('messagesCenter.loading')}</div>
           </div>
         </main>
       </div>
@@ -794,13 +796,13 @@ useEffect(() => {
           {/* Conversations Sidebar */}
           <Card className="conversations-sidebar">
             <Card.Header>
-              <h5 className="mb-0">Messages</h5>
+              <h5 className="mb-0">{t('messagesCenter.sidebar.title')}</h5>
             </Card.Header>
             <Card.Body className="p-0">
               {conversations.length === 0 ? (
                 <div className="text-center py-4 text-muted">
-                  <p>No conversations yet</p>
-                  <small>Start a conversation by visiting someone's profile</small>
+                  <p>{t('messagesCenter.empty.title')}</p>
+                  <small>{t('messagesCenter.empty.subtitle')}</small>
                 </div>
               ) : (
                 <ListGroup variant="flush">
@@ -826,7 +828,9 @@ useEffect(() => {
                             {getOtherParticipantAvatar(conversation) ? (
                               <img
                                 src={getOtherParticipantAvatar(conversation)}
-                                alt="Avatar"
+                                alt={t('messagesCenter.conversation.avatarAlt', {
+                                  name: getOtherParticipantName(conversation)
+                                })}
                                 className="avatar-img"
                               />
                             ) : (
@@ -837,7 +841,7 @@ useEffect(() => {
                             {otherParticipantId && (
                               <span
                                 className={`presence-dot ${isOnline ? 'online' : 'offline'}`}
-                                title={isOnline ? 'Online' : 'Offline'}
+                                title={isOnline ? t('messagesCenter.status.online') : t('messagesCenter.status.offline')}
                                 aria-hidden="true"
                               />
                             )}
@@ -859,12 +863,12 @@ useEffect(() => {
                               </div>
                             </div>
                             {isTyping ? (
-                              <p className="mb-0 text-primary typing-preview">Typing…</p>
+                              <p className="mb-0 text-primary typing-preview">{t('messagesCenter.status.typing')}</p>
                             ) : (
                               conversation.lastMessage && (
                                 <p className="mb-0 text-muted last-message">
                                   {isOwnPreview && (
-                                    <span className="last-message-prefix">You: </span>
+                                    <span className="last-message-prefix">{t('messagesCenter.conversation.youPrefix')}</span>
                                   )}
                                   <span
                                     className="message-preview"
@@ -896,17 +900,24 @@ useEffect(() => {
                       <small
                         className={`presence-status ${isActiveParticipantOnline ? 'online' : 'offline'}`}
                       >
-                        {isActiveParticipantOnline ? 'Online' : 'Offline'}
+                        {isActiveParticipantOnline
+                          ? t('messagesCenter.status.online')
+                          : t('messagesCenter.status.offline')}
                       </small>
                     </div>
                   ) : (
-                    <h6 className="mb-0">Conversation</h6>
+                    <h6 className="mb-0">{t('messagesCenter.conversation.defaultTitle')}</h6>
                   )}
                 </Card.Header>
                 <Card.Body className="messages-body">
                   {messagesLoading ? (
                     <div className="text-center py-4">
-                      <Spinner animation="border" size="sm" />
+                      <Spinner
+                        animation="border"
+                        size="sm"
+                        role="status"
+                        aria-label={t('messagesCenter.loading')}
+                      />
                     </div>
                   ) : (
                     <div className="messages-list">
@@ -927,12 +938,20 @@ useEffect(() => {
                                     variant="link"
                                     size="sm"
                                     className="message-action"
-                                    aria-label={isDeleting ? 'Deleting message…' : 'Delete message'}
+                                    aria-label={isDeleting
+                                      ? t('messagesCenter.status.deleting')
+                                      : t('messagesCenter.status.deleteAction')}
                                     onClick={() => handleDeleteMessage(message)}
                                     disabled={isDeleting}
                                   >
                                     {isDeleting ? (
-                                      <Spinner animation="border" size="sm" role="status" variant="light" />
+                                      <Spinner
+                                        animation="border"
+                                        size="sm"
+                                        role="status"
+                                        variant="light"
+                                        aria-label={t('messagesCenter.status.deleting')}
+                                      />
                                     ) : (
                                       <Trash size={16} />
                                     )}
@@ -945,7 +964,7 @@ useEffect(() => {
                               />
                               <small className="text-muted">
                                 {formatTime(message.createdAt)}
-                                {message.isEdited && ' (edited)'}
+                                {message.isEdited && ` ${t('messagesCenter.timestamps.edited')}`}
                               </small>
                             </div>
                           </div>
@@ -954,7 +973,7 @@ useEffect(() => {
                       <div ref={messagesEndRef} />
                       {activeConversation && (typingUsers[activeConversation]?.length ?? 0) > 0 && (
                         <div className="typing-indicator">
-                          <small className="text-muted">Typing…</small>
+                          <small className="text-muted">{t('messagesCenter.typingIndicator')}</small>
                         </div>
                       )}
                     </div>
@@ -965,7 +984,7 @@ useEffect(() => {
                     <InputGroup>
                       <Form.Control
                         type="text"
-                        placeholder="Type a message..."
+                        placeholder={t('messagesCenter.input.placeholder')}
                         value={newMessage}
                         onChange={(e) => {
                           setNewMessage(e.target.value);
@@ -990,7 +1009,9 @@ useEffect(() => {
                         type="button"
                         className="emoji-toggle"
                         onClick={() => setEmojiPickerOpen(prev => !prev)}
-                        aria-label={emojiPickerOpen ? 'Hide emoji picker' : 'Show emoji picker'}
+                        aria-label={emojiPickerOpen
+                          ? t('messagesCenter.input.hideEmoji')
+                          : t('messagesCenter.input.showEmoji')}
                         disabled={sending}
                       >
                         <EmojiSmile />
@@ -998,6 +1019,7 @@ useEffect(() => {
                       <Button
                         variant="primary"
                         type="submit"
+                        aria-label={t('messagesCenter.input.send')}
                         disabled={!newMessage.trim() || sending}
                       >
                         {sending ? <Spinner size="sm" /> : <Send />}
@@ -1013,8 +1035,8 @@ useEffect(() => {
               </>
             ) : (
               <Card.Body className="text-center py-5 text-muted">
-                <h5>Select a conversation</h5>
-                <p>Choose a conversation from the sidebar to start messaging</p>
+                <h5>{t('messagesCenter.conversation.selectTitle')}</h5>
+                <p>{t('messagesCenter.conversation.selectSubtitle')}</p>
               </Card.Body>
             )}
           </Card>

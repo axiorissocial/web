@@ -143,6 +143,7 @@ model UserSettings {
   user        User     @relation(fields: [userId], references: [id])
   userId      String   @unique
   theme       String   @default("dark")
+  language    String   @default("en")
   notifications Json?  // JSON for notification preferences
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import twemoji from 'twemoji';
+import { useTranslation } from 'react-i18next';
 import {
   CameraVideo,
   TypeBold,
@@ -16,7 +17,6 @@ import {
 } from 'react-bootstrap-icons';
 import EmojiPicker from './EmojiPicker';
 import { EMOJIS } from '../utils/emojis';
-import '../css/postbox.scss';
 
 interface MediaItem {
   url: string;
@@ -45,6 +45,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
   onPostCreated, 
   mode = 'modal' 
 }) => {
+  const { t } = useTranslation();
   const [content, setContent] = useState('');
   const [title, setTitle] = useState('');
   const [activeTab, setActiveTab] = useState('write');
@@ -76,7 +77,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
     const validFiles = files.filter(file => {
       if (file.size > 50 * 1024 * 1024) {
-        setError(`File ${file.name} is too large (max 50MB)`);
+        setError(t('createPost.errors.fileTooLarge', { file: file.name }));
         return false;
       }
       
@@ -84,7 +85,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
       const isVideo = file.type.startsWith('video/');
       
       if (!isImage && !isVideo) {
-        setError(`File ${file.name} is not a valid image or video`);
+        setError(t('createPost.errors.invalidType', { file: file.name }));
         return false;
       }
       
@@ -94,7 +95,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
     if (validFiles.length === 0) return;
 
     if (uploadedMedia.length + validFiles.length > 5) {
-      setError('Maximum 5 media files allowed per post');
+      setError(t('createPost.errors.maxFiles', { limit: 5 }));
       return;
     }
 
@@ -136,12 +137,12 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
               resolve(data);
             } else {
               const errorData = JSON.parse(xhr.responseText);
-              reject(new Error(errorData.error || 'Upload failed'));
+              reject(new Error(errorData.error || t('createPost.errors.uploadFailed')));
             }
           }
         };
         
-        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.onerror = () => reject(new Error(t('createPost.errors.network')));
       });
 
       xhr.open('POST', '/api/posts/media');
@@ -166,7 +167,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
         ...item,
         status: 'error'
       })));
-      setError(error instanceof Error ? error.message : 'Failed to upload media files');
+      setError(error instanceof Error ? error.message : t('createPost.errors.uploadFailed'));
     } finally {
       setUploading(false);
     }
@@ -197,10 +198,10 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
         onPostCreated?.();
       } else {
         const data = await response.json();
-        setError(data.message || 'Failed to create post');
+        setError(data.message || t('createPost.errors.createFailed'));
       }
     } catch (err) {
-      setError('An error occurred while creating the post');
+      setError(t('createPost.errors.createGeneric'));
     } finally {
       setPosting(false);
     }
@@ -270,6 +271,18 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
   };
 
   const toolbarDisabled = activeTab === 'preview';
+  const getStatusLabel = (progress: UploadProgress) => {
+    if (progress.status === 'uploading') {
+      return t('createPost.upload.status.uploading', { progress: progress.progress });
+    }
+    if (progress.status === 'processing') {
+      return t('createPost.upload.status.processing');
+    }
+    if (progress.status === 'complete') {
+      return t('createPost.upload.status.complete');
+    }
+    return t('createPost.upload.status.error');
+  };
 
   const PostCreatorContent = () => (
     <>
@@ -308,7 +321,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
       {/* Upload Progress Indicators */}
       {uploadProgress.length > 0 && (
         <div className="mb-3">
-          <h6>Uploading Files:</h6>
+          <h6>{t('createPost.upload.heading')}</h6>
           {uploadProgress.map((progress, index) => (
             <div key={index} className="mb-2">
               <div className="d-flex justify-content-between align-items-center mb-1">
@@ -318,9 +331,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   progress.status === 'error' ? 'danger' :
                   progress.status === 'processing' ? 'warning' : 'primary'
                 }`}>
-                  {progress.status === 'uploading' ? `${progress.progress}%` :
-                   progress.status === 'processing' ? 'Processing...' :
-                   progress.status === 'complete' ? 'Complete' : 'Error'}
+                  {getStatusLabel(progress)}
                 </small>
               </div>
               <div className="progress" style={{ height: '4px' }}>
@@ -340,7 +351,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
       
       {uploadedMedia.length > 0 && (
         <div className="mb-3">
-          <h6>Attached Media ({uploadedMedia.length}/5):</h6>
+          <h6>{t('createPost.upload.attached', { count: uploadedMedia.length, limit: 5 })}</h6>
           <div className="d-flex flex-wrap gap-2">
             {uploadedMedia.map((media, index) => (
               <div key={index} className="position-relative" style={{ maxWidth: '100px' }}>
@@ -356,7 +367,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
                        style={{ width: '100px', height: '100px' }}>
                     <CameraVideo size={24} />
                     <small className="position-absolute bottom-0 start-0 p-1 bg-dark text-white small">
-                      Video
+                      {t('createPost.upload.videoLabel')}
                     </small>
                   </div>
                 )}
@@ -381,7 +392,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
         <Form.Group className="mb-3">
           <Form.Control
             type="text"
-            placeholder="Title (optional)"
+            placeholder={t('createPost.fields.titlePlaceholder')}
             value={title}
             onChange={e => setTitle(e.target.value)}
             maxLength={100}
@@ -392,18 +403,18 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
           onSelect={tab => setActiveTab(tab || 'write')}
           className="mb-3"
         >
-          <Tab eventKey="write" title="Write">
+          <Tab eventKey="write" title={t('createPost.tabs.write')}>
             <Form.Control
               as="textarea"
               rows={6}
               ref={textareaRef}
               value={content}
               onChange={e => setContent(e.target.value)}
-              placeholder="Enter your post content (supports Markdown) here..."
+              placeholder={t('createPost.fields.contentPlaceholder')}
               maxLength={1000}
             />
           </Tab>
-          <Tab eventKey="preview" title="Preview">
+          <Tab eventKey="preview" title={t('createPost.tabs.preview')}>
             <div
               className="markdown-content p-2 border rounded"
               style={{ fontSize: '1em' }}
@@ -411,7 +422,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
             />
           </Tab>
         </Tabs>
-        <div className="text-end form-text">{charCount}/1000</div>
+        <div className="text-end form-text">{t('createPost.charCount', { count: charCount })}</div>
       </Form>
     </>
   );
@@ -428,21 +439,30 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
           >
             <ArrowLeft />
           </Button>
-          <h5 className="mb-0 flex-grow-1">Create Post</h5>
+          <h5 className="mb-0 flex-grow-1">{t('createPost.mobileTitle')}</h5>
           <Button 
             variant="primary" 
             size="sm"
             onClick={handlePost} 
             disabled={content.length === 0 || content.length > 1000 || posting || uploading}
           >
-            {uploading ? <><Spinner size="sm" className="me-2" />Uploading...</> : posting ? <Spinner size="sm" /> : 'Post'}
+            {uploading ? (
+              <>
+                <Spinner size="sm" className="me-2" />
+                {t('createPost.actions.uploading')}
+              </>
+            ) : posting ? (
+              <Spinner size="sm" />
+            ) : (
+              t('createPost.actions.submit')
+            )}
           </Button>
         </div>
         <div className="create-post-body p-3" style={{ height: 'calc(100vh - 80px)', overflowY: 'auto' }}>
           {/* Upload Progress Indicators - prominent for mobile */}
           {uploadProgress.length > 0 && (
             <div className="mb-3">
-              <h6>Uploading Files:</h6>
+              <h6>{t('createPost.upload.heading')}</h6>
               {uploadProgress.map((progress, index) => (
                 <div key={index} className="mb-2">
                   <div className="d-flex justify-content-between align-items-center mb-1">
@@ -452,9 +472,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
                       progress.status === 'error' ? 'danger' :
                       progress.status === 'processing' ? 'warning' : 'primary'
                     }`}>
-                      {progress.status === 'uploading' ? `${progress.progress}%` :
-                       progress.status === 'processing' ? 'Processing...' :
-                       progress.status === 'complete' ? 'Complete' : 'Error'}
+                      {getStatusLabel(progress)}
                     </small>
                   </div>
                   <div className="progress" style={{ height: '6px' }}>
@@ -480,12 +498,12 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
   return (
     <Modal show={show} onHide={handleHide} centered size="lg" className="create-post-modal">
       <Modal.Header closeButton>
-        <Modal.Title>Create Post</Modal.Title>
+        <Modal.Title>{t('createPost.title')}</Modal.Title>
       </Modal.Header>
       <Modal.Body>
         {uploadProgress.length > 0 && (
           <div className="mb-3">
-            <h6>Uploading Files:</h6>
+            <h6>{t('createPost.upload.heading')}</h6>
             {uploadProgress.map((progress, index) => (
               <div key={index} className="mb-2">
                 <div className="d-flex justify-content-between align-items-center mb-1">
@@ -495,9 +513,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
                     progress.status === 'error' ? 'danger' :
                     progress.status === 'processing' ? 'warning' : 'primary'
                   }`}>
-                    {progress.status === 'uploading' ? `${progress.progress}%` :
-                     progress.status === 'processing' ? 'Processing...' :
-                     progress.status === 'complete' ? 'Complete' : 'Error'}
+                    {getStatusLabel(progress)}
                   </small>
                 </div>
                 <div className="progress" style={{ height: '6px' }}>
@@ -517,13 +533,22 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
         <PostCreatorContent />
       </Modal.Body>
       <Modal.Footer>
-        <Button variant="secondary" onClick={handleHide}>Cancel</Button>
+        <Button variant="secondary" onClick={handleHide}>{t('createPost.actions.cancel')}</Button>
         <Button 
           variant="primary" 
           onClick={handlePost} 
           disabled={content.length === 0 || content.length > 1000 || posting || uploading}
         >
-          {uploading ? <><Spinner size="sm" className="me-2" />Uploading...</> : posting ? <Spinner size="sm" /> : 'Post'}
+          {uploading ? (
+            <>
+              <Spinner size="sm" className="me-2" />
+              {t('createPost.actions.uploading')}
+            </>
+          ) : posting ? (
+            <Spinner size="sm" />
+          ) : (
+            t('createPost.actions.submit')
+          )}
         </Button>
       </Modal.Footer>
     </Modal>

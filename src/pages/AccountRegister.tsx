@@ -3,6 +3,7 @@ import { Form, Button, Alert, FloatingLabel } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import '../css/login.scss';
+import { useTranslation } from 'react-i18next';
 
 const RegisterPage: React.FC = () => {
   const [name, setName] = useState('');
@@ -13,13 +14,14 @@ const RegisterPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { register, user } = useAuth();
+  const { t, i18n } = useTranslation();
 
   useEffect(() => {
-    document.title = `Register - Axioris`;
+    document.title = t('auth.register.documentTitle', { app: t('app.name') });
     if (user) {
       navigate('/');
     }
-  }, [user, navigate]);
+  }, [user, navigate, t, i18n.language]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,14 +29,14 @@ const RegisterPage: React.FC = () => {
     setError('');
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+      setError(t('auth.register.validation.passwordMismatch'));
       setLoading(false);
       return;
     }
 
     const usernameRegex = /^[a-zA-Z0-9.]+$/;
     if (!usernameRegex.test(name)) {
-      setError('Username can only contain letters, numbers, and periods.');
+      setError(t('auth.register.validation.usernameFormat'));
       setLoading(false);
       return;
     }
@@ -43,7 +45,7 @@ const RegisterPage: React.FC = () => {
       await register(name, email, password);
       navigate('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed');
+      setError(err instanceof Error ? err.message : t('auth.register.errors.generic'));
     } finally {
       setLoading(false);
     }
@@ -56,50 +58,50 @@ const RegisterPage: React.FC = () => {
         onClick={() => navigate('/')}
         style={{ cursor: 'pointer' }}
       >
-        <img src="/logo.png" alt="Axioris Logo" className="me-2" style={{ height: '40px' }} />
-        <span className="logo-text" style={{ fontSize: '1.5rem', fontWeight: 600 }}>Axioris</span>
+        <img src="/logo.png" alt={t('app.logoAlt', { app: t('app.name') })} className="me-2" style={{ height: '40px' }} />
+        <span className="logo-text" style={{ fontSize: '1.5rem', fontWeight: 600 }}>{t('app.name')}</span>
       </div>
 
       <div className="login-modal p-4 rounded shadow-sm">
-        <h2 className="text-center mb-3">Register</h2>
+        <h2 className="text-center mb-3">{t('auth.register.title')}</h2>
 
         {error && <Alert variant="danger">{error}</Alert>}
 
         <Form onSubmit={handleSubmit}>
-          <FloatingLabel controlId="registerUsername" label="Username" className="mb-3">
+          <FloatingLabel controlId="registerUsername" label={t('auth.register.fields.username')} className="mb-3">
             <Form.Control
               type="text"
-              placeholder="Username (letters, numbers, periods only)"
+              placeholder={t('auth.register.fields.usernamePlaceholder')}
               value={name}
               onChange={e => setName(e.target.value)}
               required
             />
           </FloatingLabel>
 
-          <FloatingLabel controlId="registerEmail" label="Email address" className="mb-3">
+          <FloatingLabel controlId="registerEmail" label={t('auth.register.fields.email')} className="mb-3">
             <Form.Control
               type="email"
-              placeholder="Email address"
+              placeholder={t('auth.register.fields.emailPlaceholder')}
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
             />
           </FloatingLabel>
 
-          <FloatingLabel controlId="registerPassword" label="Password" className="mb-3">
+          <FloatingLabel controlId="registerPassword" label={t('auth.register.fields.password')} className="mb-3">
             <Form.Control
               type="password"
-              placeholder="Password"
+              placeholder={t('auth.register.fields.passwordPlaceholder')}
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
             />
           </FloatingLabel>
 
-          <FloatingLabel controlId="registerConfirmPassword" label="Confirm Password" className="mb-3">
+          <FloatingLabel controlId="registerConfirmPassword" label={t('auth.register.fields.confirmPassword')} className="mb-3">
             <Form.Control
               type="password"
-              placeholder="Confirm Password"
+              placeholder={t('auth.register.fields.confirmPasswordPlaceholder')}
               value={confirmPassword}
               onChange={e => setConfirmPassword(e.target.value)}
               required
@@ -107,13 +109,13 @@ const RegisterPage: React.FC = () => {
           </FloatingLabel>
 
           <Button type="submit" className="w-100 mb-3" disabled={loading}>
-            {loading ? 'Registering...' : 'Register'}
+            {loading ? t('auth.register.status.registering') : t('auth.register.cta')}
           </Button>
         </Form>
 
         <div className="text-center">
-          <span>Already have an account? </span>
-          <Link to="/account/login">Login</Link>
+          <span>{t('auth.register.loginPrompt')}</span>{' '}
+          <Link to="/account/login">{t('auth.register.loginLink')}</Link>
         </div>
       </div>
     </div>

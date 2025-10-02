@@ -6,6 +6,7 @@ import '../css/login.scss';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGithub } from '@fortawesome/free-brands-svg-icons';
+import { useTranslation } from 'react-i18next';
 
 const LoginPage: React.FC = () => {
   const [emailOrUsername, setEmailOrUsername] = useState('');
@@ -15,13 +16,14 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { login, user } = useAuth();
+  const { t, i18n } = useTranslation();
 
   useEffect(() => {
-    document.title = `Login - Axioris`;
+    document.title = t('auth.login.documentTitle', { app: t('app.name') });
     if (user) {
       navigate('/');
     }
-  }, [user, navigate]);
+  }, [user, navigate, t, i18n.language]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +34,7 @@ const LoginPage: React.FC = () => {
       await login(emailOrUsername, password, remember);
       navigate('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(err instanceof Error ? err.message : t('auth.login.errors.generic'));
     } finally {
       setLoading(false);
     }
@@ -49,30 +51,30 @@ const LoginPage: React.FC = () => {
         onClick={() => navigate('/')}
         style={{ cursor: 'pointer' }}
       >
-        <img src="/logo.png" alt="Axioris Logo" className="me-2" style={{ height: '40px' }} />
-        <span className="logo-text" style={{ fontSize: '1.5rem', fontWeight: 600 }}>Axioris</span>
+  <img src="/logo.png" alt={t('app.logoAlt', { app: t('app.name') })} className="me-2" style={{ height: '40px' }} />
+        <span className="logo-text" style={{ fontSize: '1.5rem', fontWeight: 600 }}>{t('app.name')}</span>
       </div>
 
       <div className="login-modal p-4 rounded shadow-sm">
-        <h2 className="text-center mb-3">Login</h2>
+        <h2 className="text-center mb-3">{t('auth.login.title')}</h2>
 
         {error && <Alert variant="danger">{error}</Alert>}
 
         <Form onSubmit={handleSubmit}>
-          <FloatingLabel controlId="loginEmailOrUsername" label="Email or Username" className="mb-3">
+          <FloatingLabel controlId="loginEmailOrUsername" label={t('auth.login.fields.emailOrUsername')} className="mb-3">
             <Form.Control
               type="text"
-              placeholder="Email or Username"
+              placeholder={t('auth.login.fields.emailOrUsernamePlaceholder')}
               value={emailOrUsername}
               onChange={e => setEmailOrUsername(e.target.value)}
               required
             />
           </FloatingLabel>
 
-          <FloatingLabel controlId="loginPassword" label="Password" className="mb-3">
+          <FloatingLabel controlId="loginPassword" label={t('auth.login.fields.password')} className="mb-3">
             <Form.Control
               type="password"
-              placeholder="Password"
+              placeholder={t('auth.login.fields.passwordPlaceholder')}
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
@@ -82,14 +84,14 @@ const LoginPage: React.FC = () => {
           <Form.Group className="mb-3" controlId="loginRemember">
             <Form.Check
               type="checkbox"
-              label="Remember Me"
+              label={t('auth.login.remember')}
               checked={remember}
               onChange={e => setRemember(e.target.checked)}
             />
           </Form.Group>
 
           <Button type="submit" className="w-100 mb-3" disabled={loading}>
-            {loading ? 'Logging in...' : 'Login'}
+            {loading ? t('auth.login.status.loggingIn') : t('auth.login.cta')}
           </Button>
         </Form>
 
@@ -98,15 +100,15 @@ const LoginPage: React.FC = () => {
           onClick={handleGithubLogin}
         >
           <FontAwesomeIcon icon={faGithub} className="fa-icon" />
-          Login with GitHub
+          {t('auth.login.github')}
         </button>
 
         <div className="text-center mb-2">
-          <Link to="/forgot-password">Forgot password?</Link>
+          <Link to="/forgot-password">{t('auth.login.links.forgotPassword')}</Link>
         </div>
         <div className="text-center">
-          <span>Don't have an account? </span>
-          <Link to="/account/register">Sign Up</Link>
+          <span>{t('auth.login.registerPrompt')}</span>{' '}
+          <Link to="/account/register">{t('auth.login.registerLink')}</Link>
         </div>
       </div>
     </div>

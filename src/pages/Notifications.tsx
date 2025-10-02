@@ -6,6 +6,7 @@ import Sidebar from '../components/singles/Navbar';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import '../css/notifications.scss';
+import { useTranslation } from 'react-i18next';
 
 interface NotificationUser {
   id: string;
@@ -53,6 +54,7 @@ const NotificationsPage: React.FC = () => {
   const { user } = useAuth();
   const { setUnreadCount: setGlobalUnreadCount, markAllAsRead: markAllGlobalRead } = useNotifications();
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
   const [view, setView] = useState<'active' | 'archived'>('active');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,8 +72,11 @@ const NotificationsPage: React.FC = () => {
   const [busyNotificationId, setBusyNotificationId] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = `Notifications${unreadCount > 0 ? ` (${unreadCount})` : ''} - Axioris`;
-  }, [unreadCount]);
+    const titleKey = unreadCount > 0
+      ? 'notificationsCenter.documentTitleWithCount'
+      : 'notificationsCenter.documentTitle';
+    document.title = t(titleKey, { count: unreadCount, app: t('app.name') });
+  }, [unreadCount, t, i18n.language]);
 
   const fetchNotifications = useCallback(async (pageNum = 1, targetView = view) => {
     if (!user) return;
@@ -90,7 +95,7 @@ const NotificationsPage: React.FC = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to load notifications');
+        throw new Error('FAILED_NOTIFICATION_FETCH');
       }
 
       const data: NotificationResponse = await response.json();
@@ -107,7 +112,7 @@ const NotificationsPage: React.FC = () => {
       setPage(pageNum);
     } catch (err) {
       console.error('Error fetching notifications:', err);
-      setError('Failed to load notifications');
+      setError(t('notificationsCenter.errors.fetch'));
 
       if (pageNum === 1) {
         setNotifications([]);
@@ -120,7 +125,7 @@ const NotificationsPage: React.FC = () => {
         setLoadingMore(false);
       }
     }
-  }, [user, view, setGlobalUnreadCount]);
+  }, [user, view, setGlobalUnreadCount, t]);
 
   useEffect(() => {
     if (user) {
@@ -224,7 +229,7 @@ const NotificationsPage: React.FC = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to archive notification');
+        throw new Error('FAILED_NOTIFICATION_ARCHIVE');
       }
 
       setNotifications(prev => prev.filter(notif => notif.id !== archiveTarget.id));
@@ -238,7 +243,7 @@ const NotificationsPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error archiving notification:', error);
-      setError('Failed to archive notification');
+      setError(t('notificationsCenter.errors.archive'));
     } finally {
       setActionLoading(false);
       setShowArchiveModal(false);
@@ -257,7 +262,7 @@ const NotificationsPage: React.FC = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to delete notification');
+        throw new Error('FAILED_NOTIFICATION_DELETE');
       }
 
       setNotifications(prev => prev.filter(notif => notif.id !== deleteTarget.id));
@@ -271,7 +276,7 @@ const NotificationsPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error deleting notification:', error);
-      setError('Failed to delete notification');
+      setError(t('notificationsCenter.errors.delete'));
     } finally {
       setActionLoading(false);
       setShowDeleteModal(false);
@@ -290,13 +295,13 @@ const NotificationsPage: React.FC = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to restore notification');
+        throw new Error('FAILED_NOTIFICATION_RESTORE');
       }
 
       setNotifications(prev => prev.filter(notif => notif.id !== notification.id));
     } catch (error) {
       console.error('Error restoring notification:', error);
-      setError('Failed to restore notification');
+      setError(t('notificationsCenter.errors.restore'));
     } finally {
       setBusyNotificationId(null);
     }
@@ -309,7 +314,8 @@ const NotificationsPage: React.FC = () => {
       return '';
     }
 
-    return snippet.length > 80 ? `"${snippet.slice(0, 80)}..."` : `"${snippet}"`;
+    const shortened = snippet.length > 80 ? `${snippet.slice(0, 80)}...` : snippet;
+    return t('notificationsCenter.preview', { snippet: shortened });
   };
 
   const handleNotificationClick = async (notification: Notification) => {
@@ -374,25 +380,30 @@ const NotificationsPage: React.FC = () => {
   };
 
   const getNotificationText = (notification: Notification) => {
-    const displayName = notification.sender?.profile?.displayName || notification.sender?.username || 'Someone';
-    
+    const displayName =
+      notification.sender?.profile?.displayName ||
+      notification.sender?.username ||
+      t('notificationsCenter.unknownSender');
+
+    const params = { name: displayName };
+
     switch (notification.type) {
       case 'LIKE':
-        return `${displayName} liked your post`;
+        return t('notificationsCenter.types.like', params);
       case 'COMMENT':
-        return `${displayName} commented on your post`;
+        return t('notificationsCenter.types.comment', params);
       case 'MENTION':
-        return `${displayName} mentioned you in a post`;
+        return t('notificationsCenter.types.mention', params);
       case 'FOLLOW':
-        return `${displayName} started following you`;
+        return t('notificationsCenter.types.follow', params);
       case 'REPLY':
-        return `${displayName} replied to your comment`;
+        return t('notificationsCenter.types.reply', params);
       case 'COMMENT_LIKE':
-        return `${displayName} liked your comment`;
+        return t('notificationsCenter.types.commentLike', params);
       case 'MESSAGE':
-        return notification.message || `${displayName} sent you a message`;
+        return notification.message || t('notificationsCenter.types.message', params);
       default:
-        return notification.message || 'New notification';
+        return notification.message || t('notificationsCenter.types.generic');
     }
   };
 
@@ -404,11 +415,11 @@ const NotificationsPage: React.FC = () => {
     const diffHours = Math.floor(diffMinutes / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMinutes < 1) return 'just now';
-    if (diffMinutes < 60) return `${diffMinutes}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+    if (diffMinutes < 1) return t('comment.time.justNow');
+    if (diffMinutes < 60) return t('comment.time.minutes', { count: diffMinutes });
+    if (diffHours < 24) return t('comment.time.hours', { count: diffHours });
+    if (diffDays < 7) return t('comment.time.days', { count: diffDays });
+    return date.toLocaleDateString(i18n.language);
   };
 
   if (!user) {
@@ -416,7 +427,7 @@ const NotificationsPage: React.FC = () => {
       <div className="app-container">
         <Sidebar activeId="notifications" />
         <main className="flex-grow-1 d-flex justify-content-center align-items-center">
-          <Alert variant="info">Please log in to view notifications</Alert>
+          <Alert variant="info">{t('notificationsCenter.authRequired')}</Alert>
         </main>
       </div>
     );
@@ -429,27 +440,27 @@ const NotificationsPage: React.FC = () => {
         <div className="container-fluid">
           <div className="notifications-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
             <div>
-              <h1>Notifications</h1>
+              <h1>{t('notificationsCenter.title')}</h1>
               <p className="text-muted mb-0">
-                {view === 'archived' ? 'Review items you tucked away' : 'Stay up to date with your activity'}
+                {view === 'archived' ? t('notificationsCenter.subtitle.archived') : t('notificationsCenter.subtitle.active')}
               </p>
             </div>
 
             <div className="notifications-controls d-flex align-items-center gap-2 ms-auto">
-              <ButtonGroup aria-label="Notification view selector">
+              <ButtonGroup aria-label={t('notificationsCenter.views.ariaLabel')}>
                 <Button
                   variant={view === 'active' ? 'primary' : 'outline-secondary'}
                   size="sm"
                   onClick={() => handleChangeView('active')}
                 >
-                  Active
+                  {t('notificationsCenter.views.active')}
                 </Button>
                 <Button
                   variant={view === 'archived' ? 'warning' : 'outline-secondary'}
                   size="sm"
                   onClick={() => handleChangeView('archived')}
                 >
-                  Archived
+                  {t('notificationsCenter.views.archived')}
                 </Button>
               </ButtonGroup>
 
@@ -463,10 +474,10 @@ const NotificationsPage: React.FC = () => {
                   {markingAllRead ? (
                     <>
                       <Spinner size="sm" className="me-2" />
-                      Marking...
+                      {t('notificationsCenter.actions.marking')}
                     </>
                   ) : (
-                    'Mark all as read'
+                    t('notificationsCenter.actions.markAll')
                   )}
                 </Button>
               )}
@@ -476,7 +487,7 @@ const NotificationsPage: React.FC = () => {
         {loading ? (
           <div className="text-center py-5">
             <Spinner animation="border" />
-            <div className="mt-2">Loading notifications...</div>
+            <div className="mt-2">{t('notificationsCenter.loading')}</div>
           </div>
         ) : error ? (
           <Alert variant="danger">{error}</Alert>
@@ -488,11 +499,11 @@ const NotificationsPage: React.FC = () => {
               ) : (
                 <ChatSquareText size={48} className="text-muted mb-3" />
               )}
-              <h5>{view === 'archived' ? 'Nothing archived yet' : 'No notifications yet'}</h5>
+              <h5>{view === 'archived' ? t('notificationsCenter.empty.archived.title') : t('notificationsCenter.empty.active.title')}</h5>
               <p className="text-muted">
                 {view === 'archived'
-                  ? 'Archive any notification to tuck it away. Your saved items will appear here.'
-                  : "When people interact with your posts or follow you, you'll see notifications here."}
+                  ? t('notificationsCenter.empty.archived.message')
+                  : t('notificationsCenter.empty.active.message')}
               </p>
             </Card.Body>
           </Card>
@@ -546,7 +557,7 @@ const NotificationsPage: React.FC = () => {
                               <Badge bg="primary" pill className="ms-1 unread-indicator">&nbsp;</Badge>
                             )}
                             {view === 'archived' && (
-                              <Badge bg="secondary" pill className="ms-1">Archived</Badge>
+                              <Badge bg="secondary" pill className="ms-1">{t('notificationsCenter.badges.archived')}</Badge>
                             )}
                           </div>
 
@@ -556,7 +567,7 @@ const NotificationsPage: React.FC = () => {
                                 <Button
                                   variant="outline-warning"
                                   className="notification-action-btn archive"
-                                  title="Archive notification"
+                                  title={t('notificationsCenter.actions.tooltips.archive')}
                                   onClick={(event) => openArchiveModal(notification, event)}
                                   disabled={actionLoading || isBusy}
                                 >
@@ -565,7 +576,7 @@ const NotificationsPage: React.FC = () => {
                                 <Button
                                   variant="outline-danger"
                                   className="notification-action-btn delete"
-                                  title="Delete notification"
+                                  title={t('notificationsCenter.actions.tooltips.delete')}
                                   onClick={(event) => openDeleteModal(notification, event)}
                                   disabled={actionLoading || isBusy}
                                 >
@@ -577,7 +588,7 @@ const NotificationsPage: React.FC = () => {
                                 <Button
                                   variant="outline-success"
                                   className="notification-action-btn restore"
-                                  title="Restore notification"
+                                  title={t('notificationsCenter.actions.tooltips.restore')}
                                   onClick={(event) => handleUnarchive(notification, event)}
                                   disabled={isBusy}
                                 >
@@ -586,7 +597,7 @@ const NotificationsPage: React.FC = () => {
                                 <Button
                                   variant="outline-danger"
                                   className="notification-action-btn delete"
-                                  title="Delete notification"
+                                  title={t('notificationsCenter.actions.tooltips.delete')}
                                   onClick={(event) => openDeleteModal(notification, event)}
                                   disabled={actionLoading || isBusy}
                                 >
@@ -605,7 +616,7 @@ const NotificationsPage: React.FC = () => {
 
                         <div className="text-muted small mt-2">
                           {view === 'archived' && notification.archivedAt
-                            ? `Archived ${formatTimeAgo(notification.archivedAt)}`
+                            ? t('notificationsCenter.timestamps.archived', { time: formatTimeAgo(notification.archivedAt) })
                             : formatTimeAgo(notification.createdAt)}
                         </div>
                       </div>
@@ -625,10 +636,10 @@ const NotificationsPage: React.FC = () => {
                   {loadingMore ? (
                     <>
                       <Spinner size="sm" className="me-2" />
-                      Loading...
+                      {t('notificationsCenter.loadMore.loading')}
                     </>
                   ) : (
-                    'Load more notifications'
+                    t('notificationsCenter.loadMore.label')
                   )}
                 </Button>
               </div>
@@ -639,36 +650,38 @@ const NotificationsPage: React.FC = () => {
       </main>
       <Modal show={showArchiveModal} onHide={closeArchiveModal} centered>
         <Modal.Header closeButton>
-          <Modal.Title>Archive notification</Modal.Title>
+          <Modal.Title>{t('notificationsCenter.modals.archive.title')}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {archiveTarget ? (
             <>
               <p className="mb-2">
-                Archive the notification <strong>{getNotificationText(archiveTarget)}</strong>?
+                {t('notificationsCenter.modals.archive.description', {
+                  content: getNotificationText(archiveTarget)
+                })}
               </p>
               <p className="text-muted small mb-0">
-                Archived items move out of your active list but stay available in the Archived tab.
+                {t('notificationsCenter.modals.archive.helper')}
               </p>
             </>
           ) : (
-            'Archive this notification?'
+            t('notificationsCenter.modals.archive.fallback')
           )}
         </Modal.Body>
         <Modal.Footer>
           <Button variant="outline-secondary" onClick={closeArchiveModal} disabled={actionLoading}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button variant="warning" onClick={confirmArchive} disabled={actionLoading}>
             {actionLoading ? (
               <>
                 <Spinner size="sm" className="me-2" />
-                Archiving...
+                {t('notificationsCenter.modals.archive.status.archiving')}
               </>
             ) : (
               <>
                 <Archive size={16} className="me-2" />
-                Archive
+                {t('notificationsCenter.modals.archive.confirm')}
               </>
             )}
           </Button>
@@ -677,36 +690,38 @@ const NotificationsPage: React.FC = () => {
 
       <Modal show={showDeleteModal} onHide={closeDeleteModal} centered>
         <Modal.Header closeButton>
-          <Modal.Title>Delete notification</Modal.Title>
+          <Modal.Title>{t('notificationsCenter.modals.delete.title')}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {deleteTarget ? (
             <>
               <p className="mb-2">
-                This will permanently remove <strong>{getNotificationText(deleteTarget)}</strong>.
+                {t('notificationsCenter.modals.delete.description', {
+                  content: getNotificationText(deleteTarget)
+                })}
               </p>
               <p className="text-muted small mb-0">
-                You won&apos;t be able to restore it later.
+                {t('notificationsCenter.modals.delete.helper')}
               </p>
             </>
           ) : (
-            'Delete this notification?'
+            t('notificationsCenter.modals.delete.fallback')
           )}
         </Modal.Body>
         <Modal.Footer>
           <Button variant="outline-secondary" onClick={closeDeleteModal} disabled={actionLoading}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button variant="danger" onClick={confirmDelete} disabled={actionLoading}>
             {actionLoading ? (
               <>
                 <Spinner size="sm" className="me-2" />
-                Deleting...
+                {t('notificationsCenter.modals.delete.status.deleting')}
               </>
             ) : (
               <>
                 <Trash size={16} className="me-2" />
-                Delete
+                {t('notificationsCenter.modals.delete.confirm')}
               </>
             )}
           </Button>

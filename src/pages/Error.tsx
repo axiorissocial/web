@@ -4,6 +4,7 @@ import '../css/buttons.scss';
 import { Button } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { HouseFill } from 'react-bootstrap-icons';
+import { useTranslation } from 'react-i18next';
 
 interface ErrorPageProps {
   code?: number;
@@ -14,23 +15,26 @@ interface ErrorPageProps {
 
 const ErrorPage: React.FC<ErrorPageProps> = ({
   code = 404,
-  message = 'Page Not Found',
+  message,
   logoSrc = '/logo.png',
 }) => {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
 
   useEffect(() => {
-    document.title = `${code} - Axioris`;
-  }, [code]);
+    document.title = t('errorPage.documentTitle', { code, app: t('app.name') });
+  }, [code, t, i18n.language]);
+
+  const resolvedMessage = message ?? t('errorPage.defaultMessage');
 
   return (
     <div className="err-container">
       <div className="err-axioris-logo">
-        <img src={logoSrc} className="logo" alt={`Axioris Logo`} />
-        <span>Axioris</span>
+        <img src={logoSrc} className="logo" alt={t('errorPage.logoAlt', { app: t('app.name') })} />
+        <span>{t('app.name')}</span>
       </div>
       <h1 className="error-code">{code}</h1>
-      <h3 className="error-msg">{message}</h3>
+      <h3 className="error-msg">{resolvedMessage}</h3>
 
       <Button
         className="btn-primary-custom d-flex align-items-center justify-content-center"
@@ -38,7 +42,7 @@ const ErrorPage: React.FC<ErrorPageProps> = ({
         onClick={() => navigate('/')}
       >
         <HouseFill size={20} />
-        Return to Homepage
+        {t('errorPage.returnHome')}
       </Button>
     </div>
   );

@@ -16,6 +16,7 @@ import reportRoutes from './routes/reports.js';
 import adminRoutes from './routes/admin.js';
 import dotenv from 'dotenv';
 import { initRealtime } from './realtime.js';
+import { i18next, i18nextMiddleware, getAvailableLanguages } from './i18n.js';
 
 dotenv.config();
 
@@ -48,11 +49,26 @@ app.use(cors({
   credentials: true
 }));
 
+app.use(i18nextMiddleware.handle(i18next));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(sessionMiddleware);
-app.use(lusca.csrf());
+app.use(lusca.csrf({ header: 'x-csrf-token' }));
+
+app.get('/api/csrf-token', (req: Request, res: Response) => {
+  const tokenGenerator = (req as Request & { csrfToken?: () => string }).csrfToken;
+
+  if (!tokenGenerator) {
+    res.status(500).json({ error: 'CSRF token generator unavailable' });
+    return;
+  }
+
+  const csrfToken = tokenGenerator();
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ csrfToken });
+});
 
 app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')));
 
@@ -65,8 +81,12 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api', reportRoutes);
 app.use('/api', adminRoutes);
 
+app.get('/api/i18n/languages', (req: Request, res: Response) => {
+  res.json({ languages: getAvailableLanguages() });
+});
+
 app.get('/api/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok', message: 'Server is running' });
+  res.json({ status: 'ok', message: req.t('backend.health') });
 });
 
 process.on('SIGINT', async () => {
