@@ -11,11 +11,7 @@
     "server": "cross-env TSX_TSCONFIG_PATH=server/tsconfig.json TSX_TSCONFIG_PATHS=true tsx watch server/index.ts",
     "build": "vite build",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "i18n:validate": "cd translations && node scripts/validate-translations.js",
-    "i18n:fix": "cd translations && node scripts/fix-translations.js",
-    "i18n:check": "cd translations && node scripts/validate-translations.js --generate-templates",
-    "prebuild": "npm run i18n:validate"
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
