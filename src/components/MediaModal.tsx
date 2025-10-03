@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Button, Spinner } from 'react-bootstrap';
 import { ChevronLeft, ChevronRight, Download, X } from 'react-bootstrap-icons';
 import HlsVideo from './HlsVideo';
+import { useTranslation } from 'react-i18next';
 
 interface MediaItem {
   url: string;
@@ -24,6 +25,7 @@ const MediaModal: React.FC<MediaModalProps> = ({ show, onHide, media, initialInd
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     setCurrentIndex(initialIndex);
@@ -84,16 +86,16 @@ const MediaModal: React.FC<MediaModalProps> = ({ show, onHide, media, initialInd
       });
 
       if (!response.ok) {
-        let message = 'Failed to download media';
+        let message: string | null = null;
         try {
           const data = await response.json();
-          if (data?.error) {
+          if (data?.error && typeof data.error === 'string') {
             message = data.error;
           }
         } catch {
           // Ignore JSON parsing errors
         }
-        throw new Error(message);
+        throw new Error(message ?? 'mediaModal.errors.downloadFailed');
       }
 
       const blob = await response.blob();
@@ -118,7 +120,11 @@ const MediaModal: React.FC<MediaModalProps> = ({ show, onHide, media, initialInd
 
     } catch (error) {
       console.error('Media download failed:', error);
-      setDownloadError(error instanceof Error ? error.message : 'Failed to download media');
+      if (error instanceof Error) {
+        setDownloadError(error.message);
+      } else {
+        setDownloadError('mediaModal.errors.downloadFailed');
+      }
     } finally {
       setIsDownloading(false);
     }
@@ -136,7 +142,11 @@ const MediaModal: React.FC<MediaModalProps> = ({ show, onHide, media, initialInd
       <Modal.Header className="border-0 pb-0">
         <div className="w-100 d-flex justify-content-between align-items-center">
           <div className="text-muted small">
-            {currentMedia.type === 'image' ? 'Image' : 'Video'} {currentIndex + 1} of {media.length}
+            {t('mediaModal.position', {
+              type: t(currentMedia.type === 'image' ? 'mediaModal.types.image' : 'mediaModal.types.video'),
+              index: currentIndex + 1,
+              total: media.length
+            })}
           </div>
           <div className="d-flex align-items-center gap-3">
             {canDownload && (
@@ -149,12 +159,12 @@ const MediaModal: React.FC<MediaModalProps> = ({ show, onHide, media, initialInd
                 {isDownloading ? (
                   <>
                     <Spinner animation="border" size="sm" />
-                    <span>Preparing...</span>
+                    <span>{t('mediaModal.actions.preparing')}</span>
                   </>
                 ) : (
                   <>
                     <Download />
-                    <span>Download</span>
+                    <span>{t('mediaModal.actions.download')}</span>
                   </>
                 )}
               </Button>
@@ -239,7 +249,9 @@ const MediaModal: React.FC<MediaModalProps> = ({ show, onHide, media, initialInd
             <small className="text-muted">{currentMedia.originalName}</small>
           )}
           {downloadError && (
-            <small className="text-danger mt-1">{downloadError}</small>
+            <small className="text-danger mt-1">
+              {downloadError.startsWith('mediaModal.') ? t(downloadError) : downloadError}
+            </small>
           )}
         </Modal.Footer>
       )}

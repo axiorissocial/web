@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { createEmptyReactionsState } from '../utils/postReactions';
 import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
 import type { PostReactionsState, PostReactionEmoji } from '../utils/postReactions';
+import { formatCalendarDateTime, formatRelativeTime } from '../utils/time';
 
 interface PostUser {
   id: string;
@@ -72,7 +73,7 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
   const [reactionLoading, setReactionLoading] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const commentsCount = post.commentsCount ?? post._count?.comments ?? 0;
   const hasCommentsStat = commentsCount > 0;
   const hasViewsStat = post.viewsCount > 0;
@@ -82,6 +83,16 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
     type: mediaItem.type,
     originalName: mediaItem.originalName,
   })) ?? [];
+
+  const createdAtDate = new Date(post.createdAt);
+  const createdAbsolute = formatCalendarDateTime(createdAtDate, i18n.language, t);
+  const createdRelative = formatRelativeTime(createdAtDate, t);
+  const createdLabel = showFullContent
+    ? t('time.display.absoluteWithRelative', {
+        absolute: createdAbsolute,
+        relative: createdRelative
+      })
+    : createdRelative;
   
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -228,18 +239,6 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
       const emoji = EMOJIS.find(e => e.name === name);
       return emoji ? emoji.char : `:${name}:`;
     });
-  };
-
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
   };
 
   const renderMedia = () => {
@@ -492,7 +491,7 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
     >
       {post.isPinned && (
         <div className="pin-indicator">
-          <Badge bg="warning" className="pin-badge">Pinned</Badge>
+          <Badge bg="warning" className="pin-badge">{t('post.labels.pinned')}</Badge>
         </div>
       )}
       
@@ -502,7 +501,7 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
             {post.user.profile?.avatar ? (
               <img 
                 src={post.user.profile.avatar} 
-                alt={`${displayName}'s avatar`}
+                alt={t('post.media.avatarAlt', { name: displayName })}
                 className="user-avatar"
               />
             ) : (
@@ -516,9 +515,9 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
             </div>
           </div>
           <div className="post-header-right d-flex align-items-center">
-            <div className="post-date me-2">
-              <Calendar size={14} />
-              {formatTimeAgo(post.createdAt)}
+            <div className="post-date me-2" title={createdAbsolute}>
+              <Calendar size={14} className="me-1" />
+              {createdLabel}
             </div>
             <Dropdown>
               <Dropdown.Toggle variant="link" size="sm" className="text-muted p-1">
@@ -529,14 +528,14 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
                   <>
                     <Dropdown.Item onClick={(e) => { e.stopPropagation(); handleEditPost(); }}>
                       <PencilSquare size={14} className="me-2" />
-                      Edit Post
+                      {t('post.actions.editPost')}
                     </Dropdown.Item>
                     <Dropdown.Item 
                       onClick={(e) => { e.stopPropagation(); setShowDeleteModal(true); }}
                       className="text-danger"
                     >
                       <Trash size={14} className="me-2" />
-                      Delete Post
+                      {t('post.actions.deletePost')}
                     </Dropdown.Item>
                   </>
                 )}
@@ -544,7 +543,7 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
                 {!isOwner && (
                   <Dropdown.Item onClick={(e) => { e.stopPropagation(); setShowReportModal(true); }}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="me-2"><path d="M21 10v6a2 2 0 0 1-2 2H7l-4 4V6a2 2 0 0 1 2-2h9"></path></svg>
-                    Report Post
+                    {t('post.actions.reportPost')}
                   </Dropdown.Item>
                 )}
 
@@ -552,7 +551,7 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
                   <>
                     <Dropdown.Divider />
                     <Dropdown.Item onClick={(e) => { e.stopPropagation(); window.open(`/admin/posts/${post.id}`, '_self'); }}>
-                      View in Admin
+                      {t('post.actions.viewInAdmin')}
                     </Dropdown.Item>
                   </>
                 )}
@@ -582,7 +581,7 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
               navigate(`/post/${post.id}`);
             }}
           >
-            Read more
+            {t('post.actions.readMore')}
           </Button>
         )}
 
@@ -637,13 +636,13 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
       
       <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)} centered>
         <Modal.Header closeButton>
-          <Modal.Title>Delete Post</Modal.Title>
+          <Modal.Title>{t('post.modals.delete.title')}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <p>Are you sure you want to delete this post? This action cannot be undone.</p>
+          <p>{t('post.modals.delete.description')}</p>
           {post.title && (
             <div className="text-muted small">
-              <strong>Title:</strong> {post.title}
+              <strong>{t('post.labels.title')}</strong> {post.title}
             </div>
           )}
         </Modal.Body>
@@ -653,7 +652,7 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
             onClick={() => setShowDeleteModal(false)}
             disabled={deleteLoading}
           >
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button 
             variant="danger" 
@@ -663,10 +662,10 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
             {deleteLoading ? (
               <>
                 <Spinner size="sm" className="me-1" />
-                Deleting...
+                {t('common.statuses.deleting')}
               </>
             ) : (
-              'Delete Post'
+              t('post.actions.deletePost')
             )}
           </Button>
         </Modal.Footer>

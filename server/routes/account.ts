@@ -344,7 +344,6 @@ router.post('/users/profile/avatar', requireAuth, upload.single('avatar'), async
     
     if (req.file) {
       const filePath = req.file.path;
-      // Validate and restrict file deletion to AVATARS_DIR only
       const resolvedPath = path.resolve(filePath);
       if (resolvedPath.startsWith(AVATARS_DIR) && fs.existsSync(resolvedPath)) {
         fs.unlinkSync(resolvedPath);

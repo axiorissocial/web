@@ -39,9 +39,11 @@ if (!i18n.isInitialized) {
     .use(LanguageDetector)
     .use(initReactI18next)
     .init({
-  resources,
-  fallbackLng: availableLanguages.includes('en') ? 'en' : availableLanguages[0],
-  supportedLngs: availableLanguages,
+      resources,
+      fallbackLng: availableLanguages.includes('en') ? 'en' : availableLanguages[0],
+      supportedLngs: availableLanguages,
+      load: 'languageOnly',
+      nonExplicitSupportedLngs: true,
       defaultNS: 'translation',
       ns: ['translation'],
       interpolation: {

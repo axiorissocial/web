@@ -7,6 +7,7 @@ import { EMOJIS } from '../utils/emojis';
 import EmojiPicker from './EmojiPicker';
 import '../css/postbox.scss';
 import '../css/emoji-picker.scss';
+import { useTranslation } from 'react-i18next';
 
 interface MediaFile {
   url: string;
@@ -34,6 +35,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
   const [charCount, setCharCount] = useState(post.content.length);
   const [updating, setUpdating] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const { t } = useTranslation();
   
   const [uploadedMedia, setUploadedMedia] = useState<MediaFile[]>(post.media || []);
   const [uploading, setUploading] = useState(false);
@@ -53,7 +55,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
     const trimmedTitle = title.trim();
 
     if (!trimmedContent) {
-      setError('Content cannot be empty');
+      setError(t('editPost.errors.emptyContent'));
       return;
     }
 
@@ -76,14 +78,19 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update post');
+        const serverError = typeof errorData.error === 'string' ? errorData.error : null;
+        throw new Error(serverError ?? 'editPost.errors.updateFailed');
       }
 
       onPostUpdated?.();
       handleClose();
     } catch (error) {
       console.error('Failed to update post:', error);
-      setError(error instanceof Error ? error.message : 'Failed to update post');
+      if (error instanceof Error) {
+        setError(error.message.startsWith('editPost.') ? t(error.message) : error.message);
+      } else {
+        setError(t('editPost.errors.updateFailed'));
+      }
     } finally {
       setUpdating(false);
     }
@@ -106,7 +113,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
     const validFiles = Array.from(files).filter(file => {
       const maxSize = 50 * 1024 * 1024;
       if (file.size > maxSize) {
-        setError(`File ${file.name} is too large (max 50MB)`);
+        setError(t('editPost.errors.fileTooLarge', { file: file.name, limit: '50MB' }));
         return false;
       }
       
@@ -114,7 +121,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
       const isVideo = file.type.startsWith('video/');
       
       if (!isImage && !isVideo) {
-        setError(`File ${file.name} is not a valid image or video`);
+        setError(t('editPost.errors.invalidType', { file: file.name }));
         return false;
       }
       
@@ -124,7 +131,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
     if (validFiles.length === 0) return;
 
     if (uploadedMedia.length + validFiles.length > 5) {
-      setError('Maximum 5 media files allowed per post');
+      setError(t('editPost.errors.maxFiles', { limit: 5 }));
       return;
     }
 
@@ -146,11 +153,16 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
         setUploadedMedia(prev => [...prev, ...data.media]);
       } else {
         const errorData = await response.json();
-        setError(errorData.error || 'Failed to upload media');
+        const serverError = typeof errorData.error === 'string' ? errorData.error : null;
+        if (serverError) {
+          setError(serverError.startsWith('editPost.') ? t(serverError) : serverError);
+        } else {
+          setError(t('editPost.errors.mediaUploadFailed'));
+        }
       }
     } catch (error) {
       console.error('Upload error:', error);
-      setError('Failed to upload media files');
+      setError(t('editPost.errors.mediaUploadFailed'));
     } finally {
       setUploading(false);
     }
@@ -214,7 +226,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
 
   const renderPreview = () => {
     if (!content.trim()) {
-      return <p className="text-muted">Nothing to preview...</p>;
+      return <p className="text-muted">{t('editPost.preview.empty')}</p>;
     }
 
     const html = marked(content, {
@@ -245,13 +257,14 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
                 size="sm"
                 className="remove-media"
                 onClick={() => removeMedia(index)}
+                aria-label={t('editPost.media.remove')}
               >
                 <X size={12} />
               </Button>
               {media.type === 'image' ? (
                 <img 
                   src={media.url} 
-                  alt="Upload preview" 
+                  alt={t('editPost.media.previewAlt')} 
                   className="media-thumbnail"
                 />
               ) : (
@@ -279,7 +292,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
       className="create-post-modal"
     >
       <Modal.Header closeButton>
-        <Modal.Title>Edit Post</Modal.Title>
+        <Modal.Title>{t('editPost.modalTitle')}</Modal.Title>
       </Modal.Header>
 
       <Modal.Body>
@@ -291,18 +304,18 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
 
         <Form onSubmit={handleSubmit}>
           <Form.Group className="mb-3">
-            <Form.Label>Title (optional)</Form.Label>
+            <Form.Label>{t('editPost.fields.titleLabel')}</Form.Label>
             <Form.Control
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter post title..."
+              placeholder={t('editPost.fields.titlePlaceholder')}
               disabled={updating}
             />
           </Form.Group>
 
           <Form.Group className="mb-3">
-            <Form.Label>Content</Form.Label>
+            <Form.Label>{t('editPost.fields.contentLabel')}</Form.Label>
             
             <div className="toolbar mb-2">
               <div className="toolbar-group">
@@ -310,7 +323,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
                   variant="outline-secondary"
                   size="sm"
                   onClick={() => addMarkdown('bold')}
-                  title="Bold"
+                  title={t('editPost.toolbar.bold')}
                   disabled={updating}
                 >
                   <TypeBold />
@@ -319,7 +332,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
                   variant="outline-secondary"
                   size="sm"
                   onClick={() => addMarkdown('italic')}
-                  title="Italic"
+                  title={t('editPost.toolbar.italic')}
                   disabled={updating}
                 >
                   <TypeItalic />
@@ -328,7 +341,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
                   variant="outline-secondary"
                   size="sm"
                   onClick={() => addMarkdown('strikethrough')}
-                  title="Strikethrough"
+                  title={t('editPost.toolbar.strikethrough')}
                   disabled={updating}
                 >
                   <TypeStrikethrough />
@@ -350,7 +363,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
                   size="sm"
                   onClick={() => document.getElementById('edit-media-upload')?.click()}
                   disabled={updating || uploading || uploadedMedia.length >= 5}
-                  title="Upload Image/Video"
+                  title={t('editPost.toolbar.upload')}
                 >
                   {uploading ? <Spinner size="sm" /> : <Image />}
                 </Button>
@@ -359,7 +372,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
                   variant="outline-secondary"
                   size="sm"
                   onClick={() => setEmojiOpen(!emojiOpen)}
-                  title="Add Emoji"
+                  title={t('editPost.toolbar.emoji')}
                   disabled={updating}
                 >
                   <EmojiSmile />
@@ -382,7 +395,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
               onSelect={(k) => setActiveTab(k || 'write')}
               className="mb-3"
             >
-              <Tab eventKey="write" title="Write">
+              <Tab eventKey="write" title={t('editPost.tabs.write')}>
                 <Form.Control
                   as="textarea"
                   id="edit-content-textarea"
@@ -392,12 +405,12 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
                     setContent(e.target.value);
                     setCharCount(e.target.value.length);
                   }}
-                  placeholder="What's on your mind?"
+                  placeholder={t('editPost.fields.contentPlaceholder')}
                   disabled={updating}
                   required
                 />
               </Tab>
-              <Tab eventKey="preview" title="Preview">
+              <Tab eventKey="preview" title={t('editPost.tabs.preview')}>
                 <div className="preview-container">
                   {renderPreview()}
                 </div>
@@ -405,7 +418,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
             </Tabs>
 
             <div className="char-count text-muted small">
-              {charCount} characters
+              {t('editPost.charCount', { count: charCount })}
             </div>
           </Form.Group>
 
@@ -420,7 +433,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
           onClick={handleClose}
           disabled={updating}
         >
-          Cancel
+          {t('common.cancel')}
         </Button>
         <Button 
           variant="primary" 
@@ -430,10 +443,10 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
           {updating ? (
             <>
               <Spinner size="sm" className="me-2" />
-              Updating Post...
+              {t('editPost.actions.updating')}
             </>
           ) : (
-            'Update Post'
+            t('editPost.actions.update')
           )}
         </Button>
       </Modal.Footer>

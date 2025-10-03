@@ -11,6 +11,7 @@ import EmojiPicker from './EmojiPicker';
 import '../css/comment.scss';
 import { useTranslation } from 'react-i18next';
 import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
+import { formatCalendarDateTime, formatRelativeTime } from '../utils/time';
 
 interface CommentUser {
   id: string;
@@ -155,22 +156,14 @@ const CommentComponent: React.FC<CommentProps> = ({
     setReplyEmojiOpen(false);
   };
 
-
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMinutes = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMinutes / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-  if (diffMinutes < 1) return t('comment.time.justNow');
-  if (diffMinutes < 60) return t('comment.time.minutes', { count: diffMinutes });
-  if (diffHours < 24) return t('comment.time.hours', { count: diffHours });
-  if (diffDays < 7) return t('comment.time.days', { count: diffDays });
-    return date.toLocaleDateString(i18n.language);
-  };
+  const createdDate = new Date(comment.createdAt);
+  const createdRelative = formatRelativeTime(createdDate, t);
+  const createdAbsolute = formatCalendarDateTime(createdDate, i18n.language, t);
+  const editedDate = comment.editedAt ? new Date(comment.editedAt) : null;
+  const editedAbsolute = editedDate ? formatCalendarDateTime(editedDate, i18n.language, t) : null;
+  const timestampTitle = editedAbsolute
+    ? `${editedAbsolute} (${t('comment.time.edited')})`
+    : createdAbsolute;
 
   const processCommentContent = (content: string) => {
     const shouldTruncate = content.length > TRUNCATE_LENGTH;
@@ -349,8 +342,8 @@ const CommentComponent: React.FC<CommentProps> = ({
               {displayName}
             </Link>
             <small className="text-muted me-2">@{comment.user.username}</small>
-            <small className="text-muted me-auto">
-              {formatDate(comment.createdAt)}
+            <small className="text-muted me-auto" title={timestampTitle}>
+              {createdRelative}
               {comment.editedAt && ` ${t('comment.time.edited')}`}
             </small>
             

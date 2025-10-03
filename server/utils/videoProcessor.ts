@@ -281,7 +281,6 @@ export class VideoProcessor {
     try {
       const ROOT_MEDIA_DIR = path.resolve(process.cwd(), 'public', 'uploads', 'media');
       const resolvedMediaDir = path.resolve(mediaDir);
-      // Ensure the directory is within the allowed media root directory
       if (!resolvedMediaDir.startsWith(ROOT_MEDIA_DIR + path.sep)) {
         console.error('Refusing to clean up files for mediaDir outside allowed directory:', resolvedMediaDir);
         return;

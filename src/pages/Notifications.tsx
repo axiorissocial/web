@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import '../css/notifications.scss';
 import { useTranslation } from 'react-i18next';
+import { formatRelativeTime } from '../utils/time';
 import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
 
 interface NotificationUser {
@@ -426,20 +427,7 @@ const NotificationsPage: React.FC = () => {
     }
   };
 
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMinutes = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMinutes / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMinutes < 1) return t('comment.time.justNow');
-    if (diffMinutes < 60) return t('comment.time.minutes', { count: diffMinutes });
-    if (diffHours < 24) return t('comment.time.hours', { count: diffHours });
-    if (diffDays < 7) return t('comment.time.days', { count: diffDays });
-    return date.toLocaleDateString(i18n.language);
-  };
+  const formatTimeAgo = (dateString: string) => formatRelativeTime(new Date(dateString), t);
 
   if (!user) {
     return (

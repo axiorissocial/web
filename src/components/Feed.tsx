@@ -6,6 +6,7 @@ import Post from './Post';
 import { useAuth } from '../contexts/AuthContext';
 import '../css/post.scss';
 import type { PostReactionsState } from '../utils/postReactions';
+import { useTranslation } from 'react-i18next';
 
 interface PostData {
   id: string;
@@ -44,12 +45,13 @@ interface FeedProps {
 const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
   const [posts, setPosts] = useState<PostData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [errorKey, setErrorKey] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const fetchPosts = useCallback(async (pageNum = 1, reset = false) => {
     try {
@@ -69,7 +71,7 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch posts');
+        throw new Error('feed.errors.fetch');
       }
 
       const data = await response.json();
@@ -82,9 +84,13 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
 
       setHasMore(data.pagination.hasNextPage);
       setPage(pageNum);
-      setError('');
+      setErrorKey(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load posts');
+      if (err instanceof Error && err.message.startsWith('feed.')) {
+        setErrorKey(err.message);
+      } else {
+        setErrorKey('feed.errors.generic');
+      }
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -131,6 +137,7 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
   };
 
   const handleRefresh = () => {
+    setErrorKey(null);
     fetchPosts(1, true);
   };
 
@@ -140,18 +147,18 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
     return (
       <div className="feed-loading">
         <Spinner animation="border" />
-        <span className="ms-2">Loading posts...</span>
+        <span className="ms-2">{t('feed.status.loading')}</span>
       </div>
     );
   }
 
-  if (error) {
+  if (errorKey) {
     return (
       <div className="feed-error">
         <Alert variant="danger">
-          <p>{error}</p>
+          <p>{t(errorKey)}</p>
           <Button variant="outline-danger" onClick={handleRefresh}>
-            Try Again
+            {t('feed.actions.retry')}
           </Button>
         </Alert>
       </div>
@@ -164,13 +171,13 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
         <div className="empty-icon">
           <ChatSquareText />
         </div>
-        <h3>No posts yet</h3>
+        <h3>{t('feed.empty.title')}</h3>
         <p>
           {searchQuery 
-            ? `No posts found for "${searchQuery}"`
+            ? t('feed.empty.search', { query: searchQuery })
             : userId
-            ? "This user hasn't posted anything yet"
-            : "Be the first to share something!"
+            ? t('feed.empty.user')
+            : t('feed.empty.default')
           }
         </p>
         {!searchQuery && !userId && user && (
@@ -179,7 +186,7 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
             onClick={() => navigate('/create-post')}
           >
             <Plus size={20} className="me-2" />
-            Create Post
+            {t('feed.actions.create')}
           </Button>
         )}
       </div>
@@ -210,10 +217,10 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
             {loadingMore ? (
               <>
                 <Spinner size="sm" className="me-2" />
-                Loading...
+                {t('feed.actions.loadingMore')}
               </>
             ) : (
-              'Load More'
+              t('feed.actions.loadMore')
             )}
           </Button>
         </div>
@@ -221,7 +228,7 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
       
       {!hasMore && posts.length > 0 && (
         <div className="text-center  py-4">
-          <small>You've reached the end!</small>
+          <small>{t('feed.status.end')}</small>
         </div>
       )}
     </div>

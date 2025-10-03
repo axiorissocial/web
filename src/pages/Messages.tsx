@@ -11,6 +11,7 @@ import twemoji from 'twemoji';
 import { EMOJIS } from '../utils/emojis';
 import { useTranslation } from 'react-i18next';
 import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
+import { formatCalendarDateTime } from '../utils/time';
 
 interface User {
   id: string;
@@ -132,6 +133,18 @@ const Messages: React.FC = () => {
   const typingStateRef = useRef(false);
   const typingStopTimeoutRef = useRef<number | null>(null);
   const typingTimeoutsRef = useRef<Map<string, Map<string, number>>>(new Map());
+  const pendingAutoScrollConversationRef = useRef<string | null>(null);
+
+  const scrollToBottom = useCallback(
+    (behavior: ScrollBehavior = 'smooth') => {
+      if (!messagesEndRef.current) {
+        return;
+      }
+
+      messagesEndRef.current.scrollIntoView({ behavior, block: 'end' });
+    },
+    []
+  );
 
   const fetchConversations = useCallback(async (showSpinner = false) => {
     if (!user) {
@@ -251,10 +264,37 @@ const Messages: React.FC = () => {
   }, [activeConversation]);
 
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    if (!activeConversation) {
+      pendingAutoScrollConversationRef.current = null;
+      return;
     }
-  }, [messages, activeConversation]);
+
+    if (messagesLoading) {
+      return;
+    }
+
+    if (pendingAutoScrollConversationRef.current === activeConversation) {
+      scrollToBottom('auto');
+      pendingAutoScrollConversationRef.current = null;
+    }
+  }, [activeConversation, messagesLoading, scrollToBottom]);
+
+  useEffect(() => {
+    if (!activeConversation) {
+      return;
+    }
+
+    if (pendingAutoScrollConversationRef.current) {
+      return;
+    }
+
+    if (messages.length === 0) {
+      scrollToBottom('auto');
+      return;
+    }
+
+    scrollToBottom('smooth');
+  }, [messages, activeConversation, scrollToBottom]);
 
   const updateAfterMessageDeletion = useCallback(
     (conversationId: string, messageId: string, lastMessage?: Message | null) => {
@@ -564,6 +604,12 @@ useEffect(() => {
       void sendTypingStatus(false, previousConversation);
     }
 
+    if (activeConversation && previousConversation !== activeConversation) {
+      pendingAutoScrollConversationRef.current = activeConversation;
+    } else if (!activeConversation) {
+      pendingAutoScrollConversationRef.current = null;
+    }
+
     activeConversationRef.current = activeConversation;
 
     if (typingStopTimeoutRef.current !== null) {
@@ -630,6 +676,11 @@ useEffect(() => {
           return next;
         });
         setNewMessage('');
+        if (messageInputRef.current) {
+          window.requestAnimationFrame(() => {
+            messageInputRef.current?.focus();
+          });
+        }
 
         if (typingStateRef.current) {
           typingStateRef.current = false;
@@ -666,17 +717,8 @@ useEffect(() => {
   };
 
   const formatTime = (dateString: string) => {
-    const now = new Date();
     const date = new Date(dateString);
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-
-    if (diffInHours < 1) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else if (diffInHours < 24) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else {
-      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-    }
+    return formatCalendarDateTime(date, i18n.language, t);
   };
 
   const getOtherParticipantName = (conversation: Conversation) => {

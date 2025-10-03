@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Modal, Button, Form, Alert } from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
 
 interface ReportModalProps {
   show: boolean;
@@ -14,6 +15,7 @@ const ReportModal: React.FC<ReportModalProps> = ({ show, onHide, targetType, tar
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const { t } = useTranslation();
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -33,7 +35,8 @@ const ReportModal: React.FC<ReportModalProps> = ({ show, onHide, targetType, tar
 
       if (!resp.ok) {
         const data = await resp.json();
-        throw new Error(data.message || 'Failed to submit report');
+        const message = typeof data.message === 'string' ? data.message : null;
+        throw new Error(message ?? 'report.errors.submitFailed');
       }
 
       setSuccess(true);
@@ -42,7 +45,12 @@ const ReportModal: React.FC<ReportModalProps> = ({ show, onHide, targetType, tar
         onHide();
       }, 1200);
     } catch (err: any) {
-      setError(err?.message || 'Failed to submit report');
+      const message = err?.message as string | undefined;
+      if (message) {
+        setError(message.startsWith('report.') ? t(message) : message);
+      } else {
+        setError(t('report.errors.submitFailed'));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -51,32 +59,42 @@ const ReportModal: React.FC<ReportModalProps> = ({ show, onHide, targetType, tar
   return (
     <Modal show={show} onHide={onHide} centered>
       <Modal.Header closeButton>
-        <Modal.Title>Report {targetType === 'post' ? 'Post' : 'Comment'}</Modal.Title>
+        <Modal.Title>
+          {t(`report.modalTitle.${targetType}`)}
+        </Modal.Title>
       </Modal.Header>
       <Modal.Body>
         {error && <Alert variant="danger">{error}</Alert>}
-        {success && <Alert variant="success">Report submitted</Alert>}
+        {success && <Alert variant="success">{t('report.success')}</Alert>}
 
         <Form.Group className="mb-3">
-          <Form.Label>Reason</Form.Label>
+          <Form.Label>{t('report.fields.reasonLabel')}</Form.Label>
           <Form.Select value={reason} onChange={(e) => setReason(e.target.value)}>
-            <option value="spam">Spam</option>
-            <option value="harassment">Harassment</option>
-            <option value="sexual">Sexual Content</option>
-            <option value="illegal">Illegal Content</option>
-            <option value="other">Other</option>
+            <option value="spam">{t('report.reasons.spam')}</option>
+            <option value="harassment">{t('report.reasons.harassment')}</option>
+            <option value="sexual">{t('report.reasons.sexual')}</option>
+            <option value="illegal">{t('report.reasons.illegal')}</option>
+            <option value="other">{t('report.reasons.other')}</option>
           </Form.Select>
         </Form.Group>
 
         <Form.Group className="mb-3">
-          <Form.Label>Notes (optional)</Form.Label>
-          <Form.Control as="textarea" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+          <Form.Label>{t('report.fields.notesLabel')}</Form.Label>
+          <Form.Control
+            as="textarea"
+            rows={3}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder={t('report.placeholders.details')}
+          />
         </Form.Group>
       </Modal.Body>
       <Modal.Footer>
-        <Button variant="secondary" onClick={onHide} disabled={submitting}>Cancel</Button>
+        <Button variant="secondary" onClick={onHide} disabled={submitting}>
+          {t('common.cancel')}
+        </Button>
         <Button variant="danger" onClick={handleSubmit} disabled={submitting}>
-          {submitting ? 'Submitting...' : 'Submit Report'}
+          {submitting ? t('report.status.submitting') : t('report.submit')}
         </Button>
       </Modal.Footer>
     </Modal>

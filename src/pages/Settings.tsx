@@ -907,6 +907,9 @@ const SettingsPage: React.FC = () => {
                         </button>
                         {profileGradients.map((gradient) => {
                           const isSelected = selectedAvatarGradient === gradient.id;
+                          const gradientLabel = t(`settings.profile.gradients.options.${gradient.id}`, {
+                            defaultValue: gradient.label
+                          });
                           return (
                             <button
                               key={`avatar-${gradient.id}`}
@@ -922,7 +925,7 @@ const SettingsPage: React.FC = () => {
                               >
                                 {usernameInitial}
                               </span>
-                              <span className="gradient-label">{gradient.label}</span>
+                              <span className="gradient-label">{gradientLabel}</span>
                             </button>
                           );
                         })}
@@ -1003,6 +1006,9 @@ const SettingsPage: React.FC = () => {
                         </button>
                         {profileGradients.map((gradient) => {
                           const isSelected = selectedBannerGradient === gradient.id;
+                          const gradientLabel = t(`settings.profile.gradients.options.${gradient.id}`, {
+                            defaultValue: gradient.label
+                          });
                           return (
                             <button
                               key={`banner-${gradient.id}`}
@@ -1016,7 +1022,7 @@ const SettingsPage: React.FC = () => {
                                 className="gradient-swatch banner"
                                 style={{ background: getProfileGradientCss(gradient.id) }}
                               />
-                              <span className="gradient-label">{gradient.label}</span>
+                              <span className="gradient-label">{gradientLabel}</span>
                             </button>
                           );
                         })}
