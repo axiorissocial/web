@@ -1,0 +1,17 @@
+.home-content {
+  margin-top: 1rem;
+}
+
+.home-feed {
+  min-width: 0;
+}
+
+.home-aside {
+  position: relative;
+}
+
+@media (orientation: portrait) {
+  .home-aside {
+    position: static;
+  }
+}

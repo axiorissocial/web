@@ -207,6 +207,364 @@ const processCommentsWithLikes = (comments: any[], userId?: string) => {
 };
 
 const router = Router();
+const HASHTAG_REGEX = /(^|[^A-Za-z0-9_])#([A-Za-z0-9_]{2,50})/g;
+const COUNTRY_HEADER_CANDIDATES = ['x-country-code', 'cf-ipcountry', 'x-vercel-ip-country', 'x-country', 'x-geo-country'];
+const TRENDING_WINDOW_DAYS = 7;
+const DEFAULT_TRENDING_LIMIT = 10;
+
+const extractHashtags = (text: string): string[] => {
+  if (!text) {
+    return [];
+  }
+
+  HASHTAG_REGEX.lastIndex = 0;
+  const matches = new Set<string>();
+  let match: RegExpExecArray | null;
+
+  while ((match = HASHTAG_REGEX.exec(text)) !== null) {
+    const tag = match[2]?.trim();
+    if (!tag) {
+      continue;
+    }
+
+    const normalized = tag.toLowerCase();
+    if (normalized.length >= 2 && normalized.length <= 50) {
+      matches.add(normalized);
+    }
+  }
+
+  return Array.from(matches);
+};
+
+const extractCountryCodeCandidate = (value: string | string[] | undefined): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw) {
+    return null;
+  }
+
+  const cleaned = raw.split(',')[0]?.split(';')[0]?.trim();
+  if (!cleaned) {
+    return null;
+  }
+
+  if (/^[A-Za-z]{2}$/.test(cleaned)) {
+    return cleaned.toUpperCase();
+  }
+
+  const parts = cleaned.split(/[-_]/);
+  const possible = parts[parts.length - 1];
+  if (possible && /^[A-Za-z]{2}$/.test(possible)) {
+    return possible.toUpperCase();
+  }
+
+  return null;
+};
+
+const resolveCountryCode = (req: Request): string | null => {
+  for (const header of COUNTRY_HEADER_CANDIDATES) {
+    const candidate = extractCountryCodeCandidate(req.headers[header] as string | undefined);
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  const acceptLanguage = req.headers['accept-language'];
+  if (typeof acceptLanguage === 'string' && acceptLanguage.length) {
+    const primary = acceptLanguage.split(',')[0]?.split(';')[0];
+    if (primary) {
+      const parts = primary.split(/[-_]/);
+      if (parts.length > 1) {
+        const potential = parts[parts.length - 1];
+        if (/^[A-Za-z]{2}$/.test(potential)) {
+          return potential.toUpperCase();
+        }
+      }
+    }
+  }
+
+  return null;
+};
+
+const syncPostHashtags = async (postId: string, content: string, countryCode: string | null): Promise<string[]> => {
+  const tags = extractHashtags(content);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.postHashtag.deleteMany({ where: { postId } });
+
+    if (!tags.length) {
+      return;
+    }
+
+    const hashtagRecords = await Promise.all(
+      tags.map(tag =>
+        tx.hashtag.upsert({
+          where: { tag },
+          update: {},
+          create: { tag },
+        })
+      )
+    );
+
+    const entries = hashtagRecords.map(record => ({
+      postId,
+      hashtagId: record.id,
+      countryCode: countryCode ?? null,
+    }));
+
+    if (entries.length > 0) {
+      await tx.postHashtag.createMany({ data: entries });
+    }
+  });
+
+  return tags;
+};
+
+const getTrendingHashtags = async (options: { since: Date; limit: number; countryCode?: string | null }) => {
+  const where: any = {
+    createdAt: { gte: options.since },
+    post: {
+      is: {
+        isPrivate: false,
+      }
+    }
+  };
+
+  if (options.countryCode) {
+    where.countryCode = options.countryCode.toUpperCase();
+  }
+
+  const hashtagEntries = await prisma.postHashtag.findMany({
+    where,
+    select: {
+      hashtagId: true,
+      createdAt: true,
+    }
+  });
+
+  if (!hashtagEntries.length) {
+    return [] as Array<{
+      tag: string;
+      usageCount: number;
+      rank: number;
+      lastUsedAt: Date | null;
+      share: number;
+    }>;
+  }
+
+  const aggregates = new Map<string, { count: number; lastUsed: Date | null }>();
+
+  for (const entry of hashtagEntries) {
+    const current = aggregates.get(entry.hashtagId) ?? { count: 0, lastUsed: null };
+    const createdAt = entry.createdAt instanceof Date ? entry.createdAt : new Date(entry.createdAt);
+    const lastUsed = current.lastUsed && current.lastUsed > createdAt ? current.lastUsed : createdAt;
+    aggregates.set(entry.hashtagId, {
+      count: current.count + 1,
+      lastUsed,
+    });
+  }
+
+  const hashtagIds = Array.from(aggregates.keys());
+
+  const hashtagRecords = await prisma.hashtag.findMany({
+    where: {
+      id: { in: hashtagIds }
+    },
+    select: {
+      id: true,
+      tag: true,
+    }
+  });
+
+  const hashtagMap = new Map<string, string>(hashtagRecords.map(record => [record.id, record.tag]));
+  const overallTotal = Array.from(aggregates.values()).reduce((sum, item) => sum + item.count, 0);
+
+  const unsorted = hashtagIds
+    .map((id) => {
+      const tag = hashtagMap.get(id);
+      if (!tag) {
+        return null;
+      }
+
+      const aggregate = aggregates.get(id)!;
+      return {
+        tag,
+        usageCount: aggregate.count,
+        lastUsedAt: aggregate.lastUsed,
+        share: overallTotal > 0 ? aggregate.count / overallTotal : 0,
+      };
+    })
+    .filter((value): value is NonNullable<typeof value> => Boolean(value));
+
+  const sorted = unsorted.sort((a, b) => {
+    if (b.usageCount !== a.usageCount) {
+      return b.usageCount - a.usageCount;
+    }
+
+    if (a.lastUsedAt && b.lastUsedAt) {
+      return b.lastUsedAt.getTime() - a.lastUsedAt.getTime();
+    }
+
+    if (a.lastUsedAt) {
+      return -1;
+    }
+
+    if (b.lastUsedAt) {
+      return 1;
+    }
+
+    return a.tag.localeCompare(b.tag);
+  });
+
+  return sorted.slice(0, options.limit).map((item, index) => ({
+    ...item,
+    rank: index + 1,
+  }));
+};
+
+router.get('/posts/trending/hashtags', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const limitParam = parseInt(req.query.limit as string, 10);
+    const windowParam = parseInt(req.query.windowDays as string, 10);
+    const explicitCountry = typeof req.query.countryCode === 'string' ? req.query.countryCode.trim() : '';
+
+    const limit = Number.isFinite(limitParam) && limitParam > 0
+      ? Math.min(limitParam, 25)
+      : DEFAULT_TRENDING_LIMIT;
+
+    const windowDays = Number.isFinite(windowParam) && windowParam > 0
+      ? Math.min(windowParam, 30)
+      : TRENDING_WINDOW_DAYS;
+
+    const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+
+    const resolvedCountryFromHeaders = resolveCountryCode(req);
+    const candidateCountry = explicitCountry || resolvedCountryFromHeaders || '';
+    const normalizedCountry = /^[A-Za-z]{2}$/.test(candidateCountry)
+      ? candidateCountry.toUpperCase()
+      : null;
+
+    const [global, local] = await Promise.all([
+      getTrendingHashtags({ since, limit }),
+      normalizedCountry ? getTrendingHashtags({ since, limit, countryCode: normalizedCountry }) : Promise.resolve([]),
+    ]);
+
+    res.json({
+      since: since.toISOString(),
+      windowDays,
+      limit,
+      countryCode: normalizedCountry,
+      global,
+      local,
+      localFallbackToGlobal: Boolean(normalizedCountry && local.length === 0 && global.length > 0),
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Error fetching trending hashtags:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+router.get('/posts/hashtags/:tag', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const rawTag = req.params.tag?.toLowerCase() ?? '';
+    const normalizedTag = rawTag.replace(/^#/, '').trim();
+
+    if (!normalizedTag || normalizedTag.length < 2) {
+      return res.status(400).json({ message: 'Invalid hashtag' });
+    }
+
+    const pageParam = parseInt(req.query.page as string, 10);
+    const limitParam = parseInt(req.query.limit as string, 10);
+    const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
+    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 50) : 20;
+    const skip = (page - 1) * limit;
+
+    const where = {
+      isPrivate: false,
+      hashtags: {
+        some: {
+          hashtag: {
+            tag: normalizedTag,
+          }
+        }
+      }
+    };
+
+    const [posts, totalPosts] = await Promise.all([
+      prisma.post.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              profile: {
+                select: {
+                  displayName: true,
+                  avatar: true,
+                  avatarGradient: true,
+                  bannerGradient: true,
+                }
+              }
+            }
+          },
+          likes: {
+            select: { userId: true },
+          },
+          hashtags: {
+            include: {
+              hashtag: { select: { tag: true } }
+            }
+          },
+          _count: {
+            select: {
+              likes: true,
+              comments: true,
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.post.count({ where })
+    ]);
+
+    const reactionsByPost = await getReactionSummaryForPosts(posts.map(post => post.id), req.userId);
+
+    const formatted = posts.map(post => {
+      const { likes, _count, hashtags, ...rest } = post;
+      return {
+        ...rest,
+        hashtags: hashtags.map(entry => entry.hashtag.tag),
+        isLiked: req.userId ? likes.some(like => like.userId === req.userId) : false,
+        commentsCount: _count?.comments ?? 0,
+        reactions: reactionsByPost.get(post.id) ?? buildReactionSummary({}, null),
+      };
+    });
+
+    const totalPages = Math.ceil(totalPosts / limit);
+
+    res.json({
+      tag: normalizedTag,
+      posts: formatted,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalPosts,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching hashtag timeline:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
 
 router.get('/posts', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -215,9 +573,21 @@ router.get('/posts', optionalAuth, async (req: AuthenticatedRequest, res: Respon
     const searchTerm = typeof req.query.search === 'string' ? req.query.search.trim() : '';
     const userId = typeof req.query.userId === 'string' ? req.query.userId : undefined;
     const includePrivateRequested = req.query.includePrivate === 'true' || req.query.includePrivate === '1';
+    const sortParam = typeof req.query.sort === 'string' ? req.query.sort.toLowerCase() : '';
 
     const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
-    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 10;
+    const isDefaultFeed = !searchTerm && !userId;
+
+    let sortMode: 'recent' | 'recommended' | 'trending';
+    if (sortParam === 'recent' || sortParam === 'recommended' || sortParam === 'trending') {
+      sortMode = sortParam;
+    } else {
+      sortMode = isDefaultFeed ? 'recommended' : 'recent';
+    }
+
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0
+      ? Math.min(rawLimit, 100)
+      : (isDefaultFeed ? 25 : 10);
     const skip = (page - 1) * limit;
 
     let includePrivate = false;
@@ -259,6 +629,29 @@ router.get('/posts', optionalAuth, async (req: AuthenticatedRequest, res: Respon
       ];
     }
 
+    if ((sortMode === 'recommended' || sortMode === 'trending') && isDefaultFeed) {
+      const windowDays = sortMode === 'trending' ? 7 : 30;
+      const createdAfter = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+      if (where.createdAt) {
+        where.createdAt.gte = createdAfter;
+      } else {
+        where.createdAt = { gte: createdAfter };
+      }
+    }
+
+    const orderBy = sortMode === 'recent'
+      ? [
+          { isPinned: 'desc' as const },
+          { createdAt: 'desc' as const },
+        ]
+      : [
+          { isPinned: 'desc' as const },
+          { likesCount: 'desc' as const },
+          { viewsCount: 'desc' as const },
+          { updatedAt: 'desc' as const },
+          { createdAt: 'desc' as const },
+        ];
+
     const posts = await prisma.post.findMany({
       where,
       include: {
@@ -281,6 +674,15 @@ router.get('/posts', optionalAuth, async (req: AuthenticatedRequest, res: Respon
             userId: true,
           }
         },
+        hashtags: {
+          include: {
+            hashtag: {
+              select: {
+                tag: true,
+              }
+            }
+          }
+        },
         _count: {
           select: {
             likes: true,
@@ -288,10 +690,7 @@ router.get('/posts', optionalAuth, async (req: AuthenticatedRequest, res: Respon
           }
         }
       },
-      orderBy: [
-        { isPinned: 'desc' },
-        { createdAt: 'desc' }
-      ],
+      orderBy,
       skip,
       take: limit,
     });
@@ -299,13 +698,16 @@ router.get('/posts', optionalAuth, async (req: AuthenticatedRequest, res: Respon
     const postIds = posts.map(post => post.id);
     const reactionsByPost = await getReactionSummaryForPosts(postIds, req.userId);
 
-    const postsWithLikeStatus = posts.map(post => ({
-      ...post,
-      isLiked: req.userId ? post.likes.some(like => like.userId === req.userId) : false,
-      likes: undefined,
-      commentsCount: post._count?.comments ?? 0,
-      reactions: reactionsByPost.get(post.id) ?? buildReactionSummary({}, null),
-    }));
+    const postsWithLikeStatus = posts.map(post => {
+      const { likes, _count, hashtags, ...rest } = post;
+      return {
+        ...rest,
+        hashtags: hashtags.map(entry => entry.hashtag.tag),
+        isLiked: req.userId ? likes.some(like => like.userId === req.userId) : false,
+        commentsCount: _count?.comments ?? 0,
+        reactions: reactionsByPost.get(post.id) ?? buildReactionSummary({}, null),
+      };
+    });
 
     const totalPosts = await prisma.post.count({ where });
     const totalPages = Math.ceil(totalPosts / limit);
@@ -318,7 +720,8 @@ router.get('/posts', optionalAuth, async (req: AuthenticatedRequest, res: Respon
         totalPosts,
         hasNextPage: page < totalPages,
         hasPreviousPage: page > 1,
-      }
+      },
+      sort: sortMode,
     });
 
   } catch (error) {
@@ -354,6 +757,15 @@ router.get('/posts/:id', optionalAuth, async (req: AuthenticatedRequest, res: Re
         likes: {
           select: {
             userId: true,
+          }
+        },
+        hashtags: {
+          include: {
+            hashtag: {
+              select: {
+                tag: true,
+              }
+            }
           }
         },
         _count: {
@@ -423,11 +835,13 @@ router.get('/posts/:id', optionalAuth, async (req: AuthenticatedRequest, res: Re
 
     const reactionSummary = await getReactionSummaryForPost(id, req.userId);
 
+    const { likes, _count, hashtags, ...rest } = post;
+
     const postWithLikeStatus = {
-      ...post,
-      isLiked: req.userId ? post.likes.some(like => like.userId === req.userId) : false,
-      likes: undefined,
-      commentsCount: post._count?.comments ?? 0,
+      ...rest,
+      hashtags: hashtags.map(entry => entry.hashtag.tag),
+      isLiked: req.userId ? likes.some(like => like.userId === req.userId) : false,
+      commentsCount: _count?.comments ?? 0,
       reactions: reactionSummary,
     };
 
@@ -502,6 +916,7 @@ router.post('/posts', requireAuth, async (req: AuthenticatedRequest, res: Respon
   try {
     const { content, title, isPrivate = false, media } = req.body;
     const userId = req.userId!;
+    const resolvedCountryCode = resolveCountryCode(req);
 
     if (!content || content.trim().length === 0) {
       return res.status(400).json({ message: 'Post content is required' });
@@ -533,6 +948,7 @@ router.post('/posts', requireAuth, async (req: AuthenticatedRequest, res: Respon
         isPrivate: Boolean(isPrivate),
         media: media || null,
         userId,
+        originCountryCode: resolvedCountryCode,
       },
       include: {
         user: {
@@ -559,14 +975,18 @@ router.post('/posts', requireAuth, async (req: AuthenticatedRequest, res: Respon
     });
 
     await createMentionNotifications(content, userId, post.id);
+    const hashtags = await syncPostHashtags(post.id, post.content, post.originCountryCode ?? resolvedCountryCode ?? null);
+
+    const { _count, ...postPayload } = post;
 
     res.status(201).json({
       message: 'Post created successfully',
       post: {
-        ...post,
+        ...postPayload,
         isLiked: false,
-        commentsCount: 0,
+        commentsCount: _count.comments,
         reactions: buildReactionSummary({}, null),
+        hashtags,
       }
     });
 
@@ -858,6 +1278,7 @@ router.put('/posts/:id', requireAuth, async (req: AuthenticatedRequest, res: Res
     const postId = req.params.id;
     const userId = req.session!.userId!;
     const { title, content, media } = req.body;
+    const resolvedCountryCode = resolveCountryCode(req);
 
     if (!content || content.trim().length === 0) {
       return res.status(400).json({ error: 'Content is required' });
@@ -893,6 +1314,8 @@ router.put('/posts/:id', requireAuth, async (req: AuthenticatedRequest, res: Res
       }
     }
 
+    const nextCountryCode = existingPost.originCountryCode ?? resolvedCountryCode ?? null;
+
     const updatedPost = await prisma.post.update({
       where: { id: postId },
       data: {
@@ -900,6 +1323,7 @@ router.put('/posts/:id', requireAuth, async (req: AuthenticatedRequest, res: Res
         content: content.trim(),
         media: media !== undefined ? media : undefined,
         updatedAt: new Date(),
+        originCountryCode: nextCountryCode,
       },
       include: {
         user: {
@@ -929,10 +1353,16 @@ router.put('/posts/:id', requireAuth, async (req: AuthenticatedRequest, res: Res
       }
     });
 
+    const hashtags = await syncPostHashtags(postId, updatedPost.content, nextCountryCode);
+
+    const { likes, _count, ...rest } = updatedPost;
+
     const response = {
-      ...updatedPost,
-      isLiked: updatedPost.likes.length > 0,
-      likesCount: updatedPost._count.likes,
+      ...rest,
+      isLiked: likes.length > 0,
+      likesCount: _count.likes,
+      commentsCount: _count.comments,
+      hashtags,
     };
 
     res.json(response);

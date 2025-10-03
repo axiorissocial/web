@@ -20,6 +20,16 @@ import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/prof
 import type { PostReactionsState, PostReactionEmoji } from '../utils/postReactions';
 import { formatCalendarDateTime, formatRelativeTime } from '../utils/time';
 
+const HASHTAG_REGEX = /(^|[\s.,!?:;()\[\]{}])#([A-Za-z0-9_]{2,50})/g;
+
+const linkifyHashtags = (input: string) =>
+  input.replace(HASHTAG_REGEX, (_, prefix, tag) => {
+    const safePrefix = prefix ?? '';
+    const normalizedTag = tag.toLowerCase();
+    const link = `/hashtags/${encodeURIComponent(normalizedTag)}`;
+    return `${safePrefix}[#${tag}](${link})`;
+  });
+
 interface PostUser {
   id: string;
   username: string;
@@ -48,6 +58,8 @@ interface PostData {
   viewsCount: number;
   isLiked: boolean;
   isPinned: boolean;
+  hashtags?: string[];
+  originCountryCode?: string | null;
   user: PostUser;
   _count?: {
     likes: number;
@@ -119,6 +131,11 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
   const handleUserClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     navigate(`/profile/@${post.user.username}`);
+  };
+
+  const handleHashtagClick = (event: React.MouseEvent, tag: string) => {
+    event.stopPropagation();
+    navigate(`/hashtags/${encodeURIComponent(tag.toLowerCase())}`);
   };
 
   const handleLikeToggle = async () => {
@@ -456,9 +473,10 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
     ];
     const allowedAttrs = ['href', 'title', 'target', 'rel', 'src', 'alt', 'class', 'data-username'];
 
-    const mentionsProcessed = processMentions(processedContent);
+  const mentionsProcessed = processMentions(processedContent);
+  const hashtagsProcessed = linkifyHashtags(mentionsProcessed);
     
-    const mdHtml = marked.parse(mentionsProcessed, markedOptions) as string;
+  const mdHtml = marked.parse(hashtagsProcessed, markedOptions) as string;
     
     const twemojiHtml = twemoji.parse(mdHtml, {
       folder: 'svg',
@@ -571,6 +589,22 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
         />
         
         {renderMedia()}
+
+        {post.hashtags && post.hashtags.length > 0 && (
+          <div className="post-hashtags mt-2">
+            {post.hashtags.map(tag => (
+              <Button
+                key={tag}
+                variant="outline-secondary"
+                size="sm"
+                className="me-2 mb-2 hashtag-chip"
+                onClick={(event) => handleHashtagClick(event, tag)}
+              >
+                #{tag}
+              </Button>
+            ))}
+          </div>
+        )}
 
         {isTruncated && !showFullContent && (
           <Button 

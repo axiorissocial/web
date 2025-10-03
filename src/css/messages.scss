@@ -410,7 +410,7 @@
   }
 }
 
-@media (max-width: 768px) {
+@media (orientation: portrait) {
   .messages-main {
     min-height: calc(100vh - 60px);
     padding-bottom: calc(env(safe-area-inset-bottom, 0) + 80px);

@@ -1,9 +1,497 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import { prisma } from '../index.js';
 import { getRandomGradientId } from '@shared/profileGradients';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
+
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || '';
+const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || '';
+const GITHUB_SCOPE = 'read:user user:email';
+const GITHUB_USER_AGENT = process.env.GITHUB_USER_AGENT || 'HubbleApp';
+
+const buildGithubCallbackUrl = (req: Request): string => {
+  if (process.env.GITHUB_CALLBACK_URL) {
+    return process.env.GITHUB_CALLBACK_URL;
+  }
+
+  const proto = (req.get('x-forwarded-proto') || req.protocol || 'http').split(',')[0];
+  const host = req.get('x-forwarded-host') || req.get('host') || 'localhost';
+  return `${proto}://${host}/api/auth/github/callback`;
+};
+
+const ensureGithubConfigured = () => Boolean(GITHUB_CLIENT_ID && GITHUB_CLIENT_SECRET);
+
+const randomToken = (bytes = 32) => crypto.randomBytes(bytes).toString('hex');
+
+const allowedReturnPath = (value?: string | null) => {
+  if (!value) {
+    return '/';
+  }
+
+  try {
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      const parsed = new URL(value);
+      const frontendOrigin = new URL(FRONTEND_URL).origin;
+      if (parsed.origin === frontendOrigin) {
+        return `${parsed.pathname}${parsed.search}${parsed.hash}` || '/';
+      }
+      return '/';
+    }
+
+    if (value.startsWith('/')) {
+      return value;
+    }
+  } catch (error) {
+    console.warn('Invalid returnTo provided, defaulting to /:', error);
+  }
+
+  return '/';
+};
+
+const createFrontendRedirectUrl = (returnTo: string | null | undefined, params: Record<string, string | undefined>) => {
+  const targetPath = allowedReturnPath(returnTo);
+  const url = new URL(targetPath, FRONTEND_URL);
+  Object.entries(params).forEach(([key, value]) => {
+    if (typeof value === 'string' && value.length > 0) {
+      url.searchParams.set(key, value);
+    }
+  });
+  return url.toString();
+};
+
+const setSessionUser = (req: Request, user: { id: string; username: string; email: string; isAdmin?: boolean }) => {
+  req.session.userId = user.id;
+  req.session.user = {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+  };
+  (req.session.user as any).isAdmin = Boolean(user.isAdmin);
+};
+
+const generateUniqueUsername = async (base: string): Promise<string> => {
+  const sanitizedBase = base.toLowerCase().replace(/[^a-z0-9.]/g, '') || 'githubuser';
+  let candidate = sanitizedBase;
+  let suffix = 0;
+
+  // limit suffix attempts to prevent infinite loops
+  while (suffix < 5000) {
+    const existing = await prisma.user.findUnique({ where: { username: candidate } });
+    if (!existing) {
+      return candidate;
+    }
+    suffix += 1;
+    candidate = `${sanitizedBase}${suffix}`;
+  }
+
+  return `${sanitizedBase}${randomToken(3)}`;
+};
+
+const createRandomPasswordHash = async () => {
+  const secret = randomToken(32);
+  return bcrypt.hash(secret, 12);
+};
+
+const provider = 'github' as const;
+
+router.get('/auth/github', (req: Request, res: Response) => {
+  if (!ensureGithubConfigured()) {
+    return res.status(503).json({ message: 'GitHub OAuth is not configured' });
+  }
+
+  const mode = req.query.mode === 'link' ? 'link' : 'login';
+  if (mode === 'link' && !req.session.userId) {
+    return res.status(401).json({ message: 'You must be logged in to link accounts' });
+  }
+
+  const state = randomToken(16);
+  const returnTo = typeof req.query.returnTo === 'string' ? req.query.returnTo : null;
+  req.session.oauthState = {
+    provider,
+    state,
+    mode,
+    userId: req.session.userId ?? null,
+    returnTo,
+  };
+
+  const redirectUri = buildGithubCallbackUrl(req);
+  const params = new URLSearchParams({
+    client_id: GITHUB_CLIENT_ID,
+    scope: GITHUB_SCOPE,
+    state,
+    allow_signup: 'true',
+    redirect_uri: redirectUri,
+  });
+
+  req.session.save((err) => {
+    if (err) {
+      console.error('Failed to persist OAuth state:', err);
+      return res.status(500).json({ message: 'Failed to initiate GitHub authentication' });
+    }
+    res.redirect(`https://github.com/login/oauth/authorize?${params.toString()}`);
+  });
+});
+
+router.get('/auth/github/callback', async (req: Request, res: Response) => {
+  const sessionState = req.session.oauthState;
+  const stateParam = typeof req.query.state === 'string' ? req.query.state : '';
+  const code = typeof req.query.code === 'string' ? req.query.code : '';
+
+  const redirectWithStatus = (status: 'success' | 'linked' | 'unlinked' | 'error', message?: string) => {
+    const redirectUrl = createFrontendRedirectUrl(sessionState?.returnTo, {
+      authProvider: provider,
+      authStatus: status,
+      authMessage: message,
+    });
+    return res.redirect(redirectUrl);
+  };
+
+  if (!ensureGithubConfigured()) {
+    return redirectWithStatus('error', 'github_not_configured');
+  }
+
+  if (!sessionState || sessionState.provider !== provider || !stateParam || sessionState.state !== stateParam) {
+    return redirectWithStatus('error', 'invalid_oauth_state');
+  }
+
+  delete req.session.oauthState;
+
+  if (!code) {
+    return redirectWithStatus('error', 'missing_code');
+  }
+
+  try {
+    const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        client_id: GITHUB_CLIENT_ID,
+        client_secret: GITHUB_CLIENT_SECRET,
+        code,
+        redirect_uri: buildGithubCallbackUrl(req),
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      throw new Error(`GitHub token exchange failed with status ${tokenResponse.status}`);
+    }
+
+    const tokenData = await tokenResponse.json() as { access_token?: string; scope?: string; token_type?: string; error?: string };
+    if (!tokenData.access_token) {
+      throw new Error(`GitHub token exchange failed: ${tokenData.error ?? 'unknown_error'}`);
+    }
+
+    const accessToken = tokenData.access_token;
+    const githubHeaders = {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${accessToken}`,
+      'User-Agent': GITHUB_USER_AGENT,
+    } satisfies Record<string, string>;
+
+    const profileResponse = await fetch('https://api.github.com/user', {
+      headers: githubHeaders,
+    });
+
+    if (!profileResponse.ok) {
+      throw new Error(`GitHub profile request failed with status ${profileResponse.status}`);
+    }
+
+    const profile = await profileResponse.json() as {
+      id: number;
+      login?: string;
+      name?: string;
+      email?: string;
+      avatar_url?: string;
+      html_url?: string;
+      bio?: string;
+      blog?: string;
+      company?: string;
+    };
+
+    if (!profile || typeof profile.id !== 'number') {
+      throw new Error('Invalid GitHub profile response');
+    }
+
+    let emails: Array<{ email: string; verified: boolean; primary: boolean }> = [];
+    try {
+      const emailsResponse = await fetch('https://api.github.com/user/emails', {
+        headers: githubHeaders,
+      });
+      if (emailsResponse.ok) {
+        const json = await emailsResponse.json();
+        if (Array.isArray(json)) {
+          emails = json.filter((entry): entry is { email: string; verified: boolean; primary: boolean } => typeof entry?.email === 'string');
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to fetch GitHub user emails:', error);
+    }
+
+    const primaryEmail = emails.find(item => item.primary && item.verified)
+      ?? emails.find(item => item.primary)
+      ?? emails.find(item => item.verified)
+      ?? emails[0];
+
+    let email = primaryEmail?.email ?? (typeof profile.email === 'string' ? profile.email : null);
+    const emailVerified = Boolean(primaryEmail?.verified);
+    if (!email) {
+      email = `github_${profile.id}@users.noreply.github.com`;
+    }
+
+    const providerAccountId = String(profile.id);
+
+  const existingAccount = await (prisma as any).oAuthAccount.findUnique({
+      where: {
+        provider_providerAccountId: {
+          provider,
+          providerAccountId,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            isAdmin: true,
+          },
+        },
+      },
+    });
+
+    const accountData = {
+      provider,
+      providerAccountId,
+      username: profile.login ?? null,
+      displayName: profile.name ?? null,
+      profileUrl: profile.html_url ?? null,
+      avatarUrl: profile.avatar_url ?? null,
+      accessToken,
+      scope: tokenData.scope ?? GITHUB_SCOPE,
+      tokenExpiresAt: null as Date | null,
+    };
+
+    if (sessionState.mode === 'link') {
+      if (!sessionState.userId) {
+        return redirectWithStatus('error', 'missing_session_user');
+      }
+
+      if (existingAccount && existingAccount.userId !== sessionState.userId) {
+        return redirectWithStatus('error', 'already_linked_elsewhere');
+      }
+
+      await prisma.$transaction(async (tx) => {
+        const user = await tx.user.findUnique({ where: { id: sessionState.userId! }, select: { id: true } });
+        if (!user) {
+          throw new Error('User not found for linking');
+        }
+
+        await (tx as any).oAuthAccount.upsert({
+          where: {
+            provider_providerAccountId: {
+              provider,
+              providerAccountId,
+            }
+          },
+          update: {
+            username: accountData.username,
+            displayName: accountData.displayName,
+            profileUrl: accountData.profileUrl,
+            avatarUrl: accountData.avatarUrl,
+            accessToken: accountData.accessToken,
+            scope: accountData.scope,
+            updatedAt: new Date(),
+            userId: sessionState.userId!,
+          },
+          create: {
+            provider,
+            providerAccountId,
+            username: accountData.username,
+            displayName: accountData.displayName,
+            profileUrl: accountData.profileUrl,
+            avatarUrl: accountData.avatarUrl,
+            accessToken: accountData.accessToken,
+            scope: accountData.scope,
+            userId: sessionState.userId!,
+          }
+        });
+      });
+
+      return redirectWithStatus('linked');
+    }
+
+    if (existingAccount?.user) {
+      setSessionUser(req, existingAccount.user);
+      await (prisma as any).oAuthAccount.update({
+        where: { id: existingAccount.id },
+        data: {
+          username: accountData.username,
+          displayName: accountData.displayName,
+          profileUrl: accountData.profileUrl,
+          avatarUrl: accountData.avatarUrl,
+          accessToken: accountData.accessToken,
+          scope: accountData.scope,
+          updatedAt: new Date(),
+        }
+      });
+
+      await prisma.user.update({
+        where: { id: existingAccount.user.id },
+        data: { lastLogin: new Date() }
+      });
+
+      await new Promise((resolve, reject) => req.session.save(err => err ? reject(err) : resolve(null)));
+      return redirectWithStatus('success');
+    }
+
+    // Attempt to attach to existing user by email
+    let targetUser: { id: string; username: string; email: string; isAdmin: boolean } | null = null;
+    if (email) {
+      targetUser = await prisma.user.findUnique({
+        where: { email },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          isAdmin: true,
+        },
+      });
+    }
+
+    if (!targetUser) {
+      const baseUsername = profile.login ?? profile.name ?? `github${profile.id}`;
+      const username = await generateUniqueUsername(baseUsername);
+      const hashedPassword = await createRandomPasswordHash();
+      const avatarGradient = getRandomGradientId();
+      let bannerGradient = getRandomGradientId();
+      if (bannerGradient === avatarGradient) {
+        bannerGradient = getRandomGradientId();
+      }
+
+      targetUser = await prisma.user.create({
+        data: {
+          username,
+          email,
+          password: hashedPassword,
+          isVerified: emailVerified,
+          emailVerifiedAt: emailVerified ? new Date() : null,
+          lastLogin: new Date(),
+          profile: {
+            create: {
+              displayName: profile.name ?? username,
+              avatarGradient,
+              bannerGradient,
+            }
+          },
+        } as any,
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          isAdmin: true,
+        },
+      });
+    } else {
+      await prisma.user.update({
+        where: { id: targetUser.id },
+        data: {
+          lastLogin: new Date(),
+          emailVerifiedAt: emailVerified ? (targetUser as any).emailVerifiedAt ?? new Date() : (targetUser as any).emailVerifiedAt,
+        } as any,
+      });
+    }
+
+    await (prisma as any).oAuthAccount.create({
+      data: {
+        provider,
+        providerAccountId,
+        username: accountData.username,
+        displayName: accountData.displayName,
+        profileUrl: accountData.profileUrl,
+        avatarUrl: accountData.avatarUrl,
+        accessToken: accountData.accessToken,
+        scope: accountData.scope,
+        userId: targetUser!.id,
+      }
+    });
+
+    setSessionUser(req, targetUser!);
+    await new Promise((resolve, reject) => req.session.save(err => err ? reject(err) : resolve(null)));
+    return redirectWithStatus('success');
+
+  } catch (error) {
+    console.error('GitHub OAuth callback error:', error);
+    return redirectWithStatus('error', 'github_oauth_failed');
+  }
+});
+
+router.get('/auth/providers', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const accounts = await (prisma as any).oAuthAccount.findMany({
+      where: { userId: req.session.userId! },
+      select: {
+        provider: true,
+        username: true,
+        profileUrl: true,
+        avatarUrl: true,
+        createdAt: true,
+      }
+    });
+
+    res.json({ providers: accounts });
+  } catch (error) {
+    console.error('Failed to load linked providers:', error);
+    res.status(500).json({ message: 'Failed to load linked providers' });
+  }
+});
+
+router.delete('/auth/providers/:provider', requireAuth, async (req: Request, res: Response) => {
+  const providerParam = String(req.params.provider || '').toLowerCase();
+
+  if (providerParam !== provider) {
+    return res.status(400).json({ message: 'Unsupported provider' });
+  }
+
+  try {
+    const linkedAccounts: Array<{ id: string; provider: string }> = await (prisma as any).oAuthAccount.findMany({
+      where: { userId: req.session.userId! },
+      select: { id: true, provider: true },
+    });
+
+    if (!linkedAccounts.some((account) => account.provider === provider)) {
+      return res.status(404).json({ message: 'Provider not linked' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.session.userId! },
+      select: { password: true },
+    });
+
+    const otherProviders = linkedAccounts.filter((account) => account.provider !== provider);
+    if (!user?.password && otherProviders.length === 0) {
+      return res.status(400).json({ message: 'Cannot unlink the only sign-in method' });
+    }
+
+    await (prisma as any).oAuthAccount.deleteMany({
+      where: {
+        userId: req.session.userId!,
+        provider,
+      }
+    });
+
+    res.json({ message: 'Provider unlinked successfully' });
+  } catch (error) {
+    console.error('Failed to unlink provider:', error);
+    res.status(500).json({ message: 'Failed to unlink provider' });
+  }
+});
 
 declare module 'express-session' {
   interface SessionData {
@@ -14,6 +502,13 @@ declare module 'express-session' {
       email: string;
     };
     viewedPosts?: Record<string, number>;
+    oauthState?: {
+      provider: 'github';
+      state: string;
+      mode: 'login' | 'link';
+      userId?: string | null;
+      returnTo?: string | null;
+    };
   }
 }
 

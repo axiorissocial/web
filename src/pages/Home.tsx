@@ -4,8 +4,10 @@ import { Plus } from 'react-bootstrap-icons';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/singles/Navbar';
 import Feed from '../components/Feed';
+import TrendingHashtags from '../components/TrendingHashtags';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
+import '../css/home.scss';
 
 const HomePage: React.FC = () => {
   const { user } = useAuth();
@@ -33,7 +35,14 @@ const HomePage: React.FC = () => {
           <h1>{t('home.heading')}</h1>
           <p className="">{t('home.subtitle')}</p>
         </div>
-        <Feed />
+        <div className="row g-4 home-content">
+          <div className="col-12 col-lg-8 home-feed">
+            <Feed />
+          </div>
+          <div className="col-12 col-lg-4 home-aside">
+            <TrendingHashtags />
+          </div>
+        </div>
       </main>
       
       {isMobile && user && (

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Form, Button, Alert, FloatingLabel } from 'react-bootstrap';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import '../css/login.scss';
 
@@ -14,8 +14,11 @@ const LoginPage: React.FC = () => {
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [oauthProcessing, setOauthProcessing] = useState(false);
+  const [oauthStatusMessage, setOauthStatusMessage] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { login, user } = useAuth();
+  const location = useLocation();
+  const { login, user, checkAuth } = useAuth();
   const { t, i18n } = useTranslation();
 
   useEffect(() => {
@@ -41,8 +44,63 @@ const LoginPage: React.FC = () => {
   };
 
   const handleGithubLogin = () => {
-    window.location.href = '/auth/github';
+    const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    const params = new URLSearchParams({ returnTo });
+    window.location.href = `/api/auth/github?${params.toString()}`;
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const provider = params.get('authProvider');
+    const status = params.get('authStatus');
+    const message = params.get('authMessage');
+
+    if (provider !== 'github' || !status) {
+      return;
+    }
+
+    const clearAuthParams = () => {
+      params.delete('authProvider');
+      params.delete('authStatus');
+      if (message) {
+        params.delete('authMessage');
+      }
+      const nextSearch = params.toString();
+      navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`, { replace: true });
+    };
+
+    if (status === 'success') {
+      setOauthProcessing(true);
+      setOauthStatusMessage(t('auth.login.githubStatus.completing'));
+      checkAuth()
+        .then(() => {
+          navigate('/', { replace: true });
+        })
+        .catch(() => {
+          setOauthProcessing(false);
+          setOauthStatusMessage(null);
+          setError(t('auth.login.githubErrors.generic'));
+          clearAuthParams();
+        });
+      return;
+    }
+
+    if (status === 'error') {
+      const errorKey = message ? `auth.login.githubErrors.${message}` : 'auth.login.githubErrors.generic';
+      const translated = t(errorKey);
+      setError(translated === errorKey ? t('auth.login.githubErrors.generic') : translated);
+      setOauthProcessing(false);
+      setOauthStatusMessage(null);
+      clearAuthParams();
+      return;
+    }
+
+    if (status === 'linked') {
+      setOauthProcessing(false);
+      setOauthStatusMessage(t('auth.login.githubStatus.linked'));
+      clearAuthParams();
+    }
+  }, [checkAuth, location.pathname, location.search, navigate, t]);
 
   return (
     <div className="login-page d-flex flex-column align-items-center justify-content-center min-vh-100">
@@ -59,6 +117,9 @@ const LoginPage: React.FC = () => {
         <h2 className="text-center mb-3">{t('auth.login.title')}</h2>
 
         {error && <Alert variant="danger">{error}</Alert>}
+        {oauthStatusMessage && (
+          <Alert variant={oauthProcessing ? 'info' : 'success'}>{oauthStatusMessage}</Alert>
+        )}
 
         <Form onSubmit={handleSubmit}>
           <FloatingLabel controlId="loginEmailOrUsername" label={t('auth.login.fields.emailOrUsername')} className="mb-3">
@@ -98,6 +159,7 @@ const LoginPage: React.FC = () => {
         <button
           className="github-login-btn w-100 mb-3"
           onClick={handleGithubLogin}
+          disabled={oauthProcessing}
         >
           <FontAwesomeIcon icon={faGithub} className="fa-icon" />
           {t('auth.login.github')}

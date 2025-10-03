@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Form, Button, Alert, FloatingLabel } from 'react-bootstrap';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import '../css/login.scss';
 import { useTranslation } from 'react-i18next';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faGithub } from '@fortawesome/free-brands-svg-icons';
 
 const RegisterPage: React.FC = () => {
   const [name, setName] = useState('');
@@ -12,8 +14,11 @@ const RegisterPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [oauthProcessing, setOauthProcessing] = useState(false);
+  const [oauthStatusMessage, setOauthStatusMessage] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { register, user } = useAuth();
+  const location = useLocation();
+  const { register, user, checkAuth } = useAuth();
   const { t, i18n } = useTranslation();
 
   useEffect(() => {
@@ -51,6 +56,65 @@ const RegisterPage: React.FC = () => {
     }
   };
 
+  const handleGithubRegister = () => {
+    const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    const params = new URLSearchParams({ returnTo });
+    window.location.href = `/api/auth/github?${params.toString()}`;
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const provider = params.get('authProvider');
+    const status = params.get('authStatus');
+    const message = params.get('authMessage');
+
+    if (provider !== 'github' || !status) {
+      return;
+    }
+
+    const clearAuthParams = () => {
+      params.delete('authProvider');
+      params.delete('authStatus');
+      if (message) {
+        params.delete('authMessage');
+      }
+      const nextSearch = params.toString();
+      navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`, { replace: true });
+    };
+
+    if (status === 'success') {
+      setOauthProcessing(true);
+      setOauthStatusMessage(t('auth.register.githubStatus.completing'));
+      checkAuth()
+        .then(() => {
+          navigate('/', { replace: true });
+        })
+        .catch(() => {
+          setOauthProcessing(false);
+          setOauthStatusMessage(null);
+          setError(t('auth.register.githubErrors.generic'));
+          clearAuthParams();
+        });
+      return;
+    }
+
+    if (status === 'error') {
+      const errorKey = message ? `auth.register.githubErrors.${message}` : 'auth.register.githubErrors.generic';
+      const translated = t(errorKey);
+      setError(translated === errorKey ? t('auth.register.githubErrors.generic') : translated);
+      setOauthProcessing(false);
+      setOauthStatusMessage(null);
+      clearAuthParams();
+      return;
+    }
+
+    if (status === 'linked') {
+      setOauthProcessing(false);
+      setOauthStatusMessage(t('auth.register.githubStatus.linked'));
+      clearAuthParams();
+    }
+  }, [checkAuth, location.pathname, location.search, navigate, t]);
+
   return (
     <div className="login-page d-flex flex-column align-items-center justify-content-center min-vh-100">
       <div
@@ -66,6 +130,9 @@ const RegisterPage: React.FC = () => {
         <h2 className="text-center mb-3">{t('auth.register.title')}</h2>
 
         {error && <Alert variant="danger">{error}</Alert>}
+        {oauthStatusMessage && (
+          <Alert variant={oauthProcessing ? 'info' : 'success'}>{oauthStatusMessage}</Alert>
+        )}
 
         <Form onSubmit={handleSubmit}>
           <FloatingLabel controlId="registerUsername" label={t('auth.register.fields.username')} className="mb-3">
@@ -112,6 +179,16 @@ const RegisterPage: React.FC = () => {
             {loading ? t('auth.register.status.registering') : t('auth.register.cta')}
           </Button>
         </Form>
+
+        <button
+          type="button"
+          className="github-login-btn w-100 mb-3"
+          onClick={handleGithubRegister}
+          disabled={oauthProcessing}
+        >
+          <FontAwesomeIcon icon={faGithub} className="fa-icon" />
+          {t('auth.register.github')}
+        </button>
 
         <div className="text-center">
           <span>{t('auth.register.loginPrompt')}</span>{' '}

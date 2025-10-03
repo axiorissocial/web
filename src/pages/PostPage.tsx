@@ -44,6 +44,8 @@ interface PostData {
   viewsCount: number;
   isLiked: boolean;
   isPinned: boolean;
+  hashtags?: string[];
+  originCountryCode?: string | null;
   user: PostUser;
   _count?: {
     likes: number;

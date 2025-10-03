@@ -1,3 +1,4 @@
+/* @refresh reload */
 import { useEffect } from 'react';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -22,6 +23,7 @@ import AccountRegister from './pages/AccountRegister';
 import CreatePost from './pages/CreatePost';
 import Mobile from './pages/Mobile';
 import Error from './pages/Error';
+import Hashtag from './pages/Hashtag';
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -65,6 +67,7 @@ function AppRoutes() {
       <Route path="/profile/:username" element={<Profile />} />
       <Route path="/user/me" element={<Profile />} />
       <Route path="/post/:postId" element={<PostPage />} />
+  <Route path="/hashtags/:tag" element={<Hashtag />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="/admin" element={<AdminPanel />} />
       <Route path="/account/login" element={<AccountLogin />} />

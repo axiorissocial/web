@@ -18,6 +18,8 @@ interface PostData {
   viewsCount: number;
   isLiked: boolean;
   isPinned: boolean;
+  hashtags?: string[];
+  originCountryCode?: string | null;
   user: {
     id: string;
     username: string;
@@ -60,11 +62,12 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
 
       const params = new URLSearchParams({
         page: pageNum.toString(),
-        limit: '10',
+        limit: '25',
       });
 
       if (searchQuery) params.append('search', searchQuery);
       if (userId) params.append('userId', userId);
+      if (!searchQuery && !userId) params.append('sort', 'recommended');
 
       const response = await fetch(`/api/posts?${params}`, {
         credentials: 'include',
