@@ -3,8 +3,8 @@ components:
   - name: frontend-common
     slug: frontend-common
     basepath: ..
-    filemask: locales/{lang}/common.json
-    template: locales/en/common.json
+    filemask: locales/locales/{lang}/common.json
+    template: locales/locales/en/common.json
     new_lang: true
     intermediate: false
     vcs: git

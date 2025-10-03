@@ -98,6 +98,18 @@ const SettingsPage: React.FC = () => {
 
   const [availableLanguages, setAvailableLanguages] = useState<string[]>([]);
   const [language, setLanguage] = useState(() => (i18n.resolvedLanguage ?? i18n.language ?? 'en').split('-')[0]);
+  
+  // GitHub account linking state
+  const [githubAccount, setGithubAccount] = useState<{
+    id: string;
+    username: string;
+    displayName: string;
+    profileUrl: string;
+    avatarUrl: string;
+  } | null>(null);
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubError, setGithubError] = useState('');
+  const [githubSuccess, setGithubSuccess] = useState('');
   const [languageLoading, setLanguageLoading] = useState(false);
   const [languageSuccess, setLanguageSuccess] = useState('');
   const [languageError, setLanguageError] = useState('');
@@ -116,8 +128,39 @@ const SettingsPage: React.FC = () => {
     if (user) {
       loadUserData();
       loadUserSettings();
+      loadGithubAccount();
     }
   }, [user]);
+
+  // Handle OAuth redirect status
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const authStatus = urlParams.get('authStatus');
+    const authProvider = urlParams.get('authProvider');
+    const authMessage = urlParams.get('authMessage');
+
+    if (authProvider === 'github' && authStatus) {
+      setGithubLoading(false);
+      
+      if (authStatus === 'linked') {
+        setGithubSuccess(t('settings.github.linkSuccess'));
+        loadGithubAccount(); // Reload to get the new account info
+      } else if (authStatus === 'error') {
+        const errorKey = authMessage ? `settings.github.errors.${authMessage}` : 'settings.github.linkError';
+        const translated = t(errorKey);
+        setGithubError(translated === errorKey ? t('settings.github.linkError') : translated);
+      }
+
+      // Clean up URL parameters
+      urlParams.delete('authStatus');
+      urlParams.delete('authProvider');
+      if (authMessage) {
+        urlParams.delete('authMessage');
+      }
+      const newSearch = urlParams.toString();
+      window.history.replaceState({}, '', `${window.location.pathname}${newSearch ? `?${newSearch}` : ''}`);
+    }
+  }, [t]);
 
   useEffect(() => {
     const fetchLanguages = async () => {
@@ -220,6 +263,64 @@ const SettingsPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error loading user settings:', error);
+    }
+  };
+
+  const loadGithubAccount = async () => {
+    try {
+      const response = await fetch('/api/users/me/oauth-accounts', {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const github = data.accounts?.find((account: any) => account.provider === 'github');
+        setGithubAccount(github || null);
+      }
+    } catch (error) {
+      console.error('Error loading GitHub account:', error);
+    }
+  };
+
+  const handleGithubLink = () => {
+    setGithubLoading(true);
+    setGithubError('');
+    setGithubSuccess('');
+    
+    const returnTo = '/settings?tab=account';
+    const params = new URLSearchParams({ mode: 'link', returnTo });
+    window.location.href = `/api/auth/github?${params.toString()}`;
+  };
+
+  const handleGithubUnlink = async () => {
+    if (!githubAccount) return;
+
+    setGithubLoading(true);
+    setGithubError('');
+    setGithubSuccess('');
+
+    try {
+      const response = await fetch('/api/oauth/unlink', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ provider: 'github' }),
+      });
+
+      if (response.ok) {
+        setGithubAccount(null);
+        setGithubSuccess(t('settings.github.unlinkSuccess'));
+      } else {
+        const data = await response.json();
+        setGithubError(data.error || t('settings.github.unlinkError'));
+      }
+    } catch (error) {
+      console.error('Error unlinking GitHub:', error);
+      setGithubError(t('settings.github.unlinkError'));
+    } finally {
+      setGithubLoading(false);
     }
   };
 
@@ -820,6 +921,70 @@ const SettingsPage: React.FC = () => {
                       )}
                     </Button>
                   </Form>
+                  
+                  <hr className="my-4" />
+                  
+                  {/* GitHub Account Section */}
+                  <div className="github-account-section">
+                    <h6 className="mb-3">{t('settings.github.title')}</h6>
+                    
+                    {githubError && <Alert variant="danger">{githubError}</Alert>}
+                    {githubSuccess && <Alert variant="success">{githubSuccess}</Alert>}
+                    
+                    {githubAccount ? (
+                      <div className="d-flex align-items-center justify-content-between p-3 border rounded">
+                        <div className="d-flex align-items-center">
+                          <img 
+                            src={githubAccount.avatarUrl} 
+                            alt={githubAccount.username}
+                            className="rounded-circle me-3"
+                            style={{ width: '40px', height: '40px' }}
+                          />
+                          <div>
+                            <div className="fw-semibold">{githubAccount.displayName || githubAccount.username}</div>
+                            <div className="text-muted small">@{githubAccount.username}</div>
+                          </div>
+                        </div>
+                        <Button 
+                          variant="outline-danger" 
+                          size="sm"
+                          onClick={handleGithubUnlink}
+                          disabled={githubLoading}
+                        >
+                          {githubLoading ? (
+                            <>
+                              <Spinner size="sm" className="me-2" />
+                              {t('settings.github.unlinking')}
+                            </>
+                          ) : (
+                            t('settings.github.unlink')
+                          )}
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="d-flex align-items-center justify-content-between p-3 border rounded">
+                        <div>
+                          <div className="fw-semibold">{t('settings.github.notLinked')}</div>
+                          <div className="text-muted small">{t('settings.github.linkDescription')}</div>
+                        </div>
+                        <Button 
+                          variant="outline-primary" 
+                          size="sm"
+                          onClick={handleGithubLink}
+                          disabled={githubLoading}
+                        >
+                          {githubLoading ? (
+                            <>
+                              <Spinner size="sm" className="me-2" />
+                              {t('settings.github.linking')}
+                            </>
+                          ) : (
+                            t('settings.github.link')
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </Card.Body>
               </Card>
             </Tab>

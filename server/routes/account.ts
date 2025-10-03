@@ -530,4 +530,29 @@ router.delete('/account/delete', requireAuth, async (req: any, res: any) => {
   }
 });
 
+// Get user's OAuth accounts
+router.get('/users/me/oauth-accounts', requireAuth, async (req: any, res: any) => {
+  try {
+    const userId = req.session.userId;
+
+    const accounts = await prisma.oAuthAccount.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        provider: true,
+        username: true,
+        displayName: true,
+        profileUrl: true,
+        avatarUrl: true,
+        createdAt: true
+      }
+    });
+
+    res.json({ accounts });
+  } catch (error) {
+    console.error('Error fetching OAuth accounts:', error);
+    res.status(500).json({ error: 'Failed to fetch OAuth accounts' });
+  }
+});
+
 export default router;

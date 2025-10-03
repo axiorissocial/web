@@ -6,6 +6,7 @@ import '../css/login.scss';
 import { useTranslation } from 'react-i18next';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGithub } from '@fortawesome/free-brands-svg-icons';
+import UsernameConflictModal from '../components/UsernameConflictModal';
 
 const RegisterPage: React.FC = () => {
   const [name, setName] = useState('');
@@ -16,6 +17,10 @@ const RegisterPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [oauthProcessing, setOauthProcessing] = useState(false);
   const [oauthStatusMessage, setOauthStatusMessage] = useState<string | null>(null);
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
+  const [conflictUsername, setConflictUsername] = useState('');
+  const [usernameModalError, setUsernameModalError] = useState('');
+  const [usernameModalLoading, setUsernameModalLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { register, user, checkAuth } = useAuth();
@@ -62,6 +67,47 @@ const RegisterPage: React.FC = () => {
     window.location.href = `/api/auth/github?${params.toString()}`;
   };
 
+  const handleUsernameSubmit = async (username: string) => {
+    setUsernameModalLoading(true);
+    setUsernameModalError('');
+
+    try {
+      const response = await fetch('/api/complete-github-signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ username }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to complete signup');
+      }
+
+      const data = await response.json();
+      setShowUsernameModal(false);
+      
+      // Check auth to update user state
+      await checkAuth();
+      
+      // Navigate to the return URL or home
+      navigate(data.returnTo || '/', { replace: true });
+    } catch (error) {
+      console.error('Username submission error:', error);
+      setUsernameModalError(error instanceof Error ? error.message : 'Failed to complete signup');
+    } finally {
+      setUsernameModalLoading(false);
+    }
+  };
+
+  const handleUsernameModalClose = () => {
+    setShowUsernameModal(false);
+    setUsernameModalError('');
+    setConflictUsername('');
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const provider = params.get('authProvider');
@@ -102,6 +148,15 @@ const RegisterPage: React.FC = () => {
       const errorKey = message ? `auth.register.githubErrors.${message}` : 'auth.register.githubErrors.generic';
       const translated = t(errorKey);
       setError(translated === errorKey ? t('auth.register.githubErrors.generic') : translated);
+      setOauthProcessing(false);
+      setOauthStatusMessage(null);
+      clearAuthParams();
+      return;
+    }
+
+    if (status === 'username_conflict') {
+      setConflictUsername(message || '');
+      setShowUsernameModal(true);
       setOauthProcessing(false);
       setOauthStatusMessage(null);
       clearAuthParams();
@@ -195,6 +250,15 @@ const RegisterPage: React.FC = () => {
           <Link to="/account/login">{t('auth.register.loginLink')}</Link>
         </div>
       </div>
+
+      <UsernameConflictModal
+        show={showUsernameModal}
+        onHide={handleUsernameModalClose}
+        onSubmit={handleUsernameSubmit}
+        originalUsername={conflictUsername}
+        loading={usernameModalLoading}
+        error={usernameModalError}
+      />
     </div>
   );
 };

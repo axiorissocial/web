@@ -2,7 +2,7 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
-const localeModules = import.meta.glob('../../locales/**/common.json', {
+const localeModules = import.meta.glob('../../translations/locales/**/common.json', {
   eager: true,
   import: 'default'
 }) as Record<string, Record<string, unknown>>;

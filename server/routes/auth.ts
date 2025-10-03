@@ -141,7 +141,7 @@ router.get('/auth/github/callback', async (req: Request, res: Response) => {
   const stateParam = typeof req.query.state === 'string' ? req.query.state : '';
   const code = typeof req.query.code === 'string' ? req.query.code : '';
 
-  const redirectWithStatus = (status: 'success' | 'linked' | 'unlinked' | 'error', message?: string) => {
+  const redirectWithStatus = (status: 'success' | 'linked' | 'unlinked' | 'error' | 'username_conflict', message?: string) => {
     const redirectUrl = createFrontendRedirectUrl(sessionState?.returnTo, {
       authProvider: provider,
       authStatus: status,
@@ -367,7 +367,27 @@ router.get('/auth/github/callback', async (req: Request, res: Response) => {
 
     if (!targetUser) {
       const baseUsername = profile.login ?? profile.name ?? `github${profile.id}`;
-      const username = await generateUniqueUsername(baseUsername);
+      
+      // Check if the preferred username is available
+      const existingUserWithUsername = await prisma.user.findUnique({
+        where: { username: baseUsername },
+        select: { id: true }
+      });
+
+      if (existingUserWithUsername) {
+        // Username conflict - store GitHub data in session and redirect to username selection
+        (req.session as any).githubSignupData = {
+          profile,
+          accountData,
+          email,
+          emailVerified,
+          baseUsername,
+          returnTo: sessionState.returnTo
+        };
+        await new Promise((resolve, reject) => req.session.save(err => err ? reject(err) : resolve(null)));
+        return redirectWithStatus('username_conflict', baseUsername);
+      }
+
       const hashedPassword = await createRandomPasswordHash();
       const avatarGradient = getRandomGradientId();
       let bannerGradient = getRandomGradientId();
@@ -377,7 +397,7 @@ router.get('/auth/github/callback', async (req: Request, res: Response) => {
 
       targetUser = await prisma.user.create({
         data: {
-          username,
+          username: baseUsername,
           email,
           password: hashedPassword,
           isVerified: emailVerified,
@@ -385,7 +405,7 @@ router.get('/auth/github/callback', async (req: Request, res: Response) => {
           lastLogin: new Date(),
           profile: {
             create: {
-              displayName: profile.name ?? username,
+              displayName: profile.name ?? baseUsername,
               avatarGradient,
               bannerGradient,
             }
@@ -728,6 +748,175 @@ router.get('/me', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Auth check error:', error);
     res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Check if username is available
+router.get('/check-username', async (req: Request, res: Response) => {
+  try {
+    const { username } = req.query;
+    
+    if (!username || typeof username !== 'string') {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    // Validate username format
+    const usernameRegex = /^[a-zA-Z0-9.]+$/;
+    if (!usernameRegex.test(username)) {
+      return res.json({ available: false, reason: 'invalid_format' });
+    }
+
+    // Check if username exists
+    const existingUser = await prisma.user.findUnique({
+      where: { username },
+      select: { id: true }
+    });
+
+    res.json({ available: !existingUser });
+  } catch (error) {
+    console.error('Username check error:', error);
+    res.status(500).json({ error: 'Failed to check username availability' });
+  }
+});
+
+// Complete GitHub signup with chosen username
+router.post('/complete-github-signup', async (req: Request, res: Response) => {
+  try {
+    const { username } = req.body;
+    const githubData = (req.session as any).githubSignupData;
+
+    if (!githubData) {
+      return res.status(400).json({ error: 'No GitHub signup session found' });
+    }
+
+    if (!username || typeof username !== 'string') {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    // Validate username format
+    const usernameRegex = /^[a-zA-Z0-9.]+$/;
+    if (!usernameRegex.test(username)) {
+      return res.status(400).json({ error: 'Username can only contain letters, numbers, and periods' });
+    }
+
+    // Check if username is still available
+    const existingUser = await prisma.user.findUnique({
+      where: { username },
+      select: { id: true }
+    });
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'Username is already taken' });
+    }
+
+    const { profile, accountData, email, emailVerified } = githubData;
+    const hashedPassword = await createRandomPasswordHash();
+    const avatarGradient = getRandomGradientId();
+    let bannerGradient = getRandomGradientId();
+    if (bannerGradient === avatarGradient) {
+      bannerGradient = getRandomGradientId();
+    }
+
+    // Create user and OAuth account in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          username,
+          email,
+          password: hashedPassword,
+          isVerified: emailVerified,
+          emailVerifiedAt: emailVerified ? new Date() : null,
+          lastLogin: new Date(),
+          profile: {
+            create: {
+              displayName: profile.name ?? username,
+              avatarGradient,
+              bannerGradient,
+            } as any
+          }
+        },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          isAdmin: true,
+        },
+      });
+
+      const providerAccountId = String(profile.id);
+      await (tx as any).oAuthAccount.create({
+        data: {
+          provider: 'github',
+          providerAccountId,
+          userId: newUser.id,
+          username: accountData.username,
+          displayName: accountData.displayName,
+          profileUrl: accountData.profileUrl,
+          avatarUrl: accountData.avatarUrl,
+          accessToken: accountData.accessToken,
+          scope: accountData.scope,
+        }
+      });
+
+      return newUser;
+    });
+
+    // Set user session
+    setSessionUser(req, result);
+    
+    // Clear the temporary GitHub signup data
+    delete (req.session as any).githubSignupData;
+    
+    await new Promise((resolve, reject) => req.session.save(err => err ? reject(err) : resolve(null)));
+
+    res.json({ 
+      success: true, 
+      user: result,
+      returnTo: githubData.returnTo || '/'
+    });
+
+  } catch (error) {
+    console.error('Complete GitHub signup error:', error);
+    res.status(500).json({ error: 'Failed to complete GitHub signup' });
+  }
+});
+
+// Unlink OAuth account
+router.post('/oauth/unlink', async (req: Request, res: Response) => {
+  try {
+    const userId = (req.session as any)?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { provider } = req.body;
+    if (!provider || typeof provider !== 'string') {
+      return res.status(400).json({ error: 'Provider is required' });
+    }
+
+    // Check if the account exists
+    const oauthAccount = await prisma.oAuthAccount.findFirst({
+      where: {
+        userId,
+        provider
+      }
+    });
+
+    if (!oauthAccount) {
+      return res.status(404).json({ error: 'OAuth account not found' });
+    }
+
+    // Delete the OAuth account
+    await prisma.oAuthAccount.delete({
+      where: {
+        id: oauthAccount.id
+      }
+    });
+
+    res.json({ success: true, message: 'OAuth account unlinked successfully' });
+  } catch (error) {
+    console.error('OAuth unlink error:', error);
+    res.status(500).json({ error: 'Failed to unlink OAuth account' });
   }
 });
 

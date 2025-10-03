@@ -4,7 +4,7 @@ import i18next from 'i18next';
 import Backend from 'i18next-fs-backend';
 import * as i18nextMiddleware from 'i18next-http-middleware';
 
-const localesDir = path.join(process.cwd(), 'locales');
+const localesDir = path.join(process.cwd(), 'translations/locales');
 
 const discoverLanguages = () => {
   try {

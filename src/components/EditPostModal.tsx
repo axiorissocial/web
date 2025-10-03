@@ -97,14 +97,21 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
   };
 
   const handleClose = () => {
-    setContent(post.content);
-    setTitle(post.title || '');
-    setUploadedMedia(post.media || []);
-    setCharCount(post.content.length);
+    // Only reset form when user explicitly cancels/closes
+    // Don't reset during tab switching or refocus
     setError('');
     setActiveTab('write');
     setEmojiOpen(false);
     onHide();
+  };
+
+  const handleCancel = () => {
+    // Reset form to original values when cancelling
+    setContent(post.content);
+    setTitle(post.title || '');
+    setUploadedMedia(post.media || []);
+    setCharCount(post.content.length);
+    handleClose();
   };
 
   const handleFileUpload = async (files: FileList | null) => {
@@ -286,7 +293,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
   return (
     <Modal 
       show={show} 
-      onHide={handleClose} 
+      onHide={handleCancel} 
       size="lg" 
       backdrop="static"
       className="create-post-modal"
@@ -430,7 +437,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
       <Modal.Footer>
         <Button 
           variant="secondary" 
-          onClick={handleClose}
+          onClick={handleCancel}
           disabled={updating}
         >
           {t('common.cancel')}
