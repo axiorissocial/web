@@ -14,6 +14,7 @@ interface User {
   username: string;
   bio?: string;
   isVerified: boolean;
+  isAdmin: boolean;
   isFollowing?: boolean;
   profile?: {
     displayName?: string;
@@ -168,8 +169,8 @@ const SearchPage: React.FC = () => {
                 <div className="user-details">
                   <div className="user-name">
                     {displayName}
-                    {user.isVerified && (
-                      <Badge bg="primary" className="ms-2">✓</Badge>
+                    {user.isAdmin && (
+                      <Badge bg="danger" className="ms-2">ADMIN</Badge>
                     )}
                   </div>
                   <div className="user-username">@{user.username}</div>

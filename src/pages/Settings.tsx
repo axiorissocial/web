@@ -113,6 +113,7 @@ const SettingsPage: React.FC = () => {
   const [languageLoading, setLanguageLoading] = useState(false);
   const [languageSuccess, setLanguageSuccess] = useState('');
   const [languageError, setLanguageError] = useState('');
+  const [hasSetPassword, setHasSetPassword] = useState(true); // Track if user has set their own password
   
   const [activeTab, setActiveTab] = useState('account');
   const usernameInitial = user?.username?.charAt(0)?.toUpperCase() ?? '?';
@@ -226,6 +227,8 @@ const SettingsPage: React.FC = () => {
           username: userData.username || '',
           email: userData.email || ''
         }));
+        
+        setHasSetPassword(userData.hasSetPassword ?? true);
         
         setAvatarPreview(userData.profile?.avatar || '');
         setSelectedAvatarGradient(userData.profile?.avatarGradient ?? null);
@@ -434,6 +437,15 @@ const SettingsPage: React.FC = () => {
         setAccountLoading(false);
         return;
       }
+      
+      // For OAuth users who haven't set password yet, current password is not required
+      // For all other users (regular users or OAuth users who have set password), current password is required
+      const needsCurrentPassword = !githubAccount || hasSetPassword;
+      if (needsCurrentPassword && !accountData.currentPassword) {
+        setAccountError(t('settings.account.validation.currentPasswordRequired'));
+        setAccountLoading(false);
+        return;
+      }
     }
     
     try {
@@ -446,7 +458,7 @@ const SettingsPage: React.FC = () => {
         body: JSON.stringify({
           username: accountData.username,
           email: accountData.email,
-          currentPassword: accountData.currentPassword,
+          currentPassword: (githubAccount && !hasSetPassword) ? undefined : accountData.currentPassword,
           newPassword: accountData.newPassword || undefined
         })
       });
@@ -459,6 +471,9 @@ const SettingsPage: React.FC = () => {
           newPassword: '',
           confirmPassword: ''
         }));
+        
+        // Reload user data to update hasSetPassword status
+        loadUserData();
       } else {
         const error = await response.json();
         setAccountError(error.error || t('settings.account.feedback.error'));
@@ -852,23 +867,33 @@ const SettingsPage: React.FC = () => {
                     
                     <h6 className="mb-3">{t('settings.account.changePassword')}</h6>
                     
-                    <Form.Group className="mb-3" controlId="currentPassword">
-                      <Form.Label>{t('settings.account.fields.currentPassword.label')}</Form.Label>
-                      <InputGroup>
-                        <Form.Control 
-                          type={showPasswords.current ? "text" : "password"}
-                          value={accountData.currentPassword}
-                          onChange={(e) => setAccountData(prev => ({ ...prev, currentPassword: e.target.value }))}
-                          placeholder={t('settings.account.fields.currentPassword.placeholder')}
-                        />
-                        <Button 
-                          variant="outline-secondary" 
-                          onClick={() => setShowPasswords(prev => ({ ...prev, current: !prev.current }))}
-                        >
-                          {showPasswords.current ? <EyeSlash /> : <Eye />}
-                        </Button>
-                      </InputGroup>
-                    </Form.Group>
+                    {githubAccount && !hasSetPassword && (
+                      <Alert variant="info" className="mb-3">
+                        <small>
+                          {t('settings.account.oauthFirstPasswordInfo')}
+                        </small>
+                      </Alert>
+                    )}
+                    
+                    {(!githubAccount || hasSetPassword) && (
+                      <Form.Group className="mb-3" controlId="currentPassword">
+                        <Form.Label>{t('settings.account.fields.currentPassword.label')}</Form.Label>
+                        <InputGroup>
+                          <Form.Control 
+                            type={showPasswords.current ? "text" : "password"}
+                            value={accountData.currentPassword}
+                            onChange={(e) => setAccountData(prev => ({ ...prev, currentPassword: e.target.value }))}
+                            placeholder={t('settings.account.fields.currentPassword.placeholder')}
+                          />
+                          <Button 
+                            variant="outline-secondary" 
+                            onClick={() => setShowPasswords(prev => ({ ...prev, current: !prev.current }))}
+                          >
+                            {showPasswords.current ? <EyeSlash /> : <Eye />}
+                          </Button>
+                        </InputGroup>
+                      </Form.Group>
+                    )}
                     
                     <Form.Group className="mb-3" controlId="newPassword">
                       <Form.Label>{t('settings.account.fields.newPassword.label')}</Form.Label>

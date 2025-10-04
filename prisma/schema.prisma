@@ -13,6 +13,7 @@ model User {
   username    String   @unique
   email       String   @unique
   password    String
+  hasSetPassword Boolean @default(true) // False for OAuth users until they set their first password
   bio         String?  // optional bio
   level       Int      @default(1) // XP/level system
   isAdmin     Boolean  @default(false) // Admin privileges
@@ -58,7 +59,7 @@ model User {
 
 model Profile {
   id          String   @id @default(uuid())
-  user        User     @relation(fields: [userId], references: [id])
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String   @unique
   displayName String?
   avatar      String?  // URL to profile picture
@@ -87,7 +88,7 @@ model Follow {
 
 model Post {
   id         String   @id @default(uuid())
-  user       User     @relation(fields: [userId], references: [id])
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId     String
   title      String?
   slug       String?  @unique
@@ -154,9 +155,9 @@ model Comment {
 }
 
 model Like {
-  user   User  @relation(fields: [userId], references: [id])
+  user   User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String
-  post   Post  @relation(fields: [postId], references: [id])
+  post   Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
   postId String
   createdAt DateTime @default(now())
 
@@ -189,7 +190,7 @@ model PostReaction {
 
 model UserSettings {
   id          String   @id @default(uuid())
-  user        User     @relation(fields: [userId], references: [id])
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String   @unique
   theme       String   @default("dark")
   language    String   @default("en")

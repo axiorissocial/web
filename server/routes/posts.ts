@@ -1209,6 +1209,7 @@ router.get('/users/search', async (req: Request, res: Response) => {
         username: true,
         bio: true,
         isVerified: true,
+        isAdmin: true,
         profile: {
           select: {
             displayName: true,

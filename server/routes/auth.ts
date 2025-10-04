@@ -824,8 +824,9 @@ router.post('/complete-github-signup', async (req: Request, res: Response) => {
           username,
           email,
           password: hashedPassword,
-          isVerified: emailVerified,
-          emailVerifiedAt: emailVerified ? new Date() : null,
+          hasSetPassword: false, // OAuth users start with random password
+          isVerified: false, // OAuth users should not be auto-verified
+          emailVerifiedAt: null, // OAuth doesn't equal email verification
           lastLogin: new Date(),
           profile: {
             create: {

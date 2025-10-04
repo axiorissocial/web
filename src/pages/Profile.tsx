@@ -16,6 +16,7 @@ interface UserProfile {
   bio?: string;
   level: number;
   isVerified: boolean;
+  isAdmin: boolean;
   isPrivate: boolean;
   createdAt: string;
   lastLogin?: string;
@@ -297,8 +298,8 @@ const ProfilePage: React.FC = () => {
                     <div className="profile-names">
                       <h1 className="display-name">
                         {displayName}
-                        {profile.isVerified && (
-                          <Badge bg="primary" className="verified-badge">✓</Badge>
+                        {profile.isAdmin && (
+                          <Badge bg="danger" className="admin-badge ms-2">ADMIN</Badge>
                         )}
                       </h1>
                       <p className="username">@{profile.username}</p>

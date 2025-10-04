@@ -10,6 +10,7 @@ interface User {
   bio?: string;
   level: number;
   isVerified: boolean;
+  isAdmin: boolean;
   createdAt: string;
   profile?: {
     displayName?: string;
