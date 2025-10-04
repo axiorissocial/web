@@ -19,9 +19,8 @@ const requireAuth = (req: any, res: any, next: any) => {
   next();
 };
 
-// Limit each IP to 5 profile gradient changes per minute
 const profileGradientsLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
+  windowMs: 60 * 1000,
   max: 5,
   message: {
     error: 'Too many profile gradient update requests from this IP. Please try again later.'
@@ -122,7 +121,7 @@ router.put('/account/update', requireAuth, async (req: any, res: any) => {
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        oauthAccounts: true // Include OAuth accounts to check if user is OAuth user
+        oauthAccounts: true
       }
     });
 
@@ -130,11 +129,9 @@ router.put('/account/update', requireAuth, async (req: any, res: any) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Check if user is OAuth user who hasn't set their own password yet
     const isOAuthUser = currentUser.oauthAccounts.length > 0;
     const needsCurrentPassword = !isOAuthUser || currentUser.hasSetPassword;
     
-    // For OAuth users who haven't set password, or regular users, handle accordingly
     if (needsCurrentPassword) {
       if (!currentPassword) {
         return res.status(400).json({ error: 'Current password is required' });
@@ -174,7 +171,6 @@ router.put('/account/update', requireAuth, async (req: any, res: any) => {
       }
       updateData.password = await bcrypt.hash(newPassword, 10);
       
-      // If this is an OAuth user setting their first password, mark hasSetPassword as true
       if (isOAuthUser && !currentUser.hasSetPassword) {
         updateData.hasSetPassword = true;
       }
@@ -530,7 +526,6 @@ router.delete('/account/delete', requireAuth, async (req: any, res: any) => {
       return res.status(400).json({ error: 'Incorrect password' });
     }
 
-    // Clean up uploaded files (avatar and banner)
     if (currentUser.profile?.avatar) {
       const avatarPath = path.join(process.cwd(), 'public', currentUser.profile.avatar);
       if (fs.existsSync(avatarPath)) {
@@ -555,7 +550,6 @@ router.delete('/account/delete', requireAuth, async (req: any, res: any) => {
       }
     }
 
-    // Delete user - this will cascade delete all related records
     await prisma.user.delete({
       where: { id: userId }
     });
@@ -578,7 +572,6 @@ router.delete('/account/delete', requireAuth, async (req: any, res: any) => {
   }
 });
 
-// Get user's OAuth accounts
 router.get('/users/me/oauth-accounts', requireAuth, async (req: any, res: any) => {
   try {
     const userId = req.session.userId;

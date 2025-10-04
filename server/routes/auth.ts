@@ -78,7 +78,6 @@ const generateUniqueUsername = async (base: string): Promise<string> => {
   let candidate = sanitizedBase;
   let suffix = 0;
 
-  // limit suffix attempts to prevent infinite loops
   while (suffix < 5000) {
     const existing = await prisma.user.findUnique({ where: { username: candidate } });
     if (!existing) {
@@ -351,7 +350,6 @@ router.get('/auth/github/callback', async (req: Request, res: Response) => {
       return redirectWithStatus('success');
     }
 
-    // Attempt to attach to existing user by email
     let targetUser: { id: string; username: string; email: string; isAdmin: boolean } | null = null;
     if (email) {
       targetUser = await prisma.user.findUnique({
@@ -368,14 +366,12 @@ router.get('/auth/github/callback', async (req: Request, res: Response) => {
     if (!targetUser) {
       const baseUsername = profile.login ?? profile.name ?? `github${profile.id}`;
       
-      // Check if the preferred username is available
       const existingUserWithUsername = await prisma.user.findUnique({
         where: { username: baseUsername },
         select: { id: true }
       });
 
       if (existingUserWithUsername) {
-        // Username conflict - store GitHub data in session and redirect to username selection
         (req.session as any).githubSignupData = {
           profile,
           accountData,
@@ -583,6 +579,12 @@ router.post('/register', async (req: Request, res: Response) => {
             avatarGradient,
             bannerGradient
           } as any
+        },
+        settings: {
+          create: {
+            language: 'en', // Explicitly set English as default
+            theme: 'dark'
+          }
         }
       },
       select: {
@@ -751,7 +753,6 @@ router.get('/me', async (req: Request, res: Response) => {
   }
 });
 
-// Check if username is available
 router.get('/check-username', async (req: Request, res: Response) => {
   try {
     const { username } = req.query;
@@ -760,13 +761,11 @@ router.get('/check-username', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Username is required' });
     }
 
-    // Validate username format
     const usernameRegex = /^[a-zA-Z0-9.]+$/;
     if (!usernameRegex.test(username)) {
       return res.json({ available: false, reason: 'invalid_format' });
     }
 
-    // Check if username exists
     const existingUser = await prisma.user.findUnique({
       where: { username },
       select: { id: true }
@@ -779,7 +778,6 @@ router.get('/check-username', async (req: Request, res: Response) => {
   }
 });
 
-// Complete GitHub signup with chosen username
 router.post('/complete-github-signup', async (req: Request, res: Response) => {
   try {
     const { username } = req.body;
@@ -793,13 +791,11 @@ router.post('/complete-github-signup', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Username is required' });
     }
 
-    // Validate username format
     const usernameRegex = /^[a-zA-Z0-9.]+$/;
     if (!usernameRegex.test(username)) {
       return res.status(400).json({ error: 'Username can only contain letters, numbers, and periods' });
     }
 
-    // Check if username is still available
     const existingUser = await prisma.user.findUnique({
       where: { username },
       select: { id: true }
@@ -817,16 +813,15 @@ router.post('/complete-github-signup', async (req: Request, res: Response) => {
       bannerGradient = getRandomGradientId();
     }
 
-    // Create user and OAuth account in a transaction
     const result = await prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {
           username,
           email,
           password: hashedPassword,
-          hasSetPassword: false, // OAuth users start with random password
-          isVerified: false, // OAuth users should not be auto-verified
-          emailVerifiedAt: null, // OAuth doesn't equal email verification
+          hasSetPassword: false,
+          isVerified: false,
+          emailVerifiedAt: null,
           lastLogin: new Date(),
           profile: {
             create: {
@@ -834,6 +829,12 @@ router.post('/complete-github-signup', async (req: Request, res: Response) => {
               avatarGradient,
               bannerGradient,
             } as any
+          },
+          settings: {
+            create: {
+              language: 'en', // Explicitly set English as default
+              theme: 'dark'
+            }
           }
         },
         select: {

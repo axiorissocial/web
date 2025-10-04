@@ -177,7 +177,7 @@ const RegisterPage: React.FC = () => {
         onClick={() => navigate('/')}
         style={{ cursor: 'pointer' }}
       >
-        <img src="/logo.png" alt={t('app.logoAlt', { app: t('app.name') })} className="me-2" style={{ height: '40px' }} />
+        <img src="/logo.svg" alt={t('app.logoAlt', { app: t('app.name') })} className="me-2" style={{ height: '40px' }} />
         <span className="logo-text" style={{ fontSize: '1.5rem', fontWeight: 600 }}>{t('app.name')}</span>
       </div>
 

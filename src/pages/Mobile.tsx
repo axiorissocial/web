@@ -16,7 +16,7 @@ interface MobilePageProps {
 const MobilePage: React.FC<MobilePageProps> = ({
   code,
   message,
-  logoSrc = '/logo.png',
+  logoSrc = '/logo.svg',
   title
 }) => {
   const navigate = useNavigate();

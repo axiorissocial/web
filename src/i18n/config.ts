@@ -27,7 +27,7 @@ if (availableLanguages.length === 0) {
 
 const isBrowser = typeof window !== 'undefined';
 const detection = {
-  order: ['cookie', 'localStorage', 'navigator', 'htmlTag'],
+  order: ['cookie', 'localStorage'], // Remove 'navigator' and 'htmlTag' to not auto-detect browser language
   caches: isBrowser ? ['cookie', 'localStorage'] : [],
   lookupCookie: 'i18next',
   lookupLocalStorage: 'i18nextLng',
@@ -40,7 +40,7 @@ if (!i18n.isInitialized) {
     .use(initReactI18next)
     .init({
       resources,
-      fallbackLng: availableLanguages.includes('en') ? 'en' : availableLanguages[0],
+      fallbackLng: 'en', // Always default to English
       supportedLngs: availableLanguages,
       load: 'languageOnly',
       nonExplicitSupportedLngs: true,

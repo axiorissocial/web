@@ -7,7 +7,7 @@ import '../css/messages.scss';
 import { useLocation } from 'react-router-dom';
 import EmojiPicker from '../components/EmojiPicker';
 import DOMPurify from 'dompurify';
-import twemoji from 'twemoji';
+import { parseEmoji } from '../utils/twemojiConfig';
 import { EMOJIS } from '../utils/emojis';
 import { useTranslation } from 'react-i18next';
 import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
@@ -93,11 +93,7 @@ const buildMessageHtml = (content: string, options: MessageHtmlOptions = {}) => 
   const normalized = preserveLineBreaks
     ? escaped.replace(/\r\n|\r|\n/g, '<br />')
     : escaped.replace(/\r\n|\r|\n/g, ' ');
-  const parsed = twemoji.parse(normalized, {
-    folder: 'svg',
-    ext: '.svg',
-    className: 'twemoji-emoji'
-  });
+  const parsed = parseEmoji(normalized);
   return DOMPurify.sanitize(parsed, {
     ALLOWED_TAGS: ['br', 'img', 'span'],
     ALLOWED_ATTR: ['class', 'src', 'alt', 'draggable', 'loading', 'width', 'height', 'role', 'aria-hidden', 'referrerpolicy', 'decoding']

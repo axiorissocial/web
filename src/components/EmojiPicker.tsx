@@ -1,9 +1,10 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import twemoji from 'twemoji';
 import {
-  EmojiSmileFill
+  EmojiSmileFill,
+  PersonFill
 } from 'react-bootstrap-icons';
 import { EMOJIS } from '../utils/emojis';
+import { parseEmoji } from '../utils/twemojiConfig';
 import '../css/emoji-picker.scss';
 
 interface EmojiPickerProps {
@@ -60,6 +61,8 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect, onClose }) => {
           >
             {cat === "smiles" ? (
               <EmojiSmileFill />
+            ) : cat === "people" ? (
+              <PersonFill />
             ) : (
               cat
             )}
@@ -77,7 +80,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelect, onClose }) => {
             >
               <span
                 dangerouslySetInnerHTML={{
-                  __html: twemoji.parse(emoji.char, { folder: 'svg', ext: '.svg' }),
+                  __html: parseEmoji(emoji.char),
                 }}
                 className="emoji-icon"
               />

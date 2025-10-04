@@ -3,7 +3,7 @@ import { Button, Tab, Tabs, Form, Alert, InputGroup, Spinner } from 'react-boots
 import { useNavigate } from 'react-router-dom';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
-import twemoji from 'twemoji';
+import { parseEmoji } from '../utils/twemojiConfig';
 import {
   CameraVideo,
   TypeBold,
@@ -17,7 +17,7 @@ import EmojiPicker from '../components/EmojiPicker';
 import MentionTextarea from '../components/MentionTextarea';
 import Sidebar from '../components/singles/Navbar';
 import { EMOJIS } from '../utils/emojis';
-import { processMentions } from '../utils/mentions';
+import { processMentions, processMentionsSync } from '../utils/mentions';
 import '../css/postbox.scss';
 import '../css/mentions.scss';
 import { useTranslation } from 'react-i18next';
@@ -135,7 +135,7 @@ const CreatePostPage: React.FC = () => {
     setError('');
 
     try {
-      const mentionsProcessed = processMentions(content);
+      const mentionsProcessed = await processMentions(content);
       const processedContent = renderEmojisInPreview(mentionsProcessed);
       const payloadContent = content;
       
@@ -168,14 +168,10 @@ const CreatePostPage: React.FC = () => {
     }
   };
 
-  const mentionsProcessed = processMentions(content);
+  const mentionsProcessed = processMentionsSync(content);
   const previewText = renderEmojisInPreview(mentionsProcessed);
   const markedHtml = marked(previewText) as string;
-  const processedWithEmojis = twemoji.parse(markedHtml, {
-    folder: 'svg',
-    ext: '.svg',
-    className: 'twemoji-emoji'
-  });
+  const processedWithEmojis = parseEmoji(markedHtml);
   const sanitizedPreview = DOMPurify.sanitize(processedWithEmojis, {
     ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'img', 'a', 'span'],
     ALLOWED_ATTR: ['class', 'src', 'alt', 'draggable', 'href', 'data-username'],
@@ -228,6 +224,15 @@ const CreatePostPage: React.FC = () => {
             </Button>
           </InputGroup>
           
+          {emojiOpen && (
+            <div className="emoji-picker-container-createpost">
+              <EmojiPicker
+                onSelect={insertEmoji}
+                onClose={() => setEmojiOpen(false)}
+              />
+            </div>
+          )}
+          
           <input
             ref={fileInputRef}
             type="file"
@@ -271,15 +276,6 @@ const CreatePostPage: React.FC = () => {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          {emojiOpen && (
-            <div className="mb-3">
-              <EmojiPicker
-                onSelect={insertEmoji}
-                onClose={() => setEmojiOpen(false)}
-              />
             </div>
           )}
 

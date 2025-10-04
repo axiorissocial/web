@@ -4,8 +4,8 @@ import { Link } from 'react-router-dom';
 import { ChatSquareText, Heart, HeartFill, ChevronDown, ChevronUp, ThreeDotsVertical, Trash, PencilSquare, EmojiSmile } from 'react-bootstrap-icons';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
-import twemoji from 'twemoji';
-import { processMentions } from '../utils/mentions';
+import { parseEmoji } from '../utils/twemojiConfig';
+import { processMentionsSync } from '../utils/mentions';
 import MentionTextarea from './MentionTextarea';
 import EmojiPicker from './EmojiPicker';
 import '../css/comment.scss';
@@ -196,14 +196,10 @@ const CommentComponent: React.FC<CommentProps> = ({
     ];
     const allowedAttrs = ['href', 'title', 'target', 'rel', 'src', 'alt', 'class', 'data-username'];
 
-    const mentionsProcessed = processMentions(content);
+    const mentionsProcessed = processMentionsSync(content);
     
     const mdHtml = marked.parse(mentionsProcessed, markedOptions) as string;
-    const twemojiHtml = twemoji.parse(mdHtml, {
-      folder: 'svg',
-      ext: '.svg',
-      className: 'twemoji-emoji',
-    });
+    const twemojiHtml = parseEmoji(mdHtml);
     
     return DOMPurify.sanitize(twemojiHtml, {
       ALLOWED_TAGS: allowedTags,

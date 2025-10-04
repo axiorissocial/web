@@ -3,7 +3,7 @@ import { Modal, Button, Tab, Tabs, Form, Alert, InputGroup, Spinner } from 'reac
 import { useNavigate } from 'react-router-dom';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
-import twemoji from 'twemoji';
+import { parseEmoji } from '../utils/twemojiConfig';
 import { useTranslation } from 'react-i18next';
 import {
   CameraVideo,
@@ -244,11 +244,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const allowedAttrs = ['href','title','target','rel','src','alt','class','style','height','width'];
 
   const mdHtml: string | HTMLElement = marked.parse(escapeHtml(renderEmojisInPreview(content)), markedOptions) as string;
-  const twemojiHtml = twemoji.parse(mdHtml, {
-    folder: 'svg',
-    ext: '.svg',
-    className: 'twemoji-emoji',
-  });
+  const twemojiHtml = parseEmoji(mdHtml);
   const sanitizedPreview = DOMPurify.sanitize(twemojiHtml, {
     ALLOWED_TAGS: allowedTags,
     ALLOWED_ATTR: allowedAttrs,

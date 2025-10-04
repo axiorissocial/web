@@ -72,6 +72,9 @@ app.get('/api/csrf-token', (req: Request, res: Response) => {
 
 app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')));
 
+// Serve twemoji SVG assets from node_modules
+app.use('/node_modules/@twemoji/svg', express.static(path.join(process.cwd(), 'node_modules', '@twemoji', 'svg')));
+
 app.use('/api', authRoutes);
 app.use('/api', postRoutes);
 app.use('/api', accountRoutes);

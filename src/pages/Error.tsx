@@ -16,7 +16,7 @@ interface ErrorPageProps {
 const ErrorPage: React.FC<ErrorPageProps> = ({
   code = 404,
   message,
-  logoSrc = '/logo.png',
+  logoSrc = '/logo.svg',
 }) => {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();

@@ -5,9 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
-import twemoji from 'twemoji';
+import { parseEmoji } from '../utils/twemojiConfig';
 import { EMOJIS } from '../utils/emojis';
-import { processMentions } from '../utils/mentions';
+import { processMentionsSync } from '../utils/mentions';
 import EditPostModal from './EditPostModal';
 import MediaModal from './MediaModal';
 import ReportModal from './ReportModal';
@@ -164,11 +164,7 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
   };
 
   const getEmojiMarkup = (emoji: string) => ({
-    __html: twemoji.parse(emoji, {
-      folder: 'svg',
-      ext: '.svg',
-      className: 'twemoji-emoji',
-    })
+    __html: parseEmoji(emoji)
   });
 
   const handleReactionToggle = async (
@@ -473,16 +469,12 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
     ];
     const allowedAttrs = ['href', 'title', 'target', 'rel', 'src', 'alt', 'class', 'data-username'];
 
-  const mentionsProcessed = processMentions(processedContent);
+  const mentionsProcessed = processMentionsSync(processedContent);
   const hashtagsProcessed = linkifyHashtags(mentionsProcessed);
     
   const mdHtml = marked.parse(hashtagsProcessed, markedOptions) as string;
     
-    const twemojiHtml = twemoji.parse(mdHtml, {
-      folder: 'svg',
-      ext: '.svg',
-      className: 'twemoji-emoji',
-    });
+    const twemojiHtml = parseEmoji(mdHtml);
     const sanitizedHtml = DOMPurify.sanitize(twemojiHtml, {
       ALLOWED_TAGS: allowedTags,
       ALLOWED_ATTR: allowedAttrs,

@@ -109,7 +109,7 @@ const Sidebar: React.FC<NavbarProps> = ({ activeId = 'home' }) => {
       <div className="brand mb-3">
         <LinkContainer to="/">
           <Nav.Link className="brand-link d-flex align-items-center">
-            <img src="/logo.png" alt={`${t('app.name')} Logo`} className="brand-logo" />
+            <img src="/logo.svg" alt={`${t('app.name')} Logo`} className="brand-logo" />
             <span className="brand-text">{t('app.name')}</span>
           </Nav.Link>
         </LinkContainer>
