@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import rateLimit from 'express-rate-limit';
 
 const AVATARS_DIR = path.join(process.cwd(), 'public', 'uploads', 'avatars');
 const BANNERS_DIR = path.join(process.cwd(), 'public', 'uploads', 'banners');
@@ -17,6 +18,16 @@ const requireAuth = (req: any, res: any, next: any) => {
   }
   next();
 };
+
+// Limit each user to 5 profile gradient changes per minute
+const profileGradientsLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5,
+  message: {
+    error: 'Too many profile gradient update requests from this user. Please try again later.'
+  },
+  keyGenerator: (req: any) => req.session && req.session.userId ? req.session.userId : req.ip
+});
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -215,7 +226,7 @@ router.put('/users/profile', requireAuth, async (req: any, res: any) => {
   }
 });
 
-router.put('/users/profile/gradients', requireAuth, async (req: any, res: any) => {
+router.put('/users/profile/gradients', profileGradientsLimiter, requireAuth, async (req: any, res: any) => {
   try {
     const userId = req.session.userId;
     const { avatarGradient, bannerGradient, clearAvatar, clearBanner } = req.body ?? {};
