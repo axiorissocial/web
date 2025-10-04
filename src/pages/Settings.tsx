@@ -143,12 +143,12 @@ const SettingsPage: React.FC = () => {
       setGithubLoading(false);
       
       if (authStatus === 'linked') {
-        setGithubSuccess(t('settings.github.linkSuccess'));
+        setGithubSuccess(t('settings.linkedAccounts.github.linkSuccess'));
         loadGithubAccount(); // Reload to get the new account info
       } else if (authStatus === 'error') {
-        const errorKey = authMessage ? `settings.github.errors.${authMessage}` : 'settings.github.linkError';
+        const errorKey = authMessage ? `settings.linkedAccounts.github.errors.${authMessage}` : 'settings.linkedAccounts.github.linkError';
         const translated = t(errorKey);
-        setGithubError(translated === errorKey ? t('settings.github.linkError') : translated);
+        setGithubError(translated === errorKey ? t('settings.linkedAccounts.github.linkError') : translated);
       }
 
       // Clean up URL parameters
@@ -311,14 +311,14 @@ const SettingsPage: React.FC = () => {
 
       if (response.ok) {
         setGithubAccount(null);
-        setGithubSuccess(t('settings.github.unlinkSuccess'));
+        setGithubSuccess(t('settings.linkedAccounts.github.unlinkSuccess'));
       } else {
         const data = await response.json();
-        setGithubError(data.error || t('settings.github.unlinkError'));
+        setGithubError(data.error || t('settings.linkedAccounts.github.unlinkError'));
       }
     } catch (error) {
       console.error('Error unlinking GitHub:', error);
-      setGithubError(t('settings.github.unlinkError'));
+      setGithubError(t('settings.linkedAccounts.github.unlinkError'));
     } finally {
       setGithubLoading(false);
     }
@@ -924,64 +924,77 @@ const SettingsPage: React.FC = () => {
                   
                   <hr className="my-4" />
                   
-                  {/* GitHub Account Section */}
-                  <div className="github-account-section">
-                    <h6 className="mb-3">{t('settings.github.title')}</h6>
+                  {/* Linked Accounts Section */}
+                  <div className="linked-accounts-section">
+                    <h6 className="mb-3">{t('settings.linkedAccounts.title')}</h6>
+                    <p className="text-muted small mb-4">{t('settings.linkedAccounts.description')}</p>
                     
-                    {githubError && <Alert variant="danger">{githubError}</Alert>}
-                    {githubSuccess && <Alert variant="success">{githubSuccess}</Alert>}
-                    
-                    {githubAccount ? (
-                      <div className="d-flex align-items-center justify-content-between p-3 border rounded">
-                        <div className="d-flex align-items-center">
-                          <img 
-                            src={githubAccount.avatarUrl} 
-                            alt={githubAccount.username}
-                            className="rounded-circle me-3"
-                            style={{ width: '40px', height: '40px' }}
-                          />
-                          <div>
-                            <div className="fw-semibold">{githubAccount.displayName || githubAccount.username}</div>
-                            <div className="text-muted small">@{githubAccount.username}</div>
+                    {/* GitHub Account */}
+                    <fieldset className="border rounded p-3 mb-3">
+                      <legend className="fw-semibold h6 px-2">{t('settings.linkedAccounts.github.title')}</legend>
+                      
+                      {githubError && <Alert variant="danger">{githubError}</Alert>}
+                      {githubSuccess && <Alert variant="success">{githubSuccess}</Alert>}
+                      
+                      {githubAccount ? (
+                        <div className="d-flex align-items-center justify-content-between">
+                          <div className="d-flex align-items-center">
+                            <img 
+                              src={githubAccount.avatarUrl} 
+                              alt={githubAccount.username}
+                              className="rounded-circle me-3"
+                              style={{ width: '40px', height: '40px' }}
+                            />
+                            <div>
+                              <div className="fw-semibold">{githubAccount.displayName || githubAccount.username}</div>
+                              <div className="text-muted small">@{githubAccount.username}</div>
+                            </div>
                           </div>
+                          <Button 
+                            variant="outline-danger" 
+                            size="sm"
+                            onClick={handleGithubUnlink}
+                            disabled={githubLoading}
+                          >
+                            {githubLoading ? (
+                              <>
+                                <Spinner size="sm" className="me-2" />
+                                {t('settings.linkedAccounts.github.unlinking')}
+                              </>
+                            ) : (
+                              t('settings.linkedAccounts.github.unlink')
+                            )}
+                          </Button>
                         </div>
-                        <Button 
-                          variant="outline-danger" 
-                          size="sm"
-                          onClick={handleGithubUnlink}
-                          disabled={githubLoading}
-                        >
-                          {githubLoading ? (
-                            <>
-                              <Spinner size="sm" className="me-2" />
-                              {t('settings.github.unlinking')}
-                            </>
-                          ) : (
-                            t('settings.github.unlink')
-                          )}
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="d-flex align-items-center justify-content-between p-3 border rounded">
-                        <div>
-                          <div className="fw-semibold">{t('settings.github.notLinked')}</div>
-                          <div className="text-muted small">{t('settings.github.linkDescription')}</div>
+                      ) : (
+                        <div className="d-flex align-items-center justify-content-between">
+                          <div>
+                            <div className="fw-semibold">{t('settings.linkedAccounts.github.notLinked')}</div>
+                            <div className="text-muted small">{t('settings.linkedAccounts.github.linkDescription')}</div>
+                          </div>
+                          <Button 
+                            variant="outline-primary" 
+                            size="sm"
+                            onClick={handleGithubLink}
+                            disabled={githubLoading}
+                          >
+                            {githubLoading ? (
+                              <>
+                                <Spinner size="sm" className="me-2" />
+                                {t('settings.linkedAccounts.github.linking')}
+                              </>
+                            ) : (
+                              t('settings.linkedAccounts.github.link')
+                            )}
+                          </Button>
                         </div>
-                        <Button 
-                          variant="outline-primary" 
-                          size="sm"
-                          onClick={handleGithubLink}
-                          disabled={githubLoading}
-                        >
-                          {githubLoading ? (
-                            <>
-                              <Spinner size="sm" className="me-2" />
-                              {t('settings.github.linking')}
-                            </>
-                          ) : (
-                            t('settings.github.link')
-                          )}
-                        </Button>
+                      )}
+                    </fieldset>
+                    
+                    {/* Future services can be added here */}
+                    {!githubAccount && (
+                      <div className="text-muted small text-center py-3">
+                        {t('settings.linkedAccounts.noAccountsLinked')}
                       </div>
                     )}
                   </div>
