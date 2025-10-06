@@ -25,7 +25,6 @@ const UsernameConflictModal: React.FC<UsernameConflictModalProps> = ({
   const [validationError, setValidationError] = useState('');
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
 
-  // Reset state when modal opens
   useEffect(() => {
     if (show) {
       setUsername(originalUsername || '');
@@ -34,7 +33,6 @@ const UsernameConflictModal: React.FC<UsernameConflictModalProps> = ({
     }
   }, [show, originalUsername]);
 
-  // Debounced username validation
   useEffect(() => {
     if (!username || username.length < 2) {
       setIsAvailable(null);

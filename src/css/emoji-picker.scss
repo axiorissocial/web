@@ -10,16 +10,15 @@
   overflow: hidden;
 }
 
-// Specific positioning for CreatePost page
 .emoji-picker-container-createpost {
   position: relative;
   width: 100%;
   
   .emoji-picker-wrapper {
     position: absolute;
-    top: 8px; // Small spacing below the button
+    top: 8px;
     left: 0;
-    bottom: auto; // Override the default bottom positioning
+    bottom: auto;
     z-index: 2000;
   }
 }

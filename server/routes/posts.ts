@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import fsExtra, { ensureDir } from 'fs-extra';
 import { prisma } from '../index.js';
+import { addUrl, removeUrl } from '../utils/sitemapCache.js';
 import { requireAuth, optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { createNotification, createMentionNotifications } from './notifications.js';
 import { VideoProcessor } from '../utils/videoProcessor.js';
@@ -365,6 +366,26 @@ const getTrendingHashtags = async (options: { since: Date; limit: number; countr
       count: current.count + 1,
       lastUsed,
     });
+
+    try {
+      const base = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+      addUrl({ loc: `${base}/post/${encodeURIComponent(updatedPost.id)}`, lastmod: updatedPost.updatedAt?.toISOString() ?? new Date().toISOString(), changefreq: 'weekly', priority: '0.8' });
+      if (updatedPost.slug) {
+        addUrl({ loc: `${base}/post/${encodeURIComponent(updatedPost.slug)}`, lastmod: updatedPost.updatedAt?.toISOString() ?? new Date().toISOString(), changefreq: 'weekly', priority: '0.8' });
+      }
+    } catch (err) {
+      console.error('Failed to update sitemap cache after post update:', err);
+    }
+
+    try {
+      const base = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+      addUrl({ loc: `${base}/post/${encodeURIComponent(post.id)}`, lastmod: post.updatedAt?.toISOString() ?? post.createdAt.toISOString(), changefreq: 'weekly', priority: '0.8' });
+      if (post.slug) {
+        addUrl({ loc: `${base}/post/${encodeURIComponent(post.slug)}`, lastmod: post.updatedAt?.toISOString() ?? post.createdAt.toISOString(), changefreq: 'weekly', priority: '0.8' });
+      }
+    } catch (err) {
+      console.error('Failed to update sitemap cache after post create:', err);
+    }
   }
 
   const hashtagIds = Array.from(aggregates.keys());
@@ -1410,6 +1431,16 @@ router.delete('/posts/:id', requireAuth, async (req: AuthenticatedRequest, res: 
     await prisma.post.delete({
       where: { id: postId }
     });
+
+    try {
+      const base = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+      removeUrl(`${base}/post/${encodeURIComponent(postId)}`);
+      if (existingPost.slug) {
+        removeUrl(`${base}/post/${encodeURIComponent(existingPost.slug)}`);
+      }
+    } catch (err) {
+      console.error('Failed to update sitemap cache after post delete:', err);
+    }
 
     res.json({ message: 'Post deleted successfully' });
 

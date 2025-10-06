@@ -99,7 +99,6 @@ const SettingsPage: React.FC = () => {
   const [availableLanguages, setAvailableLanguages] = useState<string[]>([]);
   const [language, setLanguage] = useState(() => (i18n.resolvedLanguage ?? i18n.language ?? 'en').split('-')[0]);
   
-  // GitHub account linking state
   const [githubAccount, setGithubAccount] = useState<{
     id: string;
     username: string;
@@ -113,7 +112,7 @@ const SettingsPage: React.FC = () => {
   const [languageLoading, setLanguageLoading] = useState(false);
   const [languageSuccess, setLanguageSuccess] = useState('');
   const [languageError, setLanguageError] = useState('');
-  const [hasSetPassword, setHasSetPassword] = useState(true); // Track if user has set their own password
+  const [hasSetPassword, setHasSetPassword] = useState(true);
   
   const [activeTab, setActiveTab] = useState('account');
   const usernameInitial = user?.username?.charAt(0)?.toUpperCase() ?? '?';
@@ -133,7 +132,6 @@ const SettingsPage: React.FC = () => {
     }
   }, [user]);
 
-  // Handle OAuth redirect status
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const authStatus = urlParams.get('authStatus');
@@ -145,14 +143,13 @@ const SettingsPage: React.FC = () => {
       
       if (authStatus === 'linked') {
         setGithubSuccess(t('settings.linkedAccounts.github.linkSuccess'));
-        loadGithubAccount(); // Reload to get the new account info
+        loadGithubAccount();
       } else if (authStatus === 'error') {
         const errorKey = authMessage ? `settings.linkedAccounts.github.errors.${authMessage}` : 'settings.linkedAccounts.github.linkError';
         const translated = t(errorKey);
         setGithubError(translated === errorKey ? t('settings.linkedAccounts.github.linkError') : translated);
       }
 
-      // Clean up URL parameters
       urlParams.delete('authStatus');
       urlParams.delete('authProvider');
       if (authMessage) {
@@ -438,8 +435,6 @@ const SettingsPage: React.FC = () => {
         return;
       }
       
-      // For OAuth users who haven't set password yet, current password is not required
-      // For all other users (regular users or OAuth users who have set password), current password is required
       const needsCurrentPassword = !githubAccount || hasSetPassword;
       if (needsCurrentPassword && !accountData.currentPassword) {
         setAccountError(t('settings.account.validation.currentPasswordRequired'));
@@ -472,7 +467,6 @@ const SettingsPage: React.FC = () => {
           confirmPassword: ''
         }));
         
-        // Reload user data to update hasSetPassword status
         loadUserData();
       } else {
         const error = await response.json();
@@ -949,12 +943,10 @@ const SettingsPage: React.FC = () => {
                   
                   <hr className="my-4" />
                   
-                  {/* Linked Accounts Section */}
                   <div className="linked-accounts-section">
                     <h6 className="mb-3">{t('settings.linkedAccounts.title')}</h6>
                     <p className="text-muted small mb-4">{t('settings.linkedAccounts.description')}</p>
                     
-                    {/* GitHub Account */}
                     <fieldset className="border rounded p-3 mb-3">
                       <legend className="fw-semibold h6 px-2">{t('settings.linkedAccounts.github.title')}</legend>
                       
@@ -1016,7 +1008,6 @@ const SettingsPage: React.FC = () => {
                       )}
                     </fieldset>
                     
-                    {/* Future services can be added here */}
                     {!githubAccount && (
                       <div className="text-muted small text-center py-3">
                         {t('settings.linkedAccounts.noAccountsLinked')}

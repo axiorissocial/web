@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '../index.js';
+import { addUrl, removeUrl } from '../utils/sitemapCache.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth.js';
 
 const router = Router();
@@ -86,6 +87,13 @@ router.patch('/admin/user/:id/ban', requireAuth, async (req: AuthenticatedReques
     if (!target) return res.status(404).json({ error: 'User not found' });
 
     const updated = await prisma.user.update({ where: { id }, data: { isPrivate: true } });
+    try {
+      const base = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+      removeUrl(`${base}/profile/${encodeURIComponent(updated.username)}`);
+      removeUrl(`${base}/profile/@${encodeURIComponent(updated.username)}`);
+    } catch (err) {
+      console.error('Failed to update sitemap cache after banning user:', err);
+    }
     res.json({ message: 'User banned (marked private)', user: { id: updated.id, username: updated.username } });
   } catch (error) {
     console.error('Error banning user:', error);
@@ -103,6 +111,13 @@ router.patch('/admin/user/:id/unban', requireAuth, async (req: AuthenticatedRequ
     if (!target) return res.status(404).json({ error: 'User not found' });
 
     const updated = await prisma.user.update({ where: { id }, data: { isPrivate: false } });
+    try {
+      const base = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+      addUrl({ loc: `${base}/profile/${encodeURIComponent(updated.username)}`, lastmod: updated.createdAt?.toISOString() ?? new Date().toISOString(), changefreq: 'weekly', priority: '0.6' });
+      addUrl({ loc: `${base}/profile/@${encodeURIComponent(updated.username)}`, lastmod: updated.createdAt?.toISOString() ?? new Date().toISOString(), changefreq: 'weekly', priority: '0.6' });
+    } catch (err) {
+      console.error('Failed to update sitemap cache after unbanning user:', err);
+    }
     res.json({ message: 'User unbanned', user: { id: updated.id, username: updated.username } });
   } catch (error) {
     console.error('Error unbanning user:', error);
@@ -142,7 +157,14 @@ router.delete('/admin/user/:id', requireAuth, async (req: AuthenticatedRequest, 
       console.error('Failed to cleanup post media for user:', err);
     }
 
-    await prisma.user.delete({ where: { id } });
+    const deletedUser = await prisma.user.delete({ where: { id } });
+    try {
+      const base = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+      removeUrl(`${base}/profile/${encodeURIComponent(deletedUser.username)}`);
+      removeUrl(`${base}/profile/@${encodeURIComponent(deletedUser.username)}`);
+    } catch (err) {
+      console.error('Failed to update sitemap cache after deleting user:', err);
+    }
 
     res.json({ message: 'User deleted' });
   } catch (error) {

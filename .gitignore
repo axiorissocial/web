@@ -29,3 +29,4 @@ prisma/dev.db
 public/uploads
 sessions/
 temp/
+server/cache

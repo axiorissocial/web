@@ -7,6 +7,7 @@ import lusca from 'lusca';
 import http from 'http';
 import { PrismaClient } from '../src/generated/prisma/index.js';
 import authRoutes from './routes/auth.js';
+import sitemapRoutes from './routes/sitemap.js';
 import postRoutes from './routes/posts.js';
 import accountRoutes from './routes/account.js';
 import profileRoutes from './routes/profiles.js';
@@ -17,6 +18,7 @@ import adminRoutes from './routes/admin.js';
 import dotenv from 'dotenv';
 import { initRealtime } from './realtime.js';
 import { i18next, i18nextMiddleware, getAvailableLanguages } from './i18n.js';
+import { initSitemapCache } from './utils/sitemapCache.js';
 
 dotenv.config();
 
@@ -45,7 +47,7 @@ const sessionMiddleware = session({
 app.set('trust proxy', 1);
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: process.env.FRONTEND_URL || 'http://192.168.1.185:5173',
   credentials: true
 }));
 
@@ -72,7 +74,6 @@ app.get('/api/csrf-token', (req: Request, res: Response) => {
 
 app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')));
 
-// Serve twemoji SVG assets from node_modules
 app.use('/node_modules/@twemoji/svg', express.static(path.join(process.cwd(), 'node_modules', '@twemoji', 'svg')));
 
 app.use('/api', authRoutes);
@@ -83,6 +84,8 @@ app.use('/api', messageRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api', reportRoutes);
 app.use('/api', adminRoutes);
+
+app.use('/', sitemapRoutes);
 
 app.get('/api/i18n/languages', (req: Request, res: Response) => {
   res.json({ languages: getAvailableLanguages() });
@@ -100,6 +103,9 @@ process.on('SIGINT', async () => {
 const server = http.createServer(app);
 
 initRealtime(server, sessionMiddleware as any);
+
+initSitemapCache([{ loc: (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '') + '/', changefreq: 'daily', priority: '1.0' }])
+  .catch(err => console.error('Failed to initialize sitemap cache:', err));
 
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

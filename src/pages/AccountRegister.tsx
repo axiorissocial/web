@@ -89,10 +89,8 @@ const RegisterPage: React.FC = () => {
       const data = await response.json();
       setShowUsernameModal(false);
       
-      // Check auth to update user state
       await checkAuth();
       
-      // Navigate to the return URL or home
       navigate(data.returnTo || '/', { replace: true });
     } catch (error) {
       console.error('Username submission error:', error);

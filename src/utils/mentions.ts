@@ -20,15 +20,13 @@ export const extractMentions = (content: string): string[] => {
   return mentions;
 };
 
-// Cache for user validation to avoid repeated API calls
 const userValidationCache = new Map<string, { isValid: boolean; timestamp: number }>();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 5 * 60 * 1000;
 
 export const validateUser = async (username: string): Promise<boolean> => {
   const cacheKey = username.toLowerCase();
   const cached = userValidationCache.get(cacheKey);
   
-  // Check cache first
   if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
     return cached.isValid;
   }
@@ -41,22 +39,18 @@ export const validateUser = async (username: string): Promise<boolean> => {
     if (response.ok) {
       const data = await response.json();
       const users = data.users || [];
-      // Check for exact username match (case-insensitive)
       const isValid = users.some((user: { username: string }) => 
         user.username.toLowerCase() === username.toLowerCase()
       );
       
-      // Cache the result
       userValidationCache.set(cacheKey, { isValid, timestamp: Date.now() });
       return isValid;
     }
     
-    // Cache negative result too
     userValidationCache.set(cacheKey, { isValid: false, timestamp: Date.now() });
     return false;
   } catch (error) {
     console.error('Error validating user:', error);
-    // Don't cache errors
     return false;
   }
 };
@@ -70,7 +64,6 @@ export const processMentions = async (content: string): Promise<string> => {
   const mentions: { match: string; prefix: string; username: string; startIndex: number; endIndex: number; }[] = [];
   let match;
 
-  // Extract all mentions first with their positions
   while ((match = mentionRegex.exec(content)) !== null) {
     mentions.push({
       match: match[0],
@@ -85,7 +78,6 @@ export const processMentions = async (content: string): Promise<string> => {
     return content;
   }
 
-  // Validate all mentions
   const validationPromises = mentions.map(async (mention) => {
     const isValid = await validateUser(mention.username);
     return { ...mention, isValid };
@@ -93,10 +85,8 @@ export const processMentions = async (content: string): Promise<string> => {
 
   const validatedMentions = await Promise.all(validationPromises);
 
-  // Sort by position (descending) to replace from end to start to preserve indices
   validatedMentions.sort((a, b) => b.startIndex - a.startIndex);
 
-  // Replace mentions with validated results
   let processed = content;
   for (const mention of validatedMentions) {
     if (mention.isValid) {
@@ -104,18 +94,15 @@ export const processMentions = async (content: string): Promise<string> => {
       const mentionLink = `<a href="/profile/${escapedUsername}" class="mention-link" data-username="${escapedUsername}">@${escapedUsername}</a>`;
       const replacement = `${mention.prefix}${mentionLink}`;
       
-      // Replace by position for accuracy
       processed = processed.slice(0, mention.startIndex) + 
                  replacement + 
                  processed.slice(mention.endIndex);
     }
-    // If not valid, leave as plain text (no replacement)
   }
 
   return processed;
 };
 
-// Synchronous version for backwards compatibility where validation isn't needed
 export const processMentionsSync = (content: string): string => {
   if (!content || typeof content !== 'string') {
     return content;

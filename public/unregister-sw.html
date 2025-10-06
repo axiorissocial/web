@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Unregister Service Workers</title>
+  </head>
+  <body>
+    <h1>Unregister Service Workers</h1>
+    <p>Open this page and click the button to unregister all service workers for this origin.</p>
+    <button id="btn">Unregister SWs</button>
+    <pre id="out"></pre>
+    <script>
+      document.getElementById('btn').addEventListener('click', async () => {
+        if (!('serviceWorker' in navigator)) {
+          document.getElementById('out').textContent = 'Service workers not supported';
+          return;
+        }
+        const regs = await navigator.serviceWorker.getRegistrations();
+        let out = '';
+        for (const r of regs) {
+          const ok = await r.unregister();
+          out += `unregistered: ${ok} scope=${r.scope}\n`;
+        }
+        document.getElementById('out').textContent = out || 'no registrations found';
+      });
+    </script>
+  </body>
+</html>

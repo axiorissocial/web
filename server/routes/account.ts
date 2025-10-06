@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 const AVATARS_DIR = path.join(process.cwd(), 'public', 'uploads', 'avatars');
 const BANNERS_DIR = path.join(process.cwd(), 'public', 'uploads', 'banners');
 import { PrismaClient } from '../../src/generated/prisma/index.js';
+import { addUrl, removeUrl } from '../utils/sitemapCache.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -189,6 +190,18 @@ router.put('/account/update', requireAuth, async (req: any, res: any) => {
         createdAt: true
       }
     });
+
+    try {
+      const base = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+      if (currentUser.username && currentUser.username !== updatedUser.username) {
+        removeUrl(`${base}/profile/${encodeURIComponent(currentUser.username)}`);
+        removeUrl(`${base}/profile/@${encodeURIComponent(currentUser.username)}`);
+      }
+      addUrl({ loc: `${base}/profile/${encodeURIComponent(updatedUser.username)}`, lastmod: updatedUser.createdAt?.toISOString() ?? new Date().toISOString(), changefreq: 'weekly', priority: '0.6' });
+      addUrl({ loc: `${base}/profile/@${encodeURIComponent(updatedUser.username)}`, lastmod: updatedUser.createdAt?.toISOString() ?? new Date().toISOString(), changefreq: 'weekly', priority: '0.6' });
+    } catch (err) {
+      console.error('Failed to update sitemap cache after account update:', err);
+    }
 
     res.json({
       message: 'Account updated successfully',
@@ -550,9 +563,19 @@ router.delete('/account/delete', requireAuth, async (req: any, res: any) => {
       }
     }
 
-    await prisma.user.delete({
+    const deleted = await prisma.user.delete({
       where: { id: userId }
     });
+
+    try {
+      const base = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+      const uname = deleted.username;
+      const { removeUrl } = await import('../utils/sitemapCache.js');
+      removeUrl(`${base}/profile/${encodeURIComponent(uname)}`);
+      removeUrl(`${base}/profile/@${encodeURIComponent(uname)}`);
+    } catch (err) {
+      console.error('Failed to update sitemap cache after account deletion:', err);
+    }
 
     console.log(`Successfully deleted user account: ${userId}`);
 

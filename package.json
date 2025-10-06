@@ -9,7 +9,8 @@
     "dev:client": "vite",
     "dev:host": "vite --host",
     "server": "cross-env TSX_TSCONFIG_PATH=server/tsconfig.json TSX_TSCONFIG_PATHS=true tsx watch server/index.ts",
-    "build": "vite build",
+  "build": "vite build",
+    "sitemap:rebuild": "node ./scripts/rebuild-sitemap.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },

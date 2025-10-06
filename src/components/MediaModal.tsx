@@ -92,9 +92,7 @@ const MediaModal: React.FC<MediaModalProps> = ({ show, onHide, media, initialInd
           if (data?.error && typeof data.error === 'string') {
             message = data.error;
           }
-        } catch {
-          // Ignore JSON parsing errors
-        }
+        } catch {}
         throw new Error(message ?? 'mediaModal.errors.downloadFailed');
       }
 

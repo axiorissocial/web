@@ -8,7 +8,7 @@
    version="1.1"
    id="svg1"
    inkscape:version="1.4 (86a8ad7, 2024-10-11)"
-   sodipodi:docname="logo.svg"
+   sodipodi:docname="hubble.svg"
    inkscape:export-filename="hubble-192.png"
    inkscape:export-xdpi="128.86838"
    inkscape:export-ydpi="128.86838"
@@ -35,7 +35,7 @@
      inkscape:window-x="-8"
      inkscape:window-y="-8"
      inkscape:window-maximized="1"
-     inkscape:current-layer="g1" />
+     inkscape:current-layer="layer1" />
   <defs
      id="defs1">
     <linearGradient
@@ -129,7 +129,7 @@
          height="37.843262"
          x="57.053753"
          y="106.94384"
-         ry="7.5686522" />
+         ry="0.72431934" />
       <g
          id="g10"
          transform="translate(-2.1005636,-3.7444534)">

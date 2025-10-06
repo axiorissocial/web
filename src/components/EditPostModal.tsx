@@ -97,8 +97,6 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
   };
 
   const handleClose = () => {
-    // Only reset form when user explicitly cancels/closes
-    // Don't reset during tab switching or refocus
     setError('');
     setActiveTab('write');
     setEmojiOpen(false);
@@ -106,7 +104,6 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
   };
 
   const handleCancel = () => {
-    // Reset form to original values when cancelling
     setContent(post.content);
     setTitle(post.title || '');
     setUploadedMedia(post.media || []);

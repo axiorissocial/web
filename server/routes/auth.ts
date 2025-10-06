@@ -7,7 +7,7 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://192.168.1.185:5173';
 const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || '';
 const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || '';
 const GITHUB_SCOPE = 'read:user user:email';
@@ -19,7 +19,7 @@ const buildGithubCallbackUrl = (req: Request): string => {
   }
 
   const proto = (req.get('x-forwarded-proto') || req.protocol || 'http').split(',')[0];
-  const host = req.get('x-forwarded-host') || req.get('host') || 'localhost';
+  const host = req.get('x-forwarded-host') || req.get('host') || '192.168.1.185';
   return `${proto}://${host}/api/auth/github/callback`;
 };
 
@@ -582,7 +582,7 @@ router.post('/register', async (req: Request, res: Response) => {
         },
         settings: {
           create: {
-            language: 'en', // Explicitly set English as default
+            language: 'en',
             theme: 'dark'
           }
         }
@@ -832,7 +832,7 @@ router.post('/complete-github-signup', async (req: Request, res: Response) => {
           },
           settings: {
             create: {
-              language: 'en', // Explicitly set English as default
+              language: 'en',
               theme: 'dark'
             }
           }
@@ -863,10 +863,8 @@ router.post('/complete-github-signup', async (req: Request, res: Response) => {
       return newUser;
     });
 
-    // Set user session
     setSessionUser(req, result);
     
-    // Clear the temporary GitHub signup data
     delete (req.session as any).githubSignupData;
     
     await new Promise((resolve, reject) => req.session.save(err => err ? reject(err) : resolve(null)));
@@ -883,7 +881,6 @@ router.post('/complete-github-signup', async (req: Request, res: Response) => {
   }
 });
 
-// Unlink OAuth account
 router.post('/oauth/unlink', async (req: Request, res: Response) => {
   try {
     const userId = (req.session as any)?.userId;
@@ -896,7 +893,6 @@ router.post('/oauth/unlink', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Provider is required' });
     }
 
-    // Check if the account exists
     const oauthAccount = await prisma.oAuthAccount.findFirst({
       where: {
         userId,
@@ -908,7 +904,6 @@ router.post('/oauth/unlink', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'OAuth account not found' });
     }
 
-    // Delete the OAuth account
     await prisma.oAuthAccount.delete({
       where: {
         id: oauthAccount.id

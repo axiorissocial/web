@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -18,9 +17,20 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://192.168.1.185:3001',
         changeOrigin: true,
       },
+      '/sitemap.xml': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+    watch: {
+      ignored: [],
+      usePolling: true,
+      interval: 100,
     },
   },
 })
+

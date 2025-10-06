@@ -454,7 +454,6 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
           </Button>
         </div>
         <div className="create-post-body p-3" style={{ height: 'calc(100vh - 80px)', overflowY: 'auto' }}>
-          {/* Upload Progress Indicators - prominent for mobile */}
           {uploadProgress.length > 0 && (
             <div className="mb-3">
               <h6>{t('createPost.upload.heading')}</h6>

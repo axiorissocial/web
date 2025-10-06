@@ -57,7 +57,6 @@ const TrendingHashtags: React.FC = () => {
 
   useEffect(() => {
     fetchTrending();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const resolvedRegionLabel = useMemo(() => {

@@ -315,7 +315,7 @@ router.get('/me/settings', requireAuth, async (req: any, res: Response) => {
   try {
     const currentUserId = req.session.userId;
     const availableLanguages = getAvailableLanguages();
-    const defaultLanguage = 'en'; // Always default to English
+    const defaultLanguage = 'en';
     
     const userSettings = await prisma.userSettings.findUnique({
       where: { userId: currentUserId }

@@ -100,7 +100,6 @@ const HashtagPage: React.FC = () => {
   useEffect(() => {
     document.title = t('hashtags.page.documentTitle', { tag: `#${decodedTag}`, app: t('app.name') });
     fetchPosts(1, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [decodedTag]);
 
   const handleLoadMore = () => {
