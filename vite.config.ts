@@ -15,6 +15,12 @@ export default defineConfig({
     },
   },
   server: {
+    host: true,
+    hmr: {
+      protocol: process.env.VITE_HMR_PROTOCOL || (process.env.CLOUDFLARE_TUNNEL ? 'wss' : 'ws'),
+      host: process.env.VITE_HMR_HOST || process.env.PUBLIC_HOST || 'localhost',
+      port: Number(process.env.VITE_HMR_PORT || process.env.PUBLIC_PORT || (process.env.VITE_HMR_PROTOCOL === 'wss' || process.env.CLOUDFLARE_TUNNEL ? 443 : 5173))
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:3001',
