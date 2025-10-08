@@ -41,11 +41,14 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    setContent(post.content);
-    setTitle(post.title || '');
-    setUploadedMedia(post.media || []);
-    setCharCount(post.content.length);
-  }, [post]);
+    // Only reset the form state when the modal is opened
+    if (show) {
+      setContent(post.content);
+      setTitle(post.title || '');
+      setUploadedMedia(post.media || []);
+      setCharCount(post.content.length);
+    }
+  }, [show, post.content, post.title, post.media]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
