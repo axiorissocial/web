@@ -51,6 +51,16 @@ export const initRealtime = (server: Server, sessionMiddleware: SessionMiddlewar
     }
 
     sessionParser?.(request, {} as any, (err) => {
+      if (process.env.NODE_ENV !== 'production') {
+        try {
+          console.debug('[realtime] upgrade request headers:', {
+            cookie: request.headers.cookie,
+            url: request.url,
+            remoteAddress: (request.socket && (request.socket as any).remoteAddress) || null
+          });
+        } catch (e) {}
+      }
+
       if (err) {
         socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
         socket.destroy();
@@ -58,9 +68,17 @@ export const initRealtime = (server: Server, sessionMiddleware: SessionMiddlewar
       }
 
       const sessionRequest = request as SessionRequest;
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[realtime] parsed session on upgrade:', sessionRequest.session);
+      }
+
       const userId = sessionRequest.session?.userId;
 
       if (!userId) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('[realtime] websocket upgrade rejected: no userId in session');
+        }
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
         socket.destroy();
         return;
@@ -98,6 +116,10 @@ const bindSocket = (ws: WebSocket, userId: string) => {
   ws.on('close', cleanupSocket);
   ws.on('error', cleanupSocket);
 
+  if (process.env.NODE_ENV !== 'production') {
+    console.debug('[realtime] socket bound for user', userId, 'totalSocketsForUser=', sockets.size, 'remote=', ((ws as any)._socket && (ws as any)._socket.remoteAddress) || null);
+  }
+
   safeSend(ws, { event: 'connection:ack' });
   safeSend(ws, {
     event: 'presence:state',
@@ -124,6 +146,10 @@ export const broadcastToUsers = (userIds: string[], payload: RealtimeEventPayloa
 
   const message = JSON.stringify(payload);
 
+  if (process.env.NODE_ENV !== 'production') {
+    console.debug('[realtime] broadcastToUsers event=', payload.event, 'targets=', userIds);
+  }
+
   for (const userId of userIds) {
     const sockets = userSockets.get(userId);
     if (!sockets) continue;
@@ -134,6 +160,10 @@ export const broadcastToUsers = (userIds: string[], payload: RealtimeEventPayloa
       }
     }
   }
+};
+
+export const getRealtimeStats = () => {
+  return Array.from(userSockets.entries()).map(([userId, sockets]) => ({ userId, count: sockets.size }));
 };
 
 export const hasRealtime = () => Boolean(wss);

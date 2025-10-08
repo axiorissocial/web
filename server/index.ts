@@ -17,6 +17,7 @@ import reportRoutes from './routes/reports.js';
 import adminRoutes from './routes/admin.js';
 import dotenv from 'dotenv';
 import { initRealtime } from './realtime.js';
+import { getRealtimeStats } from './realtime.js';
 import { i18next, i18nextMiddleware, getAvailableLanguages } from './i18n.js';
 import { initSitemapCache } from './utils/sitemapCache.js';
 
@@ -90,6 +91,17 @@ app.use('/', sitemapRoutes);
 app.get('/api/i18n/languages', (req: Request, res: Response) => {
   res.json({ languages: getAvailableLanguages() });
 });
+
+if (process.env.NODE_ENV !== 'production') {
+  app.get('/api/debug/realtime', (req: Request, res: Response) => {
+    try {
+      const stats = getRealtimeStats();
+      res.json({ stats });
+    } catch (err) {
+      res.status(500).json({ error: 'Unable to fetch realtime stats' });
+    }
+  });
+}
 
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', message: req.t('backend.health') });

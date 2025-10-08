@@ -455,6 +455,10 @@ router.post('/conversations/:conversationId/messages', requireAuth, async (req: 
           data: { count: unreadNotifications }
         });
 
+            if (process.env.NODE_ENV !== 'production') {
+              console.debug('[messages] broadcast notification:count to', participant.userId, 'count=', unreadNotifications);
+            }
+
         broadcastToUsers([participant.userId], {
           event: 'message:new',
           data: {
@@ -463,6 +467,10 @@ router.post('/conversations/:conversationId/messages', requireAuth, async (req: 
             unreadMessages
           }
         });
+
+            if (process.env.NODE_ENV !== 'production') {
+              console.debug('[messages] broadcast message:new to', participant.userId, 'conversation=', conversationId);
+            }
       })
     );
 
@@ -473,6 +481,10 @@ router.post('/conversations/:conversationId/messages', requireAuth, async (req: 
         message: safeMessage
       }
     });
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[messages] broadcast message:sent to sender', userId, 'conversation=', conversationId);
+    }
 
     res.status(201).json(safeMessage);
   } catch (error) {
