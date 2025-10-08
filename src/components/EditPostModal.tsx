@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Modal, Button, Form, Tab, Tabs, Spinner, Alert } from 'react-bootstrap';
 import { TypeBold, TypeItalic, TypeStrikethrough, EmojiSmile, Image, X } from 'react-bootstrap-icons';
 import { marked } from 'marked';
@@ -40,12 +40,19 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
   const [uploadedMedia, setUploadedMedia] = useState<MediaFile[]>(post.media || []);
   const [uploading, setUploading] = useState(false);
 
+  // Track the previous show state to detect when modal opens
+  const prevShowRef = useRef(show);
+  
   useEffect(() => {
-    setContent(post.content);
-    setTitle(post.title || '');
-    setUploadedMedia(post.media || []);
-    setCharCount(post.content.length);
-  }, [post]);
+    // Only reset the form state when the modal transitions from hidden to visible
+    if (show && !prevShowRef.current) {
+      setContent(post.content);
+      setTitle(post.title || '');
+      setUploadedMedia(post.media || []);
+      setCharCount(post.content.length);
+    }
+    prevShowRef.current = show;
+  }, [show, post.content, post.title, post.media]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
