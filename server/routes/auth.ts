@@ -14,13 +14,22 @@ const GITHUB_SCOPE = 'read:user user:email';
 const GITHUB_USER_AGENT = process.env.GITHUB_USER_AGENT || 'HubbleApp';
 
 const buildGithubCallbackUrl = (req: Request): string => {
+  // Prefer an explicit environment override (recommended for production)
   if (process.env.GITHUB_CALLBACK_URL) {
     return process.env.GITHUB_CALLBACK_URL;
   }
 
+  // Next prefer the configured FRONTEND_URL so the callback is deterministic
+  if (process.env.FRONTEND_URL) {
+    return `${process.env.FRONTEND_URL.replace(/\/$/, '')}/api/auth/github/callback`;
+  }
+
+  // Last resort: derive from the incoming request (useful for local dev)
   const proto = (req.get('x-forwarded-proto') || req.protocol || 'http').split(',')[0];
   const host = req.get('x-forwarded-host') || req.get('host') || 'localhost';
-  return `${proto}://${host}/api/auth/github/callback`;
+  const derived = `${proto}://${host}/api/auth/github/callback`;
+  console.warn('Derived GitHub callback URL from request:', derived, '— consider setting GITHUB_CALLBACK_URL or FRONTEND_URL in production');
+  return derived;
 };
 
 const ensureGithubConfigured = () => Boolean(GITHUB_CLIENT_ID && GITHUB_CLIENT_SECRET);
