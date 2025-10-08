@@ -17,7 +17,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://192.168.1.185:3001',
+        target: 'http://localhost:3001',
         changeOrigin: true,
       },
       '/sitemap.xml': {
