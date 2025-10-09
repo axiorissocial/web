@@ -21,6 +21,7 @@ export default defineConfig({
       host: process.env.VITE_HMR_HOST || process.env.PUBLIC_HOST || 'localhost',
       port: Number(process.env.VITE_HMR_PORT || process.env.PUBLIC_PORT || (process.env.VITE_HMR_PROTOCOL === 'wss' || process.env.CLOUDFLARE_TUNNEL ? 443 : 5173))
     },
+    allowedHosts: ['axioris.omgrod.me'],
     proxy: {
       '/api': {
         target: 'http://localhost:3001',
