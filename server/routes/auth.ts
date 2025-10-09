@@ -2,8 +2,6 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { prisma } from '../index.js';
-import { sendEmail } from '../utils/mailer.js';
-import rateLimit from 'express-rate-limit';
 import { getRandomGradientId } from '@shared/profileGradients';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -13,7 +11,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || '';
 const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || '';
 const GITHUB_SCOPE = 'read:user user:email';
-const GITHUB_USER_AGENT = process.env.GITHUB_USER_AGENT || 'AxiorisApp';
+const GITHUB_USER_AGENT = process.env.GITHUB_USER_AGENT || 'HubbleApp';
 
 const buildGithubCallbackUrl = (req: Request): string => {
   // Prefer an explicit environment override (recommended for production)
@@ -37,13 +35,6 @@ const buildGithubCallbackUrl = (req: Request): string => {
 const ensureGithubConfigured = () => Boolean(GITHUB_CLIENT_ID && GITHUB_CLIENT_SECRET);
 
 const randomToken = (bytes = 32) => crypto.randomBytes(bytes).toString('hex');
-
-const shortLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
 
 const allowedReturnPath = (value?: string | null) => {
   if (!value) {
@@ -382,9 +373,7 @@ router.get('/auth/github/callback', async (req: Request, res: Response) => {
     }
 
     if (!targetUser) {
-  // Derive a safe base username from GitHub profile (allow only letters, numbers, periods)
-  const rawBase = profile.login ?? profile.name ?? `github${profile.id}`;
-  const baseUsername = (rawBase || '').toString().toLowerCase().replace(/[^a-z0-9.]/g, '') || `github${profile.id}`;
+      const baseUsername = profile.login ?? profile.name ?? `github${profile.id}`;
       
       const existingUserWithUsername = await prisma.user.findUnique({
         where: { username: baseUsername },
@@ -580,12 +569,6 @@ router.post('/register', async (req: Request, res: Response) => {
       });
     }
 
-    // Prevent profane usernames (strict check for identity fields)
-    const { containsProfanityStrict } = await import('../utils/profanityFilter.js');
-    if (containsProfanityStrict(name)) {
-      return res.status(400).json({ message: 'Username contains disallowed language' });
-    }
-
     const hashedPassword = await bcrypt.hash(password, 12);
 
     const avatarGradient = getRandomGradientId();
@@ -649,153 +632,9 @@ router.post('/register', async (req: Request, res: Response) => {
       }
     });
 
-    // Create an email verification token and send verification email
-    try {
-      const vtoken = randomToken(24);
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-      await prisma.verificationToken.create({ data: { userId: user.id, token: vtoken, type: 'EMAIL_VERIFICATION', expiresAt, metadata: {} } });
-
-      const verifyUrl = `${process.env.FRONTEND_URL?.replace(/\/$/, '') || 'http://localhost:5173'}/account/verify-email?token=${encodeURIComponent(vtoken)}`;
-      const html = `<p>Welcome! Please verify your email by clicking the link below:</p><p><a href="${verifyUrl}">${verifyUrl}</a></p>`;
-      const text = `Please verify your email by visiting: ${verifyUrl}`;
-      await sendEmail({ to: user.email, subject: 'Verify your email', html, text });
-    } catch (err) {
-      console.error('Failed to send verification email:', err);
-    }
-
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Forgot password: create a verification token and send (or log) a reset URL
-router.post('/forgot-password', shortLimiter, async (req: Request, res: Response) => {
-  try {
-    const { email } = req.body;
-    if (!email || typeof email !== 'string') {
-      return res.status(400).json({ message: 'Email is required' });
-    }
-
-    // Find the user by email. We don't reveal whether the account exists.
-    const user = await prisma.user.findUnique({ where: { email } });
-
-    // Create a token regardless (to avoid account enumeration) if user exists
-    if (user) {
-  const token = randomToken(24);
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour expiry
-
-      await prisma.verificationToken.create({
-        data: {
-          userId: user.id,
-          token,
-          type: 'PASSWORD_RESET',
-          expiresAt,
-          metadata: {},
-        }
-      });
-
-      const resetUrl = `${process.env.FRONTEND_URL?.replace(/\/$/, '') || 'http://localhost:5173'}/account/reset-password?token=${encodeURIComponent(token)}`;
-      const html = `<p>Reset your password by clicking the link below:</p><p><a href="${resetUrl}">${resetUrl}</a></p>`;
-      const text = `Reset your password: ${resetUrl}`;
-      try {
-        await sendEmail({ to: user.email, subject: 'Password reset instructions', html, text });
-      } catch (err) {
-        console.error('Failed to send reset email, falling back to log:', err);
-        console.info(`Password reset requested for ${email}. Reset URL: ${resetUrl}`);
-      }
-    }
-
-    // Always respond with 200 to avoid revealing account existence
-    res.json({ message: 'If an account with that email exists, you will receive password reset instructions' });
-  } catch (error) {
-    console.error('Forgot password error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Reset password: validate token and set a new password
-router.post('/reset-password', async (req: Request, res: Response) => {
-  try {
-    const { token, password } = req.body;
-    if (!token || typeof token !== 'string') {
-      return res.status(400).json({ message: 'Token is required' });
-    }
-    if (!password || typeof password !== 'string' || password.length < 6) {
-      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
-    }
-
-    const v = await prisma.verificationToken.findUnique({ where: { token } });
-    if (!v || v.type !== 'PASSWORD_RESET') {
-      return res.status(400).json({ message: 'Invalid or expired token' });
-    }
-
-    if (v.consumedAt) {
-      return res.status(400).json({ message: 'Token already used' });
-    }
-
-    if (v.expiresAt < new Date()) {
-      return res.status(400).json({ message: 'Token expired' });
-    }
-
-    const hashed = await bcrypt.hash(password, 12);
-    await prisma.user.update({ where: { id: v.userId }, data: { password: hashed, hasSetPassword: true } });
-
-    await prisma.verificationToken.update({ where: { id: v.id }, data: { consumedAt: new Date() } });
-
-    res.json({ message: 'Password reset successful' });
-  } catch (error) {
-    console.error('Reset password error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Resend verification email
-router.post('/resend-verification', shortLimiter, async (req: Request, res: Response) => {
-  try {
-    const { email } = req.body;
-    if (!email || typeof email !== 'string') return res.status(400).json({ message: 'Email is required' });
-
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.json({ message: 'If an account exists, a verification email was sent' });
-
-    if (user.isVerified) return res.status(400).json({ message: 'Account already verified' });
-
-    const token = randomToken(24);
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await prisma.verificationToken.create({ data: { userId: user.id, token, type: 'EMAIL_VERIFICATION', expiresAt, metadata: {} } });
-
-    const verifyUrl = `${process.env.FRONTEND_URL?.replace(/\/$/, '') || 'http://localhost:5173'}/account/verify-email?token=${encodeURIComponent(token)}`;
-    const html = `<p>Please verify your email: <a href="${verifyUrl}">${verifyUrl}</a></p>`;
-    const text = `Verify: ${verifyUrl}`;
-    await sendEmail({ to: user.email, subject: 'Verify your email', html, text });
-
-    res.json({ message: 'If an account exists, a verification email was sent' });
-  } catch (err) {
-    console.error('Resend verification error:', err);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Verify email via token (GET for link-clicking)
-router.get('/verify-email', async (req: Request, res: Response) => {
-  try {
-    const token = typeof req.query.token === 'string' ? req.query.token : null;
-    if (!token) return res.status(400).send('Invalid token');
-
-    const v = await prisma.verificationToken.findUnique({ where: { token } });
-    if (!v || v.type !== 'EMAIL_VERIFICATION') return res.status(400).send('Invalid or expired token');
-    if (v.expiresAt < new Date()) return res.status(400).send('Token expired');
-
-    await prisma.user.update({ where: { id: v.userId }, data: { isVerified: true, emailVerifiedAt: new Date() } });
-    await prisma.verificationToken.update({ where: { id: v.id }, data: { consumedAt: new Date() } });
-
-    // Redirect to frontend with success
-    const redirectTo = `${process.env.FRONTEND_URL?.replace(/\/$/, '') || 'http://localhost:5173'}/account/verified`;
-    return res.redirect(redirectTo);
-  } catch (err) {
-    console.error('Verify email error:', err);
-    res.status(500).send('Internal server error');
   }
 });
 
