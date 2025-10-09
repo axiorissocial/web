@@ -4,6 +4,7 @@ import '../css/buttons.scss';
 import { Button } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { HouseFill } from 'react-bootstrap-icons';
+import { useOGMeta } from '../utils/ogMeta';
 import { useTranslation } from 'react-i18next';
 
 interface ErrorPageProps {
@@ -24,6 +25,13 @@ const ErrorPage: React.FC<ErrorPageProps> = ({
   useEffect(() => {
     document.title = t('errorPage.documentTitle', { code, app: t('app.name') });
   }, [code, t, i18n.language]);
+
+  useOGMeta({
+    title: t('errorPage.documentTitle', { code, app: t('app.name') }),
+    description: t('errorPage.defaultMessage'),
+    type: 'website',
+    url: window.location.href,
+  });
 
   const resolvedMessage = message ?? t('errorPage.defaultMessage');
 

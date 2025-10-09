@@ -6,6 +6,7 @@ import Sidebar from '../components/singles/Navbar';
 import Post from '../components/Post';
 import CommentComponent from '../components/Comment';
 import { useAuth } from '../contexts/AuthContext';
+import { useOGMeta, stripFormatting, truncateText } from '../utils/ogMeta';
 import '../css/post.scss';
 import '../css/comment.scss';
 import { useTranslation } from 'react-i18next';
@@ -38,6 +39,13 @@ interface PostData {
   id: string;
   title?: string;
   content: string;
+  media?: Array<{
+    url: string;
+    hlsUrl?: string;
+    type: 'image' | 'video';
+    originalName: string;
+    size: number;
+  }> | null;
   createdAt: string;
   updatedAt: string;
   likesCount: number;
@@ -174,6 +182,15 @@ const PostPage: React.FC = () => {
       document.title = t('postPage.meta.defaultDocumentTitle', { app: t('app.name') });
     }
   }, [post, t]);
+
+  // Set OG metadata
+  useOGMeta({
+    title: post?.title || t('postPage.meta.defaultTitle'),
+    description: post ? truncateText(stripFormatting(post.content), 300) : t('postPage.meta.defaultDocumentTitle', { app: t('app.name') }),
+    image: post?.media?.find(m => m.type === 'image')?.url,
+    type: 'article',
+    url: window.location.href,
+  });
 
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

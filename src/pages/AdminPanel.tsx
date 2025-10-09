@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button, Table, Modal, Nav, Tab, Form, Pagination, Spinner } from 'react-bootstrap';
 import Sidebar from '../components/singles/Navbar';
+import { useOGMeta } from '../utils/ogMeta';
 import '../css/admin-panel.scss';
 import { useTranslation } from 'react-i18next';
 
@@ -207,6 +208,13 @@ const AdminPanel: React.FC = () => {
   useEffect(() => {
     document.title = t('admin.meta.documentTitle', { app: t('app.name') });
   }, [t, i18n.language]);
+
+  useOGMeta({
+    title: t('admin.meta.documentTitle', { app: t('app.name') }),
+    description: t('admin.meta.documentTitle', { app: t('app.name') }),
+    type: 'website',
+    url: window.location.href,
+  });
 
   const showAlert = (message: string, type: 'success' | 'danger') => {
     setAlertMessage(message);

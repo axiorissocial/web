@@ -3,6 +3,7 @@ import { Card, ListGroup, Button, Form, InputGroup, Spinner, Badge } from 'react
 import { Send, Trash, EmojiSmile } from 'react-bootstrap-icons';
 import Sidebar from '../components/singles/Navbar';
 import { useAuth } from '../contexts/AuthContext';
+import { useOGMeta } from '../utils/ogMeta';
 import '../css/messages.scss';
 import { useLocation } from 'react-router-dom';
 import EmojiPicker from '../components/EmojiPicker';
@@ -213,6 +214,13 @@ const Messages: React.FC = () => {
   useEffect(() => {
     document.title = t('messagesCenter.documentTitle', { app: t('app.name') });
   }, [t, i18n.language]);
+
+  useOGMeta({
+    title: t('messagesCenter.documentTitle', { app: t('app.name') }),
+    description: t('messagesCenter.documentTitle', { app: t('app.name') }),
+    type: 'website',
+    url: window.location.href,
+  });
 
   useEffect(() => {
     if (user) {

@@ -4,6 +4,7 @@ import { Card, Form, Button, Tabs, Tab, Alert, Spinner, Modal, InputGroup } from
 import { Eye, EyeSlash, PersonCircle, Gear, Palette, Shield, Upload, Bell, Image as ImageIcon } from 'react-bootstrap-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useOGMeta } from '../utils/ogMeta';
 import '../css/settings.scss';
 import { useTranslation } from 'react-i18next';
 import { profileGradients, getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
@@ -197,6 +198,13 @@ const SettingsPage: React.FC = () => {
   useEffect(() => {
     document.title = t('settings.documentTitle', { app: t('app.name') });
   }, [t, i18n.language]);
+
+  useOGMeta({
+    title: t('settings.documentTitle', { app: t('app.name') }),
+    description: t('settings.documentTitle', { app: t('app.name') }),
+    type: 'website',
+    url: window.location.href,
+  });
 
   const loadUserData = async () => {
     try {

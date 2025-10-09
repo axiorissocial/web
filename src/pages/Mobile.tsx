@@ -4,6 +4,7 @@ import '../css/buttons.scss';
 import { Button, Modal } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { Download, ChevronRight } from 'react-bootstrap-icons';
+import { useOGMeta } from '../utils/ogMeta';
 import { useTranslation } from 'react-i18next';
 
 interface MobilePageProps {
@@ -37,6 +38,13 @@ const MobilePage: React.FC<MobilePageProps> = ({
   useEffect(() => {
     document.title = t('mobile.browserTitle');
   }, [t]);
+
+  useOGMeta({
+    title: t('mobile.browserTitle'),
+    description: t('mobile.message'),
+    type: 'website',
+    url: window.location.href,
+  });
 
   return (
     <div className="err-container">

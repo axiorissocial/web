@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import Sidebar from '../components/singles/Navbar';
 import Feed from '../components/Feed';
 import { useAuth } from '../contexts/AuthContext';
+import { useOGMeta } from '../utils/ogMeta';
 import '../css/search.scss';
 import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
 
@@ -78,6 +79,13 @@ const SearchPage: React.FC = () => {
   useEffect(() => {
     document.title = t('search.documentTitle', { app: t('app.name') });
   }, [t, i18n.language]);
+
+  useOGMeta({
+    title: t('search.documentTitle', { app: t('app.name') }),
+    description: t('search.documentTitle', { app: t('app.name') }),
+    type: 'website',
+    url: window.location.href,
+  });
 
   const searchUsers = async (query: string, pageNum = 1, reset = false) => {
     if (!query.trim()) {

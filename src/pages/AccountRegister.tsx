@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Form, Button, Alert, FloatingLabel } from 'react-bootstrap';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useOGMeta } from '../utils/ogMeta';
 import '../css/login.scss';
 import { useTranslation } from 'react-i18next';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -32,6 +33,13 @@ const RegisterPage: React.FC = () => {
       navigate('/');
     }
   }, [user, navigate, t, i18n.language]);
+
+  useOGMeta({
+    title: t('auth.register.documentTitle', { app: t('app.name') }),
+    description: t('auth.register.documentTitle', { app: t('app.name') }),
+    type: 'website',
+    url: window.location.href,
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
