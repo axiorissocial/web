@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/singles/Navbar';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
+import { useOGMeta } from '../utils/ogMeta';
 import '../css/notifications.scss';
 import { useTranslation } from 'react-i18next';
 import { formatRelativeTime } from '../utils/time';
@@ -81,6 +82,13 @@ const NotificationsPage: React.FC = () => {
       : 'notificationsCenter.documentTitle';
     document.title = t(titleKey, { count: unreadCount, app: t('app.name') });
   }, [unreadCount, t, i18n.language]);
+
+  useOGMeta({
+    title: t(unreadCount > 0 ? 'notificationsCenter.documentTitleWithCount' : 'notificationsCenter.documentTitle', { count: unreadCount, app: t('app.name') }),
+    description: t('notificationsCenter.documentTitle', { app: t('app.name') }),
+    type: 'website',
+    url: window.location.href,
+  });
 
   const buildPlaceholderStyle = (profile?: NotificationUser['profile']) => {
     if (!profile || profile.avatar) {

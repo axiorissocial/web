@@ -18,6 +18,7 @@ import MentionTextarea from '../components/MentionTextarea';
 import Sidebar from '../components/singles/Navbar';
 import { EMOJIS } from '../utils/emojis';
 import { processMentions, processMentionsSync } from '../utils/mentions';
+import { useOGMeta } from '../utils/ogMeta';
 import '../css/postbox.scss';
 import '../css/mentions.scss';
 import { useTranslation } from 'react-i18next';
@@ -46,6 +47,13 @@ const CreatePostPage: React.FC = () => {
   useEffect(() => {
     document.title = t('createPost.documentTitle', { app: t('app.name') });
   }, [t, i18n.language]);
+
+  useOGMeta({
+    title: t('createPost.documentTitle', { app: t('app.name') }),
+    description: t('createPost.documentTitle', { app: t('app.name') }),
+    type: 'website',
+    url: window.location.href,
+  });
 
   useEffect(() => {
     setCharCount(content.length);

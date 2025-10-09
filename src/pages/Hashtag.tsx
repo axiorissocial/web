@@ -4,6 +4,7 @@ import { Alert, Button, Spinner } from 'react-bootstrap';
 import Sidebar from '../components/singles/Navbar';
 import Post from '../components/Post';
 import TrendingHashtags from '../components/TrendingHashtags';
+import { useOGMeta } from '../utils/ogMeta';
 import { useTranslation } from 'react-i18next';
 import '../css/home.scss';
 
@@ -101,6 +102,13 @@ const HashtagPage: React.FC = () => {
     document.title = t('hashtags.page.documentTitle', { tag: `#${decodedTag}`, app: t('app.name') });
     fetchPosts(1, false);
   }, [decodedTag]);
+
+  useOGMeta({
+    title: t('hashtags.page.documentTitle', { tag: `#${decodedTag}`, app: t('app.name') }),
+    description: t('hashtags.page.documentTitle', { tag: `#${decodedTag}`, app: t('app.name') }),
+    type: 'website',
+    url: window.location.href,
+  });
 
   const handleLoadMore = () => {
     if (!pagination?.hasNextPage || loadingMore) return;

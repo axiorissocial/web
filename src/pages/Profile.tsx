@@ -5,6 +5,7 @@ import { Calendar, GeoAlt, Link45deg, PersonPlus, PersonDash, Envelope, ChatSqua
 import Sidebar from '../components/singles/Navbar';
 import Feed from '../components/Feed';
 import { useAuth } from '../contexts/AuthContext';
+import { useOGMeta, truncateText } from '../utils/ogMeta';
 import '../css/profile.scss';
 import { useTranslation } from 'react-i18next';
 import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
@@ -72,6 +73,19 @@ const ProfilePage: React.FC = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Set OG metadata
+  useOGMeta({
+    title: profile 
+      ? `${profile.profile?.displayName || profile.username} (@${profile.username})`
+      : t('profilePage.documentTitle', { name: 'Profile', app: t('app.name') }),
+    description: profile && (profile.profile?.bio || profile.bio) 
+      ? truncateText(profile.profile?.bio || profile.bio || '', 300) 
+      : t('profilePage.about.values.noBio'),
+    image: profile?.profile?.avatar,
+    type: 'profile',
+    url: window.location.href,
+  });
 
   const handleCreatePost = () => {
     navigate('/create-post');

@@ -7,6 +7,7 @@ import Feed from '../components/Feed';
 import TrendingHashtags from '../components/TrendingHashtags';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
+import { useOGMeta } from '../utils/ogMeta';
 import '../css/home.scss';
 
 const HomePage: React.FC = () => {
@@ -22,6 +23,13 @@ const HomePage: React.FC = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [t, i18n.language]);
+
+  useOGMeta({
+    title: t('home.documentTitle', { app: t('app.name') }),
+    description: t('home.subtitle'),
+    type: 'website',
+    url: window.location.href,
+  });
 
   const handleCreatePost = () => {
     navigate('/create-post');
