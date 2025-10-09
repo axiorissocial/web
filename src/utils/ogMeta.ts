@@ -48,7 +48,7 @@ export const stripFormatting = (text: string): string => {
  */
 export const updateOGMetaTags = (metadata: OGMetadata) => {
   // Get the base URL from the environment or current origin
-  const baseUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
+  const baseUrl = import.meta.env.FRONTEND_URL || window.location.origin;
   
   const metaTags = [
     { property: 'og:title', content: metadata.title },
