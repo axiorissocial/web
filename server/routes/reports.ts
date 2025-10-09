@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { prisma } from '../index.js';
 import { mapReasonToEnum, createReport } from '../utils/reportHelpers';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth.js';
+import { awardXp } from '../utils/leveling.js';
 
 const router = Router();
 
@@ -271,6 +272,26 @@ router.patch('/reports/:id', requireAuth, async (req: AuthenticatedRequest, res:
         }
       }
     });
+
+    // If the report was resolved and is a bug/feature request, award XP to the reporter.
+    try {
+      if (status === 'RESOLVED' && ['BUG', 'FEATURE_REQUEST'].includes((report.reason ?? '').toUpperCase())) {
+        // Base award for a validated report
+        await awardXp(report.reporter.id, 50, 'report_validated', { sourceType: 'report', sourceId: report.id });
+
+        // If the resolved report also led to removal of content (post/comment deleted), award a small bonus
+        // Check if there is a linked post that is now missing
+        if (report.postId) {
+          const post = await prisma.post.findUnique({ where: { id: report.postId } });
+          if (!post) {
+            // Post deleted as part of resolution
+            await awardXp(report.reporter.id, 25, 'report_resulted_in_deletion', { sourceType: 'report_deletion', sourceId: report.id });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to award XP for report resolution:', err);
+    }
 
     res.json({ report });
 

@@ -4,6 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { createNotification } from './notifications.js';
+import { containsProfanityStrict } from '../utils/profanity.js';
 import { getAvailableLanguages } from '../i18n.js';
 
 const router = Router();
@@ -229,6 +230,10 @@ router.put('/profile', requireAuth, async (req: any, res: Response) => {
 
     if (displayName && displayName.length > 50) {
       return res.status(400).json({ error: 'Display name must be 50 characters or less' });
+    }
+
+    if (displayName && containsProfanityStrict(displayName)) {
+      return res.status(400).json({ error: 'Display name contains disallowed language' });
     }
 
     if (bio && bio.length > 500) {

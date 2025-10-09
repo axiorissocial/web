@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { prisma } from '../index.js';
+import { containsProfanityStrict } from '../utils/profanity.js';
 import { getRandomGradientId } from '@shared/profileGradients';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -373,7 +374,8 @@ router.get('/auth/github/callback', async (req: Request, res: Response) => {
     }
 
     if (!targetUser) {
-      const baseUsername = profile.login ?? profile.name ?? `github${profile.id}`;
+  const rawBase = profile.login ?? profile.name ?? `github${profile.id}`;
+  const baseUsername = String(rawBase).toLowerCase().replace(/[^a-z0-9.]/g, '') || `github${profile.id}`;
       
       const existingUserWithUsername = await prisma.user.findUnique({
         where: { username: baseUsername },
@@ -518,6 +520,38 @@ router.delete('/auth/providers/:provider', requireAuth, async (req: Request, res
   }
 });
 
+// Allow OAuth users (e.g., GitHub signups) to set an initial password once.
+router.post('/auth/set-password', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = req.session.userId!;
+    const { password } = req.body as { password?: string };
+
+    if (!password || typeof password !== 'string' || password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, include: { oauthAccounts: true } });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Only allow if user originally signed up via OAuth (has oauthAccounts) and hasn't set a password yet
+    if (!user.oauthAccounts || user.oauthAccounts.length === 0) {
+      return res.status(400).json({ message: 'Not an OAuth-only account' });
+    }
+
+    if (user.hasSetPassword) {
+      return res.status(400).json({ message: 'Password already set' });
+    }
+
+    const hash = await bcrypt.hash(password, 12);
+    await prisma.user.update({ where: { id: userId }, data: { password: hash, hasSetPassword: true } });
+
+    res.json({ message: 'Password set successfully' });
+  } catch (err) {
+    console.error('Set password error:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 declare module 'express-session' {
   interface SessionData {
     userId?: string;
@@ -552,6 +586,11 @@ router.post('/register', async (req: Request, res: Response) => {
     const usernameRegex = /^[a-zA-Z0-9.]+$/;
     if (!usernameRegex.test(name)) {
       return res.status(400).json({ message: 'Username can only contain letters, numbers, and periods' });
+    }
+
+    // disallow profane usernames
+    if (containsProfanityStrict(name)) {
+      return res.status(400).json({ message: 'Username contains disallowed language' });
     }
 
     const existingUser = await prisma.user.findFirst({
@@ -803,6 +842,10 @@ router.post('/complete-github-signup', async (req: Request, res: Response) => {
     const usernameRegex = /^[a-zA-Z0-9.]+$/;
     if (!usernameRegex.test(username)) {
       return res.status(400).json({ error: 'Username can only contain letters, numbers, and periods' });
+    }
+
+    if (containsProfanityStrict(username)) {
+      return res.status(400).json({ error: 'Username contains disallowed language' });
     }
 
     const existingUser = await prisma.user.findUnique({

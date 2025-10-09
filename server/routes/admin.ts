@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '../index.js';
+import { awardXp } from '../utils/leveling.js';
 import { addUrl, removeUrl } from '../utils/sitemapCache.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth.js';
 
@@ -186,6 +187,20 @@ router.delete('/admin/post/:id', requireAuth, async (req: AuthenticatedRequest, 
     await deletePostMediaFiles(id);
 
     await prisma.like.deleteMany({ where: { postId: id } });
+
+    // Before deleting, find reports that referenced this post and award reporters if needed
+    try {
+      const reports = await prisma.report.findMany({ where: { postId: id }, include: { reporter: { select: { id: true } } } });
+      for (const r of reports) {
+        try {
+          await awardXp(r.reporter.id, 25, 'report_resulted_in_admin_deletion', { sourceType: 'report_admin_deletion', sourceId: r.id });
+        } catch (err) {
+          console.error('Failed to award XP to reporter on admin deletion:', err);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to find reports for post before deletion:', err);
+    }
 
     await prisma.post.delete({ where: { id } });
 

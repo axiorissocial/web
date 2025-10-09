@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 const AVATARS_DIR = path.join(process.cwd(), 'public', 'uploads', 'avatars');
 const BANNERS_DIR = path.join(process.cwd(), 'public', 'uploads', 'banners');
 import { PrismaClient } from '../../src/generated/prisma/index.js';
+import { containsProfanityStrict } from '../utils/profanity.js';
 import { addUrl, removeUrl } from '../utils/sitemapCache.js';
 
 const router = express.Router();
@@ -144,11 +145,18 @@ router.put('/account/update', requireAuth, async (req: any, res: any) => {
     }
 
     if (username !== currentUser.username) {
-      const existingUser = await prisma.user.findUnique({
-        where: { username }
-      });
+      const existingUser = await prisma.user.findUnique({ where: { username } });
       if (existingUser && existingUser.id !== userId) {
         return res.status(400).json({ error: 'Username already taken' });
+      }
+
+      const usernameRegex = /^[a-zA-Z0-9.]+$/;
+      if (!usernameRegex.test(username)) {
+        return res.status(400).json({ error: 'Username can only contain letters, numbers, and periods' });
+      }
+
+      if (containsProfanityStrict(username)) {
+        return res.status(400).json({ error: 'Username contains disallowed language' });
       }
     }
 
@@ -224,6 +232,10 @@ router.put('/users/profile', requireAuth, async (req: any, res: any) => {
       if (isNaN(parsedBirthDate.getTime())) {
         return res.status(400).json({ error: 'Invalid birth date' });
       }
+    }
+
+    if (displayName && containsProfanityStrict(displayName)) {
+      return res.status(400).json({ error: 'Display name contains disallowed language' });
     }
 
     const profile = await prisma.profile.upsert({

@@ -4,6 +4,8 @@ import path from 'path';
 import fs from 'fs';
 import fsExtra, { ensureDir } from 'fs-extra';
 import { prisma } from '../index.js';
+import { censor, containsProfanityStrict, containsHighSeverity, containsProfanityForPosts } from '../utils/profanity.js';
+import { awardXp, revokeXp } from '../utils/leveling.js';
 import { addUrl, removeUrl } from '../utils/sitemapCache.js';
 import { requireAuth, optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { createNotification, createMentionNotifications } from './notifications.js';
@@ -358,7 +360,7 @@ const getTrendingHashtags = async (options: { since: Date; limit: number; countr
 
   const aggregates = new Map<string, { count: number; lastUsed: Date | null }>();
 
-  for (const entry of hashtagEntries) {
+    for (const entry of hashtagEntries) {
     const current = aggregates.get(entry.hashtagId) ?? { count: 0, lastUsed: null };
     const createdAt = entry.createdAt instanceof Date ? entry.createdAt : new Date(entry.createdAt);
     const lastUsed = current.lastUsed && current.lastUsed > createdAt ? current.lastUsed : createdAt;
@@ -366,26 +368,7 @@ const getTrendingHashtags = async (options: { since: Date; limit: number; countr
       count: current.count + 1,
       lastUsed,
     });
-
-    try {
-      const base = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
-      addUrl({ loc: `${base}/post/${encodeURIComponent(updatedPost.id)}`, lastmod: updatedPost.updatedAt?.toISOString() ?? new Date().toISOString(), changefreq: 'weekly', priority: '0.8' });
-      if (updatedPost.slug) {
-        addUrl({ loc: `${base}/post/${encodeURIComponent(updatedPost.slug)}`, lastmod: updatedPost.updatedAt?.toISOString() ?? new Date().toISOString(), changefreq: 'weekly', priority: '0.8' });
-      }
-    } catch (err) {
-      console.error('Failed to update sitemap cache after post update:', err);
-    }
-
-    try {
-      const base = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
-      addUrl({ loc: `${base}/post/${encodeURIComponent(post.id)}`, lastmod: post.updatedAt?.toISOString() ?? post.createdAt.toISOString(), changefreq: 'weekly', priority: '0.8' });
-      if (post.slug) {
-        addUrl({ loc: `${base}/post/${encodeURIComponent(post.slug)}`, lastmod: post.updatedAt?.toISOString() ?? post.createdAt.toISOString(), changefreq: 'weekly', priority: '0.8' });
-      }
-    } catch (err) {
-      console.error('Failed to update sitemap cache after post create:', err);
-    }
+    
   }
 
   const hashtagIds = Array.from(aggregates.keys());
@@ -943,12 +926,28 @@ router.post('/posts', requireAuth, async (req: AuthenticatedRequest, res: Respon
       return res.status(400).json({ message: 'Post content is required' });
     }
 
-    if (content.length > 1000) {
+    // If post includes high-severity racist slurs or similar, block outright.
+    if (containsHighSeverity(content)) {
+      return res.status(400).json({ message: 'Post contains disallowed language' });
+    }
+
+    // Less-strict profanity checks for posts: allow mild expletives but block slurs
+    if (containsProfanityForPosts(content)) {
+      return res.status(400).json({ message: 'Post contains disallowed language' });
+    }
+
+    const sanitizedContent = censor(content.trim());
+
+    if (sanitizedContent.length > 1000) {
       return res.status(400).json({ message: 'Post content must be 1000 characters or less' });
     }
 
     let slug = null;
     if (title) {
+      // Check title profanity with stricter policy for titles
+      if (containsProfanityForPosts(title) || containsHighSeverity(title)) {
+        return res.status(400).json({ message: 'Title contains disallowed language' });
+      }
       slug = title
         .toLowerCase()
         .replace(/[^\w\s-]/g, '')
@@ -961,9 +960,11 @@ router.post('/posts', requireAuth, async (req: AuthenticatedRequest, res: Respon
       }
     }
 
+  // sanitizedContent already computed above
+
     const post = await prisma.post.create({
       data: {
-        content: content.trim(),
+        content: sanitizedContent,
         title: title?.trim() || null,
         slug,
         isPrivate: Boolean(isPrivate),
@@ -995,8 +996,8 @@ router.post('/posts', requireAuth, async (req: AuthenticatedRequest, res: Respon
       }
     });
 
-    await createMentionNotifications(content, userId, post.id);
-    const hashtags = await syncPostHashtags(post.id, post.content, post.originCountryCode ?? resolvedCountryCode ?? null);
+  await createMentionNotifications(sanitizedContent, userId, post.id);
+  const hashtags = await syncPostHashtags(post.id, sanitizedContent, post.originCountryCode ?? resolvedCountryCode ?? null);
 
     const { _count, ...postPayload } = post;
 
@@ -1058,6 +1059,15 @@ router.post('/posts/:id/like', requireAuth, async (req: AuthenticatedRequest, re
         })
       ]);
 
+      // Revoke XP for the post owner when a like is removed. Idempotent via source key.
+      try {
+        if (post.userId && post.userId !== userId) {
+          await revokeXp(post.userId, 2, 'unlike', { sourceType: 'post_like', sourceId: `${id}:${userId}` });
+        }
+      } catch (err) {
+        console.error('Failed to revoke XP on unlike:', err);
+      }
+
       res.json({ message: 'Post unliked', isLiked: false });
     } else {
       await prisma.$transaction([
@@ -1072,6 +1082,15 @@ router.post('/posts/:id/like', requireAuth, async (req: AuthenticatedRequest, re
           data: { likesCount: { increment: 1 } }
         })
       ]);
+
+      // Award XP to the post owner for receiving a like. Use idempotency key to avoid double-award.
+      try {
+        if (post.userId && post.userId !== userId) {
+          await awardXp(post.userId, 2, 'like_received', { sourceType: 'post_like', sourceId: `${id}:${userId}` });
+        }
+      } catch (err) {
+        console.error('Failed to award XP on like:', err);
+      }
 
       if (post.userId !== userId) {
         await createNotification(
@@ -1337,6 +1356,15 @@ router.put('/posts/:id', requireAuth, async (req: AuthenticatedRequest, res: Res
     }
 
     const nextCountryCode = existingPost.originCountryCode ?? resolvedCountryCode ?? null;
+
+    // Additional profanity checks on edit
+    if (containsHighSeverity(content) || containsProfanityForPosts(content)) {
+      return res.status(400).json({ error: 'Post contains disallowed language' });
+    }
+
+    if (title && (containsProfanityForPosts(title) || containsHighSeverity(title))) {
+      return res.status(400).json({ error: 'Title contains disallowed language' });
+    }
 
     const updatedPost = await prisma.post.update({
       where: { id: postId },
@@ -1655,6 +1683,10 @@ router.post('/posts/:id/comments', requireAuth, async (req: AuthenticatedRequest
       return res.status(400).json({ error: 'Comment content is required' });
     }
 
+    if (containsHighSeverity(content)) {
+      return res.status(400).json({ error: 'Comment contains disallowed language' });
+    }
+
     if (content.length > 1000) {
       return res.status(400).json({ error: 'Comment is too long (max 1,000 characters)' });
     }
@@ -1681,9 +1713,11 @@ router.post('/posts/:id/comments', requireAuth, async (req: AuthenticatedRequest
       }
     }
 
+  const sanitized = censor(content.trim());
+
     const comment = await prisma.comment.create({
       data: {
-        content: content.trim(),
+        content: sanitized,
         postId,
         userId,
         parentId: parentId || null,
@@ -1706,7 +1740,7 @@ router.post('/posts/:id/comments', requireAuth, async (req: AuthenticatedRequest
       }
     });
 
-    await createMentionNotifications(content, userId, postId, comment.id);
+  await createMentionNotifications(sanitized, userId, postId, comment.id);
 
     if (parentId) {
       const parentComment = await prisma.comment.findUnique({
@@ -1865,6 +1899,10 @@ router.put('/comments/:id', requireAuth, async (req: AuthenticatedRequest, res: 
       return res.status(400).json({ error: 'Comment content is required' });
     }
 
+    if (containsHighSeverity(content)) {
+      return res.status(400).json({ error: 'Comment contains disallowed language' });
+    }
+
     if (content.length > 1000) {
       return res.status(400).json({ error: 'Comment is too long. Maximum 1000 characters allowed.' });
     }
@@ -1886,10 +1924,12 @@ router.put('/comments/:id', requireAuth, async (req: AuthenticatedRequest, res: 
       return res.status(400).json({ error: 'No changes detected' });
     }
 
+  const sanitizedUpdate = censor(content.trim());
+
     const updatedComment = await prisma.comment.update({
       where: { id: commentId },
       data: {
-        content: content.trim(),
+        content: sanitizedUpdate,
         editedAt: new Date()
       },
       include: {
@@ -1921,7 +1961,7 @@ router.put('/comments/:id', requireAuth, async (req: AuthenticatedRequest, res: 
     });
 
     if (content.includes('@')) {
-      await createMentionNotifications(content, userId, updatedComment.postId, updatedComment.id);
+      await createMentionNotifications(sanitizedUpdate, userId, updatedComment.postId, updatedComment.id);
     }
 
     const response = {
