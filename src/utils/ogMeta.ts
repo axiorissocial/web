@@ -28,8 +28,8 @@ export const truncateText = (text: string, maxLength: number): string => {
  * Strips HTML tags and markdown from text
  */
 export const stripFormatting = (text: string): string => {
-  // Remove markdown links [text](url)
-  let stripped = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+  // Remove markdown links [text](url) - use a more specific pattern to avoid ReDoS
+  let stripped = text.replace(/\[([^\]]{0,500})\]\(([^)]{0,2000})\)/g, '$1');
   
   // Remove markdown formatting
   stripped = stripped.replace(/[*_~`#]/g, '');
@@ -47,6 +47,9 @@ export const stripFormatting = (text: string): string => {
  * Updates OG meta tags in the document head
  */
 export const updateOGMetaTags = (metadata: OGMetadata) => {
+  // Get the base URL from the environment or current origin
+  const baseUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
+  
   const metaTags = [
     { property: 'og:title', content: metadata.title },
     { property: 'og:description', content: metadata.description },
@@ -54,12 +57,16 @@ export const updateOGMetaTags = (metadata: OGMetadata) => {
   ];
 
   if (metadata.image) {
-    metaTags.push({ property: 'og:image', content: metadata.image });
+    // Ensure image URL is absolute
+    const imageUrl = metadata.image.startsWith('http') 
+      ? metadata.image 
+      : `${baseUrl}${metadata.image.startsWith('/') ? '' : '/'}${metadata.image}`;
+    metaTags.push({ property: 'og:image', content: imageUrl });
   }
 
-  if (metadata.url) {
-    metaTags.push({ property: 'og:url', content: metadata.url });
-  }
+  // Always set og:url to the provided URL or current page URL
+  const pageUrl = metadata.url || window.location.href;
+  metaTags.push({ property: 'og:url', content: pageUrl });
 
   metaTags.forEach(({ property, content }) => {
     let element = document.querySelector(`meta[property="${property}"]`);
@@ -81,7 +88,11 @@ export const updateOGMetaTags = (metadata: OGMetadata) => {
   ];
 
   if (metadata.image) {
-    twitterTags.push({ name: 'twitter:image', content: metadata.image });
+    // Ensure image URL is absolute
+    const imageUrl = metadata.image.startsWith('http') 
+      ? metadata.image 
+      : `${baseUrl}${metadata.image.startsWith('/') ? '' : '/'}${metadata.image}`;
+    twitterTags.push({ name: 'twitter:image', content: imageUrl });
   }
 
   twitterTags.forEach(({ name, content }) => {
