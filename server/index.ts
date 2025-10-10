@@ -112,14 +112,6 @@ app.use('/', sitemapRoutes);
 // SSR routes for social media crawlers - MUST be before static file serving
 app.use('/', ssrRoutes);
 
-// Serve static files from 'public' directory
-app.use(express.static(path.join(process.cwd(), 'public')));
-
-// Fallback for SPA - serve index.html for all non-API routes
-app.get('*', (req: Request, res: Response) => {
-  res.sendFile('index.html', { root: process.cwd() });
-});
-
 app.get('/api/i18n/languages', (req: Request, res: Response) => {
   res.json({ languages: getAvailableLanguages() });
 });
