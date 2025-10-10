@@ -84,10 +84,21 @@ router.patch('/admin/user/:id/ban', requireAuth, async (req: AuthenticatedReques
     if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Admin access required' });
 
     const { id } = req.params;
+    const { reason } = req.body;
+    
     const target = await prisma.user.findUnique({ where: { id } });
     if (!target) return res.status(404).json({ error: 'User not found' });
+    if (target.isAdmin) return res.status(403).json({ error: 'Cannot ban admin users' });
 
-    const updated = await prisma.user.update({ where: { id }, data: { isPrivate: true } });
+    const updated = await prisma.user.update({ 
+      where: { id }, 
+      data: { 
+        isBanned: true,
+        bannedAt: new Date(),
+        banReason: reason || 'Violation of community guidelines'
+      } 
+    });
+    
     try {
       const base = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
       removeUrl(`${base}/profile/${encodeURIComponent(updated.username)}`);
@@ -95,7 +106,8 @@ router.patch('/admin/user/:id/ban', requireAuth, async (req: AuthenticatedReques
     } catch (err) {
       console.error('Failed to update sitemap cache after banning user:', err);
     }
-    res.json({ message: 'User banned (marked private)', user: { id: updated.id, username: updated.username } });
+    
+    res.json({ message: 'User banned', user: { id: updated.id, username: updated.username }, bannedAt: updated.bannedAt, banReason: updated.banReason });
   } catch (error) {
     console.error('Error banning user:', error);
     res.status(500).json({ error: 'Failed to ban user' });
@@ -111,7 +123,15 @@ router.patch('/admin/user/:id/unban', requireAuth, async (req: AuthenticatedRequ
     const target = await prisma.user.findUnique({ where: { id } });
     if (!target) return res.status(404).json({ error: 'User not found' });
 
-    const updated = await prisma.user.update({ where: { id }, data: { isPrivate: false } });
+    const updated = await prisma.user.update({ 
+      where: { id }, 
+      data: { 
+        isBanned: false,
+        bannedAt: null,
+        banReason: null
+      } 
+    });
+    
     try {
       const base = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
       addUrl({ loc: `${base}/profile/${encodeURIComponent(updated.username)}`, lastmod: updated.createdAt?.toISOString() ?? new Date().toISOString(), changefreq: 'weekly', priority: '0.6' });
@@ -119,6 +139,7 @@ router.patch('/admin/user/:id/unban', requireAuth, async (req: AuthenticatedRequ
     } catch (err) {
       console.error('Failed to update sitemap cache after unbanning user:', err);
     }
+    
     res.json({ message: 'User unbanned', user: { id: updated.id, username: updated.username } });
   } catch (error) {
     console.error('Error unbanning user:', error);

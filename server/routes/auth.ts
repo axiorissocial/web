@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
+import speakeasy from 'speakeasy';
 import { prisma } from '../index.js';
 import { loginLimiter, registerLimiter, authLimiter } from '../utils/rateLimiters.js';
 import { setSessionUser as setSessionUserHelper, isUsernameTakenCaseInsensitive } from '../utils/userAccounts.js';
@@ -965,6 +966,8 @@ declare module 'express-session' {
       userId?: string | null;
       returnTo?: string | null;
     };
+    pendingTwoFactorUserId?: string;
+    pendingTwoFactorRemember?: boolean;
   }
 }
 
@@ -1092,6 +1095,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
         email: true,
         isAdmin: true,
         password: true,
+        twoFactorEnabled: true,
       }
     });
 
@@ -1104,6 +1108,19 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
       return res.status(401).json({ message: 'Invalid email/username or password' });
     }
 
+    // Check if 2FA is enabled
+    if (user.twoFactorEnabled) {
+      // Store temporary login data in session
+      req.session.pendingTwoFactorUserId = user.id;
+      req.session.pendingTwoFactorRemember = remember || false;
+      
+      return res.json({
+        requires2FA: true,
+        message: '2FA verification required'
+      });
+    }
+
+    // No 2FA - complete login normally
     await prisma.user.update({
       where: { id: user.id },
       data: { lastLogin: new Date() }
@@ -1136,6 +1153,119 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 });
+
+// 2FA verification endpoint for login
+router.post('/login/2fa', loginLimiter, async (req: Request, res: Response) => {
+  try {
+    const { token, recoveryCode } = req.body;
+
+    // Check if there's a pending 2FA login
+    if (!req.session.pendingTwoFactorUserId) {
+      return res.status(400).json({ message: 'No pending 2FA login found' });
+    }
+
+    if (!token && !recoveryCode) {
+      return res.status(400).json({ message: '2FA code or recovery code is required' });
+    }
+
+    const userId = req.session.pendingTwoFactorUserId;
+    const remember = req.session.pendingTwoFactorRemember || false;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        isAdmin: true,
+        twoFactorEnabled: true,
+        twoFactorSecret: true,
+        twoFactorRecoveryCodes: true,
+      }
+    });
+
+    if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
+      // Clear pending 2FA data
+      delete req.session.pendingTwoFactorUserId;
+      delete req.session.pendingTwoFactorRemember;
+      return res.status(400).json({ message: 'Invalid 2FA login attempt' });
+    }
+
+    let verified = false;
+    let usedRecoveryCode = false;
+
+    // Try recovery code first
+    if (recoveryCode && user.twoFactorRecoveryCodes) {
+      const codes = user.twoFactorRecoveryCodes as string[];
+      const codeIndex = codes.indexOf(recoveryCode.toUpperCase());
+      
+      if (codeIndex !== -1) {
+        verified = true;
+        usedRecoveryCode = true;
+        
+        // Remove used recovery code
+        const updatedCodes = codes.filter((_, index) => index !== codeIndex);
+        await prisma.user.update({
+          where: { id: userId },
+          data: { twoFactorRecoveryCodes: updatedCodes }
+        });
+      }
+    }
+
+    // Try TOTP token if recovery code didn't work
+    if (!verified && token) {
+      verified = speakeasy.totp.verify({
+        secret: user.twoFactorSecret,
+        encoding: 'base32',
+        token: token,
+        window: 2
+      });
+    }
+
+    if (!verified) {
+      return res.status(401).json({ message: 'Invalid 2FA code' });
+    }
+
+    // 2FA verified - complete login
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLogin: new Date() }
+    });
+
+    // Clear pending 2FA data
+    delete req.session.pendingTwoFactorUserId;
+    delete req.session.pendingTwoFactorRemember;
+
+    // Set session user
+    req.session.userId = user.id;
+    req.session.user = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+    };
+    (req.session.user as any).isAdmin = user.isAdmin ?? false;
+
+    if (remember) {
+      req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
+    }
+
+    res.json({
+      message: '2FA verification successful',
+      usedRecoveryCode,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        isAdmin: user.isAdmin ?? false,
+      }
+    });
+
+  } catch (error) {
+    console.error('2FA login error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 
 router.post('/logout', (req: Request, res: Response) => {
   req.session.destroy((err: any) => {

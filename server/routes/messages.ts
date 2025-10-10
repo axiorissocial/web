@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../index.js';
 import { broadcastToUsers } from '../realtime.js';
 import { encryptText, decryptText } from '../utils/encryption.js';
+import { checkBanned } from '../middleware/checkBanned.js';
 
 const router = Router();
 
@@ -114,7 +115,7 @@ router.get('/conversations', requireAuth, async (req: any, res: Response) => {
   }
 });
 
-router.post('/conversations', requireAuth, async (req: any, res: Response) => {
+router.post('/conversations', requireAuth, checkBanned, async (req: any, res: Response) => {
   try {
     const userId = req.session.userId;
     const { participantId, participantIds } = req.body;
@@ -302,7 +303,7 @@ router.get('/conversations/:conversationId/messages', requireAuth, async (req: a
   }
 });
 
-router.post('/conversations/:conversationId/messages', requireAuth, async (req: any, res: Response) => {
+router.post('/conversations/:conversationId/messages', requireAuth, checkBanned, async (req: any, res: Response) => {
   try {
     const userId = req.session.userId;
     const { conversationId } = req.params;

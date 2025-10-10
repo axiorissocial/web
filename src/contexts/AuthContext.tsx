@@ -24,7 +24,8 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (emailOrUsername: string, password: string, remember?: boolean) => Promise<void>;
+  login: (emailOrUsername: string, password: string, remember?: boolean) => Promise<{ requires2FA: boolean }>;
+  verify2FA: (token: string, recoveryCode?: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
@@ -108,6 +109,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     const data = await response.json();
+    
+    // Check if 2FA is required
+    if (data.requires2FA) {
+      return { requires2FA: true };
+    }
+    
+    setUser(data.user);
+    await applyUserLanguage();
+    return { requires2FA: false };
+  };
+
+  const verify2FA = async (token: string, recoveryCode?: string) => {
+    const response = await fetch('/api/login/2fa', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ token, recoveryCode }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.message || '2FA verification failed');
+    }
+
+    const data = await response.json();
     setUser(data.user);
     await applyUserLanguage();
   };
@@ -152,6 +180,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     loading,
     login,
+    verify2FA,
     register,
     logout,
     checkAuth,

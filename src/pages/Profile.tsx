@@ -20,6 +20,9 @@ interface UserProfile {
   isVerified: boolean;
   isAdmin: boolean;
   isPrivate: boolean;
+  isBanned?: boolean;
+  bannedAt?: string;
+  banReason?: string;
   createdAt: string;
   lastLogin?: string;
   profile?: {
@@ -211,6 +214,49 @@ const ProfilePage: React.FC = () => {
                 {t('profilePage.error.back')}
               </Button>
             </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // If user is banned, show banned state
+  if (profile.isBanned) {
+    return (
+      <div className="app-container">
+        <Sidebar activeId="profile" />
+        <main>
+          <div className="profile-container">
+            <Card className="profile-card">
+              <Card.Body className="text-center py-5">
+                <div className="banned-state">
+                  <div className="mb-4">
+                    <Info size={64} className="text-danger" />
+                  </div>
+                  <h3 className="text-danger mb-3">{t('profilePage.banned.title')}</h3>
+                  <p className="text-muted mb-2">
+                    {t('profilePage.banned.username')}: <strong>@{profile.username}</strong>
+                  </p>
+                  {profile.bannedAt && (
+                    <p className="text-muted small">
+                      {t('profilePage.banned.bannedOn')}: {new Date(profile.bannedAt).toLocaleDateString(i18n.language, {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </p>
+                  )}
+                  {profile.banReason && (
+                    <p className="text-muted mt-3">
+                      {t('profilePage.banned.reason')}: {profile.banReason}
+                    </p>
+                  )}
+                  <Button variant="outline-secondary" onClick={() => navigate(-1)} className="mt-4">
+                    {t('profilePage.error.back')}
+                  </Button>
+                </div>
+              </Card.Body>
+            </Card>
           </div>
         </main>
       </div>

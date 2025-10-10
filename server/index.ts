@@ -17,6 +17,7 @@ import messageRoutes from './routes/messages.js';
 import notificationRoutes from './routes/notifications.js';
 import reportRoutes from './routes/reports.js';
 import adminRoutes from './routes/admin.js';
+import twoFactorRoutes from './routes/twoFactor.js';
 import dotenv from 'dotenv';
 import { initRealtime } from './realtime.js';
 import { getRealtimeStats } from './realtime.js';
@@ -96,6 +97,7 @@ app.use('/uploads', (req, res, next) => {
 app.use('/node_modules/@twemoji/svg', express.static(path.join(process.cwd(), 'node_modules', '@twemoji', 'svg')));
 
 app.use('/api', authRoutes);
+app.use('/api', twoFactorRoutes);
 app.use('/api', postRoutes);
 app.use('/api', accountRoutes);
 app.use('/api/users', profileRoutes);

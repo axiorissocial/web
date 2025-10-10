@@ -122,6 +122,22 @@ const SettingsPage: React.FC = () => {
   const [languageError, setLanguageError] = useState('');
   const [hasSetPassword, setHasSetPassword] = useState(true);
   
+  // 2FA states
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [twoFactorLoading, setTwoFactorLoading] = useState(false);
+  const [twoFactorError, setTwoFactorError] = useState('');
+  const [twoFactorSuccess, setTwoFactorSuccess] = useState('');
+  const [showTwoFactorSetup, setShowTwoFactorSetup] = useState(false);
+  const [twoFactorSecret, setTwoFactorSecret] = useState('');
+  const [twoFactorQRCode, setTwoFactorQRCode] = useState('');
+  const [twoFactorToken, setTwoFactorToken] = useState('');
+  const [twoFactorRecoveryCodes, setTwoFactorRecoveryCodes] = useState<string[]>([]);
+  const [showRecoveryCodes, setShowRecoveryCodes] = useState(false);
+  const [showDisable2FA, setShowDisable2FA] = useState(false);
+  const [disable2FAPassword, setDisable2FAPassword] = useState('');
+  const [disable2FAToken, setDisable2FAToken] = useState('');
+  const [recoveryCodesRemaining, setRecoveryCodesRemaining] = useState(0);
+  
   const [activeTab, setActiveTab] = useState('account');
   const usernameInitial = user?.username?.charAt(0)?.toUpperCase() ?? '?';
 
@@ -280,6 +296,9 @@ const SettingsPage: React.FC = () => {
     } catch (error) {
       console.error('Error loading user settings:', error);
     }
+    
+    // Load 2FA status
+    await load2FAStatus();
   };
 
   const loadGithubAccount = async () => {
@@ -394,6 +413,171 @@ const SettingsPage: React.FC = () => {
       setGithubError(t('settings.linkedAccounts.google.unlinkError'));
     } finally {
       setGithubLoading(false);
+    }
+  };
+
+  // 2FA handlers
+  const load2FAStatus = async () => {
+    try {
+      const response = await fetch('/api/2fa/status', {
+        credentials: 'include',
+        headers: {
+          'x-csrf-token': sessionStorage.getItem('csrfToken') || '',
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setTwoFactorEnabled(data.enabled);
+        setRecoveryCodesRemaining(data.recoveryCodesRemaining || 0);
+      }
+    } catch (error) {
+      console.error('Error loading 2FA status:', error);
+    }
+  };
+
+  const handleGenerate2FA = async () => {
+    setTwoFactorLoading(true);
+    setTwoFactorError('');
+    try {
+      const response = await fetch('/api/2fa/generate', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrf-token': sessionStorage.getItem('csrfToken') || '',
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate 2FA secret');
+      }
+
+      const data = await response.json();
+      setTwoFactorSecret(data.secret);
+      setTwoFactorQRCode(data.qrCode);
+      setShowTwoFactorSetup(true);
+    } catch (error: any) {
+      setTwoFactorError(error.message || 'Failed to generate 2FA secret');
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  };
+
+  const handleEnable2FA = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!twoFactorToken || !twoFactorSecret) return;
+
+    setTwoFactorLoading(true);
+    setTwoFactorError('');
+    try {
+      const response = await fetch('/api/2fa/enable', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrf-token': sessionStorage.getItem('csrfToken') || '',
+        },
+        body: JSON.stringify({
+          token: twoFactorToken,
+          secret: twoFactorSecret
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to enable 2FA');
+      }
+
+      const data = await response.json();
+      setTwoFactorRecoveryCodes(data.recoveryCodes);
+      setTwoFactorSuccess('2FA enabled successfully! Save your recovery codes.');
+      setTwoFactorEnabled(true);
+      setShowTwoFactorSetup(false);
+      setShowRecoveryCodes(true);
+      setTwoFactorToken('');
+      setTwoFactorSecret('');
+      setTwoFactorQRCode('');
+    } catch (error: any) {
+      setTwoFactorError(error.message || 'Failed to enable 2FA');
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  };
+
+  const handleDisable2FA = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!disable2FAPassword) return;
+
+    setTwoFactorLoading(true);
+    setTwoFactorError('');
+    try {
+      const response = await fetch('/api/2fa/disable', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrf-token': sessionStorage.getItem('csrfToken') || '',
+        },
+        body: JSON.stringify({
+          password: disable2FAPassword,
+          token: disable2FAToken || undefined
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to disable 2FA');
+      }
+
+      setTwoFactorSuccess('2FA has been disabled');
+      setTwoFactorEnabled(false);
+      setShowDisable2FA(false);
+      setDisable2FAPassword('');
+      setDisable2FAToken('');
+      setRecoveryCodesRemaining(0);
+    } catch (error: any) {
+      setTwoFactorError(error.message || 'Failed to disable 2FA');
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  };
+
+  const handleRegenerateRecoveryCodes = async () => {
+    const password = prompt('Enter your password to regenerate recovery codes:');
+    if (!password) return;
+
+    const token = prompt('Enter your current 2FA code:');
+    if (!token) return;
+
+    setTwoFactorLoading(true);
+    setTwoFactorError('');
+    try {
+      const response = await fetch('/api/2fa/recovery-codes/regenerate', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrf-token': sessionStorage.getItem('csrfToken') || '',
+        },
+        body: JSON.stringify({ password, token })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to regenerate recovery codes');
+      }
+
+      const data = await response.json();
+      setTwoFactorRecoveryCodes(data.recoveryCodes);
+      setShowRecoveryCodes(true);
+      setRecoveryCodesRemaining(data.recoveryCodes.length);
+      setTwoFactorSuccess('Recovery codes regenerated successfully');
+    } catch (error: any) {
+      setTwoFactorError(error.message || 'Failed to regenerate recovery codes');
+    } finally {
+      setTwoFactorLoading(false);
     }
   };
 
@@ -1146,6 +1330,79 @@ const SettingsPage: React.FC = () => {
                       </div>
                     )}
                   </div>
+                  
+                  <hr className="my-4" />
+                  
+                  {/* Two-Factor Authentication Section */}
+                  <div className="two-factor-section">
+                    <h6 className="mb-3">
+                      <Shield className="me-2" />
+                      {t('settings.twoFactor.title')}
+                    </h6>
+                    <p className="text-muted small mb-4">{t('settings.twoFactor.description')}</p>
+                    
+                    {twoFactorError && <Alert variant="danger" dismissible onClose={() => setTwoFactorError('')}>{twoFactorError}</Alert>}
+                    {twoFactorSuccess && <Alert variant="success" dismissible onClose={() => setTwoFactorSuccess('')}>{twoFactorSuccess}</Alert>}
+                    
+                    {twoFactorEnabled ? (
+                      <div className="border rounded p-3 mb-3 bg-success bg-opacity-10">
+                        <div className="d-flex align-items-center justify-content-between mb-3">
+                          <div>
+                            <div className="fw-semibold text-success">
+                              <Shield className="me-2" />
+                              {t('settings.twoFactor.enabled')}
+                            </div>
+                            <div className="text-muted small mt-1">
+                              {t('settings.twoFactor.recoveryCodesRemaining', { count: recoveryCodesRemaining })}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="d-flex gap-2">
+                          <Button 
+                            variant="outline-primary" 
+                            size="sm"
+                            onClick={handleRegenerateRecoveryCodes}
+                            disabled={twoFactorLoading}
+                          >
+                            {t('settings.twoFactor.actions.regenerateCodes')}
+                          </Button>
+                          <Button 
+                            variant="outline-danger" 
+                            size="sm"
+                            onClick={() => setShowDisable2FA(true)}
+                            disabled={twoFactorLoading}
+                          >
+                            {t('settings.twoFactor.actions.disable')}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="border rounded p-3 mb-3">
+                        <div className="d-flex align-items-center justify-content-between">
+                          <div>
+                            <div className="fw-semibold">{t('settings.twoFactor.disabled')}</div>
+                            <div className="text-muted small">{t('settings.twoFactor.disabledDescription')}</div>
+                          </div>
+                          <Button 
+                            variant="outline-primary" 
+                            size="sm"
+                            onClick={handleGenerate2FA}
+                            disabled={twoFactorLoading}
+                          >
+                            {twoFactorLoading ? (
+                              <>
+                                <Spinner size="sm" className="me-2" />
+                                {t('common.statuses.loading')}
+                              </>
+                            ) : (
+                              t('settings.twoFactor.actions.enable')
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </Card.Body>
               </Card>
             </Tab>
@@ -1750,6 +2007,169 @@ const SettingsPage: React.FC = () => {
               )}
             </Button>
           </Modal.Footer>
+        </Modal>
+
+        {/* 2FA Setup Modal */}
+        <Modal show={showTwoFactorSetup} onHide={() => setShowTwoFactorSetup(false)} centered size="lg">
+          <Modal.Header closeButton>
+            <Modal.Title>{t('settings.twoFactor.setup.title')}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <p className="text-muted mb-3">{t('settings.twoFactor.setup.instructions')}</p>
+            
+            <div className="text-center mb-4">
+              {twoFactorQRCode && (
+                <img src={twoFactorQRCode} alt="2FA QR Code" className="img-fluid" style={{ maxWidth: '250px' }} />
+              )}
+            </div>
+            
+            <div className="bg-light p-3 rounded mb-3">
+              <small className="text-muted d-block mb-2">{t('settings.twoFactor.setup.manualEntry')}</small>
+              <code className="user-select-all d-block text-center" style={{ fontSize: '0.9rem' }}>
+                {twoFactorSecret}
+              </code>
+            </div>
+            
+            <Form onSubmit={handleEnable2FA}>
+              <Form.Group className="mb-3">
+                <Form.Label>{t('settings.twoFactor.setup.verifyCode')}</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={twoFactorToken}
+                  onChange={(e) => setTwoFactorToken(e.target.value.replace(/\D/g, ''))}
+                  placeholder="000000"
+                  maxLength={6}
+                  required
+                  autoFocus
+                />
+                <Form.Text className="text-muted">
+                  {t('settings.twoFactor.setup.verifyInstructions')}
+                </Form.Text>
+              </Form.Group>
+              
+              <div className="d-flex gap-2 justify-content-end">
+                <Button variant="secondary" onClick={() => {
+                  setShowTwoFactorSetup(false);
+                  setTwoFactorToken('');
+                  setTwoFactorSecret('');
+                  setTwoFactorQRCode('');
+                }}>
+                  {t('common.cancel')}
+                </Button>
+                <Button type="submit" variant="primary" disabled={twoFactorLoading || twoFactorToken.length !== 6}>
+                  {twoFactorLoading ? (
+                    <>
+                      <Spinner size="sm" className="me-2" />
+                      {t('common.statuses.saving')}
+                    </>
+                  ) : (
+                    t('settings.twoFactor.setup.enable')
+                  )}
+                </Button>
+              </div>
+            </Form>
+          </Modal.Body>
+        </Modal>
+
+        {/* Recovery Codes Modal */}
+        <Modal show={showRecoveryCodes} onHide={() => setShowRecoveryCodes(false)} centered>
+          <Modal.Header closeButton>
+            <Modal.Title>{t('settings.twoFactor.recoveryCodes.title')}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Alert variant="warning" className="mb-3">
+              <small>{t('settings.twoFactor.recoveryCodes.warning')}</small>
+            </Alert>
+            
+            <div className="bg-light p-3 rounded mb-3">
+              <div className="row g-2">
+                {twoFactorRecoveryCodes.map((code, index) => (
+                  <div key={index} className="col-6">
+                    <code className="d-block text-center p-2 bg-white rounded" style={{ fontSize: '0.85rem' }}>
+                      {code}
+                    </code>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <p className="text-muted small mb-0">
+              {t('settings.twoFactor.recoveryCodes.description')}
+            </p>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="primary" onClick={() => {
+              // Copy codes to clipboard
+              const codesText = twoFactorRecoveryCodes.join('\n');
+              navigator.clipboard.writeText(codesText);
+              setTwoFactorSuccess(t('settings.twoFactor.recoveryCodes.copied'));
+            }}>
+              {t('settings.twoFactor.recoveryCodes.copy')}
+            </Button>
+            <Button variant="secondary" onClick={() => setShowRecoveryCodes(false)}>
+              {t('common.close')}
+            </Button>
+          </Modal.Footer>
+        </Modal>
+
+        {/* Disable 2FA Modal */}
+        <Modal show={showDisable2FA} onHide={() => setShowDisable2FA(false)} centered>
+          <Modal.Header closeButton>
+            <Modal.Title>{t('settings.twoFactor.disable.title')}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Alert variant="warning" className="mb-3">
+              <small>{t('settings.twoFactor.disable.warning')}</small>
+            </Alert>
+            
+            <Form onSubmit={handleDisable2FA}>
+              <Form.Group className="mb-3">
+                <Form.Label>{t('settings.account.fields.currentPassword.label')}</Form.Label>
+                <Form.Control
+                  type="password"
+                  value={disable2FAPassword}
+                  onChange={(e) => setDisable2FAPassword(e.target.value)}
+                  placeholder={t('settings.account.fields.currentPassword.placeholder')}
+                  required
+                  autoFocus
+                />
+              </Form.Group>
+              
+              <Form.Group className="mb-3">
+                <Form.Label>{t('settings.twoFactor.disable.code')}</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={disable2FAToken}
+                  onChange={(e) => setDisable2FAToken(e.target.value.replace(/\D/g, ''))}
+                  placeholder="000000"
+                  maxLength={6}
+                />
+                <Form.Text className="text-muted">
+                  {t('settings.twoFactor.disable.codeOptional')}
+                </Form.Text>
+              </Form.Group>
+              
+              <div className="d-flex gap-2 justify-content-end">
+                <Button variant="secondary" onClick={() => {
+                  setShowDisable2FA(false);
+                  setDisable2FAPassword('');
+                  setDisable2FAToken('');
+                }}>
+                  {t('common.cancel')}
+                </Button>
+                <Button type="submit" variant="danger" disabled={twoFactorLoading || !disable2FAPassword}>
+                  {twoFactorLoading ? (
+                    <>
+                      <Spinner size="sm" className="me-2" />
+                      {t('common.statuses.processing')}
+                    </>
+                  ) : (
+                    t('settings.twoFactor.actions.disable')
+                  )}
+                </Button>
+              </div>
+            </Form>
+          </Modal.Body>
         </Modal>
 
         <Modal show={showBannerDeleteConfirm} onHide={() => setShowBannerDeleteConfirm(false)} centered>

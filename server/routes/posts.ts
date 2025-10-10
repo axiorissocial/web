@@ -8,6 +8,7 @@ import { censor, containsProfanityStrict, containsHighSeverity, containsProfanit
 import { awardXp, revokeXp } from '../utils/leveling.js';
 import { addUrl, removeUrl } from '../utils/sitemapCache.js';
 import { requireAuth, optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
+import { checkBanned } from '../middleware/checkBanned.js';
 import { createNotification, createMentionNotifications } from './notifications.js';
 import { VideoProcessor } from '../utils/videoProcessor.js';
 
@@ -857,7 +858,7 @@ router.get('/posts/:id', optionalAuth, async (req: AuthenticatedRequest, res: Re
   }
 });
 
-router.post('/posts/media', requireAuth, mediaUpload.array('media', 5), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/posts/media', requireAuth, checkBanned, mediaUpload.array('media', 5), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const files = req.files as Express.Multer.File[];
     const postId = req.body.postId;
@@ -916,7 +917,7 @@ router.post('/posts/media', requireAuth, mediaUpload.array('media', 5), async (r
   }
 });
 
-router.post('/posts', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/posts', requireAuth, checkBanned, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { content, title, isPrivate = false, media } = req.body;
     const userId = req.userId!;
@@ -1014,7 +1015,7 @@ router.post('/posts', requireAuth, async (req: AuthenticatedRequest, res: Respon
   }
 });
 
-router.post('/posts/:id/like', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/posts/:id/like', requireAuth, checkBanned, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const userId = req.userId!;
@@ -1104,7 +1105,7 @@ router.post('/posts/:id/like', requireAuth, async (req: AuthenticatedRequest, re
   }
 });
 
-router.post('/posts/:id/reactions', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/posts/:id/reactions', requireAuth, checkBanned, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const userId = req.userId!;
@@ -1184,7 +1185,7 @@ router.post('/posts/:id/reactions', requireAuth, async (req: AuthenticatedReques
   }
 });
 
-router.delete('/posts/:id/reactions', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/posts/:id/reactions', requireAuth, checkBanned, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const userId = req.userId!;
@@ -1308,7 +1309,7 @@ router.get('/users/search', async (req: Request, res: Response) => {
   }
 });
 
-router.put('/posts/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/posts/:id', requireAuth, checkBanned, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const postId = req.params.id;
     const userId = req.session!.userId!;
@@ -1416,7 +1417,7 @@ router.put('/posts/:id', requireAuth, async (req: AuthenticatedRequest, res: Res
   }
 });
 
-router.delete('/posts/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/posts/:id', requireAuth, checkBanned, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const postId = req.params.id;
     const userId = req.session!.userId!;
@@ -1666,7 +1667,7 @@ router.get('/posts/:id/comments', optionalAuth, async (req: AuthenticatedRequest
   }
 });
 
-router.post('/posts/:id/comments', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/posts/:id/comments', requireAuth, checkBanned, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const postId = req.params.id;
     const userId = req.session!.userId!;
@@ -1770,7 +1771,7 @@ router.post('/posts/:id/comments', requireAuth, async (req: AuthenticatedRequest
   }
 });
 
-router.delete('/posts/:id/like', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/posts/:id/like', requireAuth, checkBanned, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const postId = req.params.id;
     const userId = req.session!.userId;
@@ -1806,7 +1807,7 @@ router.delete('/posts/:id/like', requireAuth, async (req: AuthenticatedRequest, 
   }
 });
 
-router.post('/comments/:id/like', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/comments/:id/like', requireAuth, checkBanned, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const commentId = req.params.id;
     const userId = req.session!.userId!;
@@ -1882,7 +1883,7 @@ router.post('/comments/:id/like', requireAuth, async (req: AuthenticatedRequest,
   }
 });
 
-router.put('/comments/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/comments/:id', requireAuth, checkBanned, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const commentId = req.params.id;
     const userId = req.user!.id;
@@ -1975,7 +1976,7 @@ router.put('/comments/:id', requireAuth, async (req: AuthenticatedRequest, res: 
   }
 });
 
-router.delete('/comments/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/comments/:id', requireAuth, checkBanned, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const commentId = req.params.id;
     const userId = req.user!.id;

@@ -18,6 +18,9 @@ model User {
   level       Int      @default(1) // XP/level system
   xp          Int      @default(0)
   isAdmin     Boolean  @default(false) // Admin privileges
+  isBanned    Boolean  @default(false) // Banned users cannot interact with the site
+  bannedAt    DateTime? // When the user was banned
+  banReason   String?  // Reason for the ban
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   lastLogin   DateTime? 

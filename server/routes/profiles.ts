@@ -6,6 +6,7 @@ import fs from 'fs';
 import { createNotification } from './notifications.js';
 import { containsProfanityStrict } from '../utils/profanity.js';
 import { getAvailableLanguages } from '../i18n.js';
+import { checkBanned } from '../middleware/checkBanned.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -121,6 +122,19 @@ router.get('/:username/profile', async (req: Request, res: Response) => {
       console.log(`Follow status: ${isFollowing}`);
     }
 
+    // If user is banned, return limited profile information
+    if (user.isBanned) {
+      console.log(`User ${user.username} is banned, returning limited profile`);
+      return res.json({
+        id: user.id,
+        username: user.username,
+        isBanned: true,
+        bannedAt: user.bannedAt,
+        banReason: user.banReason,
+        createdAt: user.createdAt
+      });
+    }
+
     const { password, email, ...safeUser } = user;
     const profileData = {
       ...safeUser,
@@ -143,7 +157,7 @@ router.get('/:username/profile', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/:userId/follow', requireAuth, async (req: any, res: Response) => {
+router.post('/:userId/follow', requireAuth, checkBanned, async (req: any, res: Response) => {
   try {
     const { userId } = req.params;
     const currentUserId = req.session.userId;
@@ -193,7 +207,7 @@ router.post('/:userId/follow', requireAuth, async (req: any, res: Response) => {
   }
 });
 
-router.post('/:userId/unfollow', requireAuth, async (req: any, res: Response) => {
+router.post('/:userId/unfollow', requireAuth, checkBanned, async (req: any, res: Response) => {
   try {
     const { userId } = req.params;
     const currentUserId = req.session.userId;
@@ -216,7 +230,7 @@ router.post('/:userId/unfollow', requireAuth, async (req: any, res: Response) =>
   }
 });
 
-router.delete('/:userId/follow', requireAuth, async (req: any, res: Response) => {
+router.delete('/:userId/follow', requireAuth, checkBanned, async (req: any, res: Response) => {
   try {
     const { userId } = req.params;
     const currentUserId = req.session.userId;
