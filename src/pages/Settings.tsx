@@ -1081,7 +1081,7 @@ const SettingsPage: React.FC = () => {
                       )}
                     </fieldset>
                     
-                      <fieldset className="border rounded p-3 mb-3">
+                      {/* <fieldset className="border rounded p-3 mb-3">
                         <legend className="fw-semibold h6 px-2">{t('settings.linkedAccounts.google.title')}</legend>
                         {githubError && <Alert variant="danger">{githubError}</Alert>}
                         {githubSuccess && <Alert variant="success">{githubSuccess}</Alert>}
@@ -1138,7 +1138,7 @@ const SettingsPage: React.FC = () => {
                             </Button>
                           </div>
                         )}
-                      </fieldset>
+                      </fieldset> */}
                     
                     {!githubAccount && (
                       <div className="text-muted small text-center py-3">
