@@ -11,10 +11,15 @@ const router = Router();
 router.get('/profile/:username', async (req: Request, res: Response, next: NextFunction) => {
   const userAgent = req.get('User-Agent');
   
+  console.log(`[SSR] Profile request: ${req.params.username}, User-Agent: ${userAgent}`);
+  
   // If not a social bot, pass to next handler (React app in dev, or static files in production)
   if (!isSocialBot(userAgent)) {
+    console.log(`[SSR] Not a bot, passing to next handler`);
     return next();
   }
+
+  console.log(`[SSR] Bot detected, generating SSR HTML for profile: ${req.params.username}`);
 
   try {
     let { username } = req.params;
@@ -76,6 +81,7 @@ router.get('/profile/:username', async (req: Request, res: Response, next: NextF
       author: user.username,
     });
 
+    console.log(`[SSR] Successfully generated HTML for profile: ${user.username}`);
     res.setHeader('Content-Type', 'text/html');
     res.send(html);
 
@@ -92,10 +98,15 @@ router.get('/profile/:username', async (req: Request, res: Response, next: NextF
 router.get('/post/:idOrSlug', async (req: Request, res: Response, next: NextFunction) => {
   const userAgent = req.get('User-Agent');
   
+  console.log(`[SSR] Post request: ${req.params.idOrSlug}, User-Agent: ${userAgent}`);
+  
   // If not a social bot, pass to next handler (React app in dev, or static files in production)
   if (!isSocialBot(userAgent)) {
+    console.log(`[SSR] Not a bot, passing to next handler`);
     return next();
   }
+
+  console.log(`[SSR] Bot detected, generating SSR HTML for post: ${req.params.idOrSlug}`);
 
   try {
     const { idOrSlug } = req.params;
@@ -167,6 +178,7 @@ router.get('/post/:idOrSlug', async (req: Request, res: Response, next: NextFunc
       author: authorName,
     });
 
+    console.log(`[SSR] Successfully generated HTML for post: ${post.id}`);
     res.setHeader('Content-Type', 'text/html');
     res.send(html);
 

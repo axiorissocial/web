@@ -26,6 +26,7 @@ export function isSocialBot(userAgent: string | undefined): boolean {
     'TelegramBot',
     'DiscordBot',
     'Discordbot',
+    'discord',
     'pinterest',
     'Pinterestbot',
     'Slackbot-LinkExpanding',
@@ -42,7 +43,14 @@ export function isSocialBot(userAgent: string | undefined): boolean {
   ];
   
   const lowerUserAgent = userAgent.toLowerCase();
-  return botPatterns.some(pattern => lowerUserAgent.includes(pattern.toLowerCase()));
+  const isBot = botPatterns.some(pattern => lowerUserAgent.includes(pattern.toLowerCase()));
+  
+  // Log bot detection for debugging
+  if (isBot) {
+    console.log(`[SSR] Bot detected: ${userAgent}`);
+  }
+  
+  return isBot;
 }
 
 /**
