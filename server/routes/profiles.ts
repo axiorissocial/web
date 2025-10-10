@@ -50,34 +50,58 @@ router.get('/:username/profile', async (req: Request, res: Response) => {
   try {
     const { username: rawUsername } = req.params;
     const currentUserId = (req.session as any)?.userId;
-    
-    let username = String(rawUsername || '');
-    username = username.startsWith('@') ? username.slice(1) : username;
-    username = decodeURIComponent(username).trim().toLowerCase();
 
-    console.log(`Fetching profile for username: "${username}" (raw: "${rawUsername}"), currentUserId: ${currentUserId}`);
+    // Preserve the raw username (after stripping a leading @) and also
+    // compute a lowercased candidate. Some existing accounts may have
+    // been created with mixed-case usernames, while new ones are
+    // normalized to lowercase. We'll try several strategies so profile
+    // lookups work regardless of stored casing.
+    const raw = String(rawUsername || '');
+    let usernameCandidate = raw.startsWith('@') ? raw.slice(1) : raw;
+    usernameCandidate = decodeURIComponent(usernameCandidate).trim();
+    const usernameLower = usernameCandidate.toLowerCase();
 
-    if (!username || username.length === 0) {
+    console.log(`Fetching profile for username candidates: "${usernameCandidate}" (raw: "${rawUsername}"), lower: "${usernameLower}", currentUserId: ${currentUserId}`);
+
+    if (!usernameCandidate || usernameCandidate.length === 0) {
       console.log('Empty username provided');
       return res.status(400).json({ error: 'Username is required' });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { username },
-      include: {
-        profile: true,
-        _count: {
-          select: {
-            posts: true,
-            following: true,
-            followers: true,
-          }
+    // Reusable include object for profile payload
+    const includeProfile = {
+      profile: true,
+      _count: {
+        select: {
+          posts: true,
+          following: true,
+          followers: true,
         }
       }
-    });
+    } as const;
+
+    let user = await prisma.user.findUnique({ where: { username: usernameCandidate }, include: includeProfile });
 
     if (!user) {
-      console.log(`User not found: "${username}"`);
+      user = await prisma.user.findUnique({ where: { username: usernameLower }, include: includeProfile });
+    }
+
+    if (!user) {
+      try {
+        const prefix = usernameCandidate.slice(0, Math.min(5, usernameCandidate.length));
+        const candidates = await prisma.user.findMany({
+          where: { username: { contains: prefix } },
+          include: includeProfile,
+          take: 50
+        });
+        user = candidates.find(u => u.username.toLowerCase() === usernameLower) || null;
+      } catch (err) {
+        console.warn('Profile fallback search failed, continuing to 404', err);
+      }
+    }
+
+    if (!user) {
+      console.log(`User not found: "${usernameCandidate}" (lower: "${usernameLower}")`);
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -105,7 +129,7 @@ router.get('/:username/profile', async (req: Request, res: Response) => {
       isOwn: currentUserId === user.id
     };
 
-    console.log(`Returning profile data for ${username}:`, { 
+    console.log(`Returning profile data for ${user.username}:`, { 
       username: profileData.username, 
       hasProfile: !!profileData.profile,
       isOwn: profileData.isOwn,
