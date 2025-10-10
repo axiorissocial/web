@@ -105,7 +105,7 @@ router.get('/:username/profile', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    console.log(`User found: ${user.username} (${user.id})`);
+  console.log(`User found: ${user.username} (${user.id}) - req.originalUrl=${(req as any).originalUrl}`);
 
     let isFollowing = false;
     if (currentUserId && currentUserId !== user.id) {
@@ -135,7 +135,7 @@ router.get('/:username/profile', async (req: Request, res: Response) => {
       isOwn: profileData.isOwn,
       isFollowing 
     });
-    
+    res.setHeader('X-Profile-Handler', 'v2');
     res.json(profileData);
   } catch (error) {
     console.error('Error fetching user profile:', error);
