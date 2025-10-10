@@ -2,17 +2,46 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { prisma } from '../index.js';
+import { loginLimiter, registerLimiter, authLimiter } from '../utils/rateLimiters.js';
+import { setSessionUser as setSessionUserHelper, isUsernameTakenCaseInsensitive } from '../utils/userAccounts.js';
 import { containsProfanityStrict } from '../utils/profanity.js';
 import { getRandomGradientId } from '@shared/profileGradients';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
-const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || '';
-const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || '';
+const normalizeEnv = (v?: string | undefined) => (v ? v.trim().replace(/^"|"$/g, '') : undefined);
+const FRONTEND_URL = normalizeEnv(process.env.FRONTEND_URL) || 'http://localhost:5173';
+const GITHUB_CLIENT_ID = normalizeEnv(process.env.GITHUB_CLIENT_ID) || '';
+const GITHUB_CLIENT_SECRET = normalizeEnv(process.env.GITHUB_CLIENT_SECRET) || '';
 const GITHUB_SCOPE = 'read:user user:email';
 const GITHUB_USER_AGENT = process.env.GITHUB_USER_AGENT || 'HubbleApp';
+
+const GOOGLE_CLIENT_ID = normalizeEnv(process.env.GOOGLE_CLIENT_ID) || '';
+const GOOGLE_CLIENT_SECRET = normalizeEnv(process.env.GOOGLE_CLIENT_SECRET) || '';
+// Prefer the explicit _RAW env var if present (some setups name it GOOGLE_CALLBACK_URL_RAW)
+const GOOGLE_CALLBACK_URL_RAW = normalizeEnv(process.env.GOOGLE_CALLBACK_URL_RAW) || normalizeEnv(process.env.GOOGLE_CALLBACK_URL);
+const GOOGLE_SCOPE = 'openid email profile';
+
+const buildGoogleCallbackUrl = (req: Request): string => {
+  if (GOOGLE_CALLBACK_URL_RAW) {
+    return GOOGLE_CALLBACK_URL_RAW;
+  }
+
+  if (FRONTEND_URL) {
+    // return `${FRONTEND_URL.replace(/\/$/, '')}/api/auth/google/callback`;
+    return `http://localhost:5173/api/auth/google/callback`;
+  }
+
+  const proto = (req.get('x-forwarded-proto') || req.protocol || 'http').split(',')[0];
+  const host = req.get('x-forwarded-host') || req.get('host') || 'localhost';
+  const derived = `${proto}://${host}/api/auth/google/callback`;
+  console.warn('Derived Google callback URL from request:', derived, '— consider setting GOOGLE_CALLBACK_URL or FRONTEND_URL in production');
+  console.log('Google OAuth config at runtime', { FRONTEND_URL, GOOGLE_CALLBACK_URL_RAW, redirectDerived: derived });
+  return derived;
+};
+
+const ensureGoogleConfigured = () => Boolean(GOOGLE_CLIENT_ID);
 
 const buildGithubCallbackUrl = (req: Request): string => {
   if (process.env.GITHUB_CALLBACK_URL) {
@@ -70,15 +99,8 @@ const createFrontendRedirectUrl = (returnTo: string | null | undefined, params: 
   return url.toString();
 };
 
-const setSessionUser = (req: Request, user: { id: string; username: string; email: string; isAdmin?: boolean }) => {
-  req.session.userId = user.id;
-  req.session.user = {
-    id: user.id,
-    username: user.username,
-    email: user.email,
-  };
-  (req.session.user as any).isAdmin = Boolean(user.isAdmin);
-};
+// use helper from server/utils/userAccounts.ts
+const setSessionUser = setSessionUserHelper;
 
 const generateUniqueUsername = async (base: string): Promise<string> => {
   const sanitizedBase = base.toLowerCase().replace(/[^a-z0-9.]/g, '') || 'githubuser';
@@ -86,8 +108,10 @@ const generateUniqueUsername = async (base: string): Promise<string> => {
   let suffix = 0;
 
   while (suffix < 5000) {
-    const existing = await prisma.user.findUnique({ where: { username: candidate } });
-    if (!existing) {
+    // Case-insensitive check: ensure no existing user uses the same characters when lowercased
+    const candidateLower = candidate.toLowerCase();
+    const exists = await isUsernameTakenCaseInsensitive(candidate);
+    if (!exists) {
       return candidate;
     }
     suffix += 1;
@@ -103,6 +127,386 @@ const createRandomPasswordHash = async () => {
 };
 
 const provider = 'github' as const;
+
+const googleProvider = 'google' as const;
+
+router.get('/auth/google', (req: Request, res: Response) => {
+  console.log('Google auth requested (start)', { sessionID: (req as any).sessionID, sessionUserId: req.session?.userId, hasOAuthState: Boolean(req.session?.oauthState) });
+
+  if (!ensureGoogleConfigured()) {
+    console.warn('Google OAuth redirect attempted but GOOGLE_CLIENT_ID is missing');
+    return res.status(503).json({ message: 'Google OAuth is not configured (missing client id)' });
+  }
+
+  if (!GOOGLE_CLIENT_SECRET) {
+    console.warn('Google CLIENT_ID present but CLIENT_SECRET missing — redirect will proceed but callback will fail unless CLIENT_SECRET is set');
+  }
+
+  const mode = req.query.mode === 'link' ? 'link' : 'login';
+  if (mode === 'link' && !req.session.userId) {
+    return res.status(401).json({ message: 'You must be logged in to link accounts' });
+  }
+
+  const state = randomToken(16);
+  const returnTo = typeof req.query.returnTo === 'string' ? req.query.returnTo : null;
+  req.session.oauthState = {
+    provider: googleProvider,
+    state,
+    mode,
+    userId: req.session.userId ?? null,
+    returnTo,
+  };
+
+  console.log('Saved oauthState on session (start):', { sessionID: (req as any).sessionID, oauthState: req.session.oauthState });
+
+  const redirectUri = buildGoogleCallbackUrl(req);
+  const deviceId = process.env.OAUTH_DEVICE_ID || req.get('x-forwarded-for') || req.hostname || 'local-device';
+  const deviceName = process.env.OAUTH_DEVICE_NAME || (`${req.get('user-agent')?.split(' ')[0] || 'Axioris'}-dev`);
+
+    // Normalize device values to strings and save them to the session so we can reuse them
+    const normalizedDeviceId = String(deviceId ?? 'local-device');
+    const normalizedDeviceName = String(deviceName ?? 'Axioris-dev');
+    (req.session as any).oauthDevice = { id: normalizedDeviceId, name: normalizedDeviceName };
+
+    const params = new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      response_type: 'code',
+      scope: GOOGLE_SCOPE,
+      state,
+      redirect_uri: redirectUri,
+      access_type: 'offline',
+      prompt: 'consent',
+      device_id: normalizedDeviceId,
+      device_name: normalizedDeviceName,
+    });
+
+  const authorizeUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  console.log('Initiating Google OAuth redirect', { redirectUri, authorizeUrl });
+
+  req.session.save((err) => {
+    if (err) {
+      console.error('Failed to persist OAuth state (google):', err);
+      return res.status(500).json({ message: 'Failed to initiate Google authentication' });
+    }
+    // Read back the session file/store to confirm oauthState persisted (for debugging)
+    try {
+        console.log('Session saved (start) ok', { sessionID: (req as any).sessionID, oauthState: req.session.oauthState, oauthDevice: (req.session as any).oauthDevice });
+    } catch (e) {
+      console.warn('Unable to log session after save (start):', e);
+    }
+    res.redirect(authorizeUrl);
+  });
+});
+
+router.get('/auth/google/callback', async (req: Request, res: Response) => {
+  console.log('Google callback hit', { sessionID: (req as any).sessionID, sessionUserId: req.session?.userId, hasOAuthState: Boolean(req.session?.oauthState) });
+  const sessionState = req.session.oauthState;
+  const stateParam = typeof req.query.state === 'string' ? req.query.state : '';
+  const code = typeof req.query.code === 'string' ? req.query.code : '';
+
+  const redirectWithStatus = (status: 'success' | 'linked' | 'unlinked' | 'error' | 'username_conflict', message?: string) => {
+    const redirectUrl = createFrontendRedirectUrl(sessionState?.returnTo, {
+      authProvider: googleProvider,
+      authStatus: status,
+      authMessage: message,
+    });
+    return res.redirect(redirectUrl);
+  };
+
+  if (!ensureGoogleConfigured()) {
+    return redirectWithStatus('error', 'google_not_configured');
+  }
+
+  if (!sessionState || sessionState.provider !== googleProvider || !stateParam || sessionState.state !== stateParam) {
+    console.warn('Google OAuth state mismatch', { sessionID: (req as any).sessionID, sessionState, stateParam });
+    return redirectWithStatus('error', 'invalid_oauth_state');
+  }
+
+  delete req.session.oauthState;
+
+  if (!code) {
+    return redirectWithStatus('error', 'missing_code');
+  }
+
+  try {
+    if (!GOOGLE_CLIENT_SECRET) {
+      console.error('Google callback attempted but GOOGLE_CLIENT_SECRET is missing');
+      return redirectWithStatus('error', 'server_missing_secret');
+    }
+
+    // Reuse device info we stored on the session during the authorize phase (if any)
+    const sessionDevice = (req.session as any)?.oauthDevice;
+    const deviceIdForExchange = sessionDevice?.id || process.env.OAUTH_DEVICE_ID || 'local-device';
+    const deviceNameForExchange = sessionDevice?.name || process.env.OAUTH_DEVICE_NAME || 'Axioris-dev';
+
+    console.log('Exchanging token with device info', { deviceIdForExchange, deviceNameForExchange });
+
+    const tokenBody = new URLSearchParams({
+      code,
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      redirect_uri: buildGoogleCallbackUrl(req),
+      grant_type: 'authorization_code',
+      device_id: String(deviceIdForExchange),
+      device_name: String(deviceNameForExchange),
+    });
+
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: tokenBody.toString()
+    });
+
+    if (!tokenResponse.ok) {
+      throw new Error(`Google token exchange failed with status ${tokenResponse.status}`);
+    }
+
+    const tokenData = await tokenResponse.json() as any;
+    const accessToken = tokenData.access_token;
+
+    const profileResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      }
+    });
+
+    if (!profileResponse.ok) {
+      throw new Error(`Google profile request failed with status ${profileResponse.status}`);
+    }
+
+    const profile = await profileResponse.json() as any;
+    // profile contains: sub (id), email, email_verified, name, picture, given_name, family_name
+
+    const providerAccountId = String(profile.sub);
+    const accountData = {
+      provider: googleProvider,
+      providerAccountId,
+      username: profile.email ? profile.email.split('@')[0] : null,
+      displayName: profile.name ?? null,
+      profileUrl: null,
+      avatarUrl: profile.picture ?? null,
+      accessToken,
+      scope: tokenData.scope ?? GOOGLE_SCOPE,
+      tokenExpiresAt: null as Date | null,
+    };
+
+    const existingAccount = await (prisma as any).oAuthAccount.findUnique({
+      where: {
+        provider_providerAccountId: {
+          provider: googleProvider,
+          providerAccountId,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            isAdmin: true,
+          },
+        },
+      },
+    });
+
+    if (sessionState.mode === 'link') {
+      if (!sessionState.userId) {
+        return redirectWithStatus('error', 'missing_session_user');
+      }
+
+      if (existingAccount && existingAccount.userId !== sessionState.userId) {
+        return redirectWithStatus('error', 'already_linked_elsewhere');
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await (tx as any).oAuthAccount.upsert({
+          where: {
+            provider_providerAccountId: {
+              provider: googleProvider,
+              providerAccountId,
+            }
+          },
+          update: {
+            username: accountData.username,
+            displayName: accountData.displayName,
+            profileUrl: accountData.profileUrl,
+            avatarUrl: accountData.avatarUrl,
+            accessToken: accountData.accessToken,
+            scope: accountData.scope,
+            updatedAt: new Date(),
+            userId: sessionState.userId!,
+          },
+          create: {
+            provider: googleProvider,
+            providerAccountId,
+            username: accountData.username,
+            displayName: accountData.displayName,
+            profileUrl: accountData.profileUrl,
+            avatarUrl: accountData.avatarUrl,
+            accessToken: accountData.accessToken,
+            scope: accountData.scope,
+            userId: sessionState.userId!,
+          }
+        });
+      });
+
+      return redirectWithStatus('linked');
+    }
+
+    if (existingAccount?.user) {
+      setSessionUser(req, existingAccount.user);
+      await (prisma as any).oAuthAccount.update({
+        where: { id: existingAccount.id },
+        data: {
+          username: accountData.username,
+          displayName: accountData.displayName,
+          profileUrl: accountData.profileUrl,
+          avatarUrl: accountData.avatarUrl,
+          accessToken: accountData.accessToken,
+          scope: accountData.scope,
+          updatedAt: new Date(),
+        }
+      });
+
+      await prisma.user.update({
+        where: { id: existingAccount.user.id },
+        data: { lastLogin: new Date() }
+      });
+
+      await new Promise((resolve, reject) => req.session.save(err => err ? reject(err) : resolve(null)));
+      return redirectWithStatus('success');
+    }
+
+    // Rest of account creation/linking logic mirrors GitHub flow below (reuse existing code paths)
+    let targetUser: { id: string; username: string; email: string; isAdmin: boolean } | null = null;
+    if (profile.email) {
+      targetUser = await prisma.user.findUnique({
+        where: { email: profile.email },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          isAdmin: true,
+        },
+      });
+    }
+
+    if (!targetUser) {
+      const rawBase = accountData.username ?? profile.name ?? `google${profile.sub}`;
+      const baseUsername = String(rawBase).toLowerCase().replace(/[^a-z0-9.]/g, '') || `google${profile.sub}`;
+
+      const usernameTaken = await isUsernameTakenCaseInsensitive(baseUsername);
+      if (usernameTaken) {
+        (req.session as any).googleSignupData = {
+          profile,
+          accountData,
+          email: profile.email,
+          emailVerified: profile.email_verified ?? false,
+          baseUsername,
+          returnTo: sessionState.returnTo
+        };
+        await new Promise((resolve, reject) => req.session.save(err => err ? reject(err) : resolve(null)));
+        return redirectWithStatus('username_conflict', baseUsername);
+      }
+
+      const hashedPassword = await createRandomPasswordHash();
+      const avatarGradient = getRandomGradientId();
+      let bannerGradient = getRandomGradientId();
+      if (bannerGradient === avatarGradient) {
+        bannerGradient = getRandomGradientId();
+      }
+
+      const user = await prisma.user.create({
+        data: {
+          username: baseUsername,
+          email: profile.email ?? undefined,
+          password: hashedPassword,
+          profile: {
+            create: {
+              displayName: accountData.displayName || baseUsername,
+              avatarGradient,
+              bannerGradient
+            } as any
+          },
+          settings: {
+            create: {
+              language: 'en',
+              theme: 'dark'
+            }
+          }
+        },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          isAdmin: true,
+          createdAt: true,
+          profile: {
+            select: {
+              id: true,
+              displayName: true,
+              avatarGradient: true,
+              bannerGradient: true
+            } as any
+          }
+        }
+      });
+
+      await (prisma as any).oAuthAccount.create({
+        data: {
+          provider: googleProvider,
+          providerAccountId,
+          username: accountData.username,
+          displayName: accountData.displayName,
+          profileUrl: accountData.profileUrl,
+          avatarUrl: accountData.avatarUrl,
+          accessToken: accountData.accessToken,
+          scope: accountData.scope,
+          userId: user.id
+        }
+      });
+
+      req.session.userId = user.id;
+      req.session.user = {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+      } as any;
+      (req.session.user as any).isAdmin = user.isAdmin ?? false;
+
+      await new Promise((resolve, reject) => req.session.save(err => err ? reject(err) : resolve(null)));
+
+      return redirectWithStatus('success');
+    }
+
+    // If targetUser exists (found by email), link account
+    await prisma.$transaction(async (tx) => {
+      await (tx as any).oAuthAccount.create({
+        data: {
+          provider: googleProvider,
+          providerAccountId,
+          username: accountData.username,
+          displayName: accountData.displayName,
+          profileUrl: accountData.profileUrl,
+          avatarUrl: accountData.avatarUrl,
+          accessToken: accountData.accessToken,
+          scope: accountData.scope,
+          userId: targetUser!.id
+        }
+      });
+    });
+
+    setSessionUser(req, { id: targetUser.id, username: targetUser.username, email: targetUser.email, isAdmin: targetUser.isAdmin });
+    await prisma.user.update({ where: { id: targetUser.id }, data: { lastLogin: new Date() } });
+    await new Promise((resolve, reject) => req.session.save(err => err ? reject(err) : resolve(null)));
+    return redirectWithStatus('success');
+  } catch (error) {
+    console.error('Google OAuth error:', error);
+    return redirectWithStatus('error', 'internal_error');
+  }
+});
 
 router.get('/auth/github', (req: Request, res: Response) => {
   if (!ensureGithubConfigured()) {
@@ -374,10 +778,8 @@ router.get('/auth/github/callback', async (req: Request, res: Response) => {
   const rawBase = profile.login ?? profile.name ?? `github${profile.id}`;
   const baseUsername = String(rawBase).toLowerCase().replace(/[^a-z0-9.]/g, '') || `github${profile.id}`;
       
-      const existingUserWithUsername = await prisma.user.findUnique({
-        where: { username: baseUsername },
-        select: { id: true }
-      });
+      const baseUsernameLower = baseUsername.toLowerCase();
+      const existingUserWithUsername = await isUsernameTakenCaseInsensitive(baseUsername);
 
       if (existingUserWithUsername) {
         (req.session as any).githubSignupData = {
@@ -557,7 +959,7 @@ declare module 'express-session' {
     };
     viewedPosts?: Record<string, number>;
     oauthState?: {
-      provider: 'github';
+      provider: 'github' | 'google' | string;
       state: string;
       mode: 'login' | 'link';
       userId?: string | null;
@@ -566,7 +968,7 @@ declare module 'express-session' {
   }
 }
 
-router.post('/register', async (req: Request, res: Response) => {
+router.post('/register', registerLimiter, async (req: Request, res: Response) => {
   try {
     const { name, email, password } = req.body;
 
@@ -587,19 +989,17 @@ router.post('/register', async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Username contains disallowed language' });
     }
 
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email },
-          { username: name }
-        ]
-      }
-    });
+    // Check email conflict first
+    const existingByEmail = await prisma.user.findUnique({ where: { email } });
+    if (existingByEmail) {
+      return res.status(400).json({ message: 'Email already registered' });
+    }
 
-    if (existingUser) {
-      return res.status(400).json({ 
-        message: existingUser.email === email ? 'Email already registered' : 'Username already taken' 
-      });
+    // Case-insensitive username check
+    const nameLower = String(name).toLowerCase();
+    const existingByUsername = await isUsernameTakenCaseInsensitive(name);
+    if (existingByUsername) {
+      return res.status(400).json({ message: 'Username already taken' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
@@ -671,7 +1071,7 @@ router.post('/register', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', loginLimiter, async (req: Request, res: Response) => {
   try {
     const { email, password, remember } = req.body;
 

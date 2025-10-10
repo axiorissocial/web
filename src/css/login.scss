@@ -75,6 +75,10 @@
       border-color: var(--primary-dark);
     }
   }
+
+  label {
+    color: #999
+  }
 }
 
 .login-modal .github-login-btn {
@@ -99,3 +103,108 @@
     margin-right: 0.5rem;
   }
 }
+
+.login-modal .google-login-btn {
+  background-color: #fff !important;
+  color: #1a73e8 !important;
+  border: 2px solid #1a73e8 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, transform 0.1s;
+
+  &:hover {
+    background-color: #f5faff !important;
+    border-color: #1765c1 !important;
+    transform: translateY(-1px);
+  }
+
+  .fa-icon {
+    margin-right: 0.5rem;
+  }
+}
+
+/* Small circular OAuth icon buttons used in login/register pages */
+.oauth-icon-btn {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  line-height: 0;
+}
+
+.oauth-icon-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* GitHub: black background, white icon */
+.oauth-icon-btn.github {
+  background-color: #24292e;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.oauth-icon-btn.github:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+/* Google: white background, blue border, Google multicolor icon inside */
+.oauth-icon-btn.google {
+  background-color: #fff;
+  border: 2px solid #1a73e8;
+  padding: 6px;
+}
+.oauth-icon-btn.google:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+/* If the icon is an SVG element inside the button, make it fit */
+.oauth-icon-btn svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+/* Simple CSS tooltip to avoid popper/layout jitter */
+.oauth-icon-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.oauth-tooltip {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  bottom: 100%;
+  background: rgba(0,0,0,0.85);
+  color: #fff;
+  /* force consistent height and center content */
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  z-index: 2000;
+}
+
+.oauth-icon-wrapper:hover .oauth-tooltip,
+.oauth-icon-wrapper:focus-within .oauth-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+

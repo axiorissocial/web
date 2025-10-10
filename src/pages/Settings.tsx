@@ -107,6 +107,13 @@ const SettingsPage: React.FC = () => {
     profileUrl: string;
     avatarUrl: string;
   } | null>(null);
+  const [googleAccount, setGoogleAccount] = useState<{
+    id: string;
+    username: string;
+    displayName: string;
+    profileUrl: string;
+    avatarUrl: string;
+  } | null>(null);
   const [githubLoading, setGithubLoading] = useState(false);
   const [githubError, setGithubError] = useState('');
   const [githubSuccess, setGithubSuccess] = useState('');
@@ -130,6 +137,7 @@ const SettingsPage: React.FC = () => {
       loadUserData();
       loadUserSettings();
       loadGithubAccount();
+      loadOauthAccounts();
     }
   }, [user]);
 
@@ -290,6 +298,22 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  const loadOauthAccounts = async () => {
+    try {
+      const response = await fetch('/api/users/me/oauth-accounts', {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const google = data.accounts?.find((account: any) => account.provider === 'google');
+        setGoogleAccount(google || null);
+      }
+    } catch (error) {
+      console.error('Error loading OAuth accounts:', error);
+    }
+  };
+
   const handleGithubLink = () => {
     setGithubLoading(true);
     setGithubError('');
@@ -298,6 +322,15 @@ const SettingsPage: React.FC = () => {
     const returnTo = '/settings?tab=account';
     const params = new URLSearchParams({ mode: 'link', returnTo });
     window.location.href = `/api/auth/github?${params.toString()}`;
+  };
+
+  const handleGoogleLink = () => {
+    setGithubLoading(true);
+    setGithubError('');
+    setGithubSuccess('');
+    const returnTo = '/settings?tab=account';
+    const params = new URLSearchParams({ mode: 'link', returnTo });
+    window.location.href = `/api/auth/google?${params.toString()}`;
   };
 
   const handleGithubUnlink = async () => {
@@ -327,6 +360,38 @@ const SettingsPage: React.FC = () => {
     } catch (error) {
       console.error('Error unlinking GitHub:', error);
       setGithubError(t('settings.linkedAccounts.github.unlinkError'));
+    } finally {
+      setGithubLoading(false);
+    }
+  };
+
+  const handleGoogleUnlink = async () => {
+    if (!googleAccount) return;
+
+    setGithubLoading(true);
+    setGithubError('');
+    setGithubSuccess('');
+
+    try {
+      const response = await fetch('/api/oauth/unlink', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ provider: 'google' }),
+      });
+
+      if (response.ok) {
+        setGoogleAccount(null);
+        setGithubSuccess(t('settings.linkedAccounts.google.unlinkSuccess'));
+      } else {
+        const data = await response.json();
+        setGithubError(data.error || t('settings.linkedAccounts.google.unlinkError'));
+      }
+    } catch (error) {
+      console.error('Error unlinking Google:', error);
+      setGithubError(t('settings.linkedAccounts.google.unlinkError'));
     } finally {
       setGithubLoading(false);
     }
@@ -1015,6 +1080,65 @@ const SettingsPage: React.FC = () => {
                         </div>
                       )}
                     </fieldset>
+                    
+                      <fieldset className="border rounded p-3 mb-3">
+                        <legend className="fw-semibold h6 px-2">{t('settings.linkedAccounts.google.title')}</legend>
+                        {githubError && <Alert variant="danger">{githubError}</Alert>}
+                        {githubSuccess && <Alert variant="success">{githubSuccess}</Alert>}
+                        {googleAccount ? (
+                          <div className="d-flex align-items-center justify-content-between">
+                            <div className="d-flex align-items-center">
+                              <img 
+                                src={googleAccount.avatarUrl} 
+                                alt={googleAccount.username}
+                                className="rounded-circle me-3"
+                                style={{ width: '40px', height: '40px' }}
+                              />
+                              <div>
+                                <div className="fw-semibold">{googleAccount.displayName || googleAccount.username}</div>
+                                <div className="text-muted small">@{googleAccount.username}</div>
+                              </div>
+                            </div>
+                            <Button 
+                              variant="outline-danger" 
+                              size="sm"
+                              onClick={handleGoogleUnlink}
+                              disabled={githubLoading}
+                            >
+                              {githubLoading ? (
+                                <>
+                                  <Spinner size="sm" className="me-2" />
+                                  {t('settings.linkedAccounts.google.unlinking')}
+                                </>
+                              ) : (
+                                t('settings.linkedAccounts.google.unlink')
+                              )}
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="d-flex align-items-center justify-content-between">
+                            <div>
+                              <div className="fw-semibold">{t('settings.linkedAccounts.google.notLinked')}</div>
+                              <div className="text-muted small">{t('settings.linkedAccounts.google.linkDescription')}</div>
+                            </div>
+                            <Button 
+                              variant="outline-primary" 
+                              size="sm"
+                              onClick={handleGoogleLink}
+                              disabled={githubLoading}
+                            >
+                              {githubLoading ? (
+                                <>
+                                  <Spinner size="sm" className="me-2" />
+                                  {t('settings.linkedAccounts.google.linking')}
+                                </>
+                              ) : (
+                                t('settings.linkedAccounts.google.link')
+                              )}
+                            </Button>
+                          </div>
+                        )}
+                      </fieldset>
                     
                     {!githubAccount && (
                       <div className="text-muted small text-center py-3">

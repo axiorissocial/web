@@ -1,5 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import compression from 'compression';
+import helmet from 'helmet';
 import session from 'express-session';
 import FileStore from 'session-file-store';
 import path from 'path';
@@ -42,6 +44,7 @@ const sessionMiddleware = session({
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000,
+    sameSite: 'lax',
   },
 });
 
@@ -53,6 +56,16 @@ app.use(cors({
 }));
 
 app.use(i18nextMiddleware.handle(i18next));
+
+// Security headers
+app.use(helmet());
+
+// Gzip compression
+app.use(compression());
+
+// Basic global rate limiting
+import { generalApiLimiter } from './utils/rateLimiters.js';
+app.use('/api', generalApiLimiter);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -100,6 +113,15 @@ if (process.env.NODE_ENV !== 'production') {
     } catch (err) {
       res.status(500).json({ error: 'Unable to fetch realtime stats' });
     }
+  });
+
+  app.get('/api/debug/oauth-config', (req: Request, res: Response) => {
+    res.json({
+      GITHUB_CLIENT_ID: Boolean(process.env.GITHUB_CLIENT_ID),
+      GITHUB_CLIENT_SECRET: Boolean(process.env.GITHUB_CLIENT_SECRET),
+      GOOGLE_CLIENT_ID: Boolean(process.env.GOOGLE_CLIENT_ID),
+      GOOGLE_CLIENT_SECRET: Boolean(process.env.GOOGLE_CLIENT_SECRET),
+    });
   });
 }
 
