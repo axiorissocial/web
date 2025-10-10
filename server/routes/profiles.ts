@@ -51,7 +51,9 @@ router.get('/:username/profile', async (req: Request, res: Response) => {
     const { username: rawUsername } = req.params;
     const currentUserId = (req.session as any)?.userId;
     
-    const username = decodeURIComponent(rawUsername).trim();
+    let username = String(rawUsername || '');
+    username = username.startsWith('@') ? username.slice(1) : username;
+    username = decodeURIComponent(username).trim().toLowerCase();
 
     console.log(`Fetching profile for username: "${username}" (raw: "${rawUsername}"), currentUserId: ${currentUserId}`);
 
