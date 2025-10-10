@@ -15,17 +15,14 @@ const GITHUB_SCOPE = 'read:user user:email';
 const GITHUB_USER_AGENT = process.env.GITHUB_USER_AGENT || 'HubbleApp';
 
 const buildGithubCallbackUrl = (req: Request): string => {
-  // Prefer an explicit environment override (recommended for production)
   if (process.env.GITHUB_CALLBACK_URL) {
     return process.env.GITHUB_CALLBACK_URL;
   }
 
-  // Next prefer the configured FRONTEND_URL so the callback is deterministic
   if (process.env.FRONTEND_URL) {
     return `${process.env.FRONTEND_URL.replace(/\/$/, '')}/api/auth/github/callback`;
   }
 
-  // Last resort: derive from the incoming request (useful for local dev)
   const proto = (req.get('x-forwarded-proto') || req.protocol || 'http').split(',')[0];
   const host = req.get('x-forwarded-host') || req.get('host') || 'localhost';
   const derived = `${proto}://${host}/api/auth/github/callback`;
@@ -520,7 +517,6 @@ router.delete('/auth/providers/:provider', requireAuth, async (req: Request, res
   }
 });
 
-// Allow OAuth users (e.g., GitHub signups) to set an initial password once.
 router.post('/auth/set-password', requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.session.userId!;
@@ -533,7 +529,6 @@ router.post('/auth/set-password', requireAuth, async (req: Request, res: Respons
     const user = await prisma.user.findUnique({ where: { id: userId }, include: { oauthAccounts: true } });
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // Only allow if user originally signed up via OAuth (has oauthAccounts) and hasn't set a password yet
     if (!user.oauthAccounts || user.oauthAccounts.length === 0) {
       return res.status(400).json({ message: 'Not an OAuth-only account' });
     }
@@ -588,7 +583,6 @@ router.post('/register', async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Username can only contain letters, numbers, and periods' });
     }
 
-    // disallow profane usernames
     if (containsProfanityStrict(name)) {
       return res.status(400).json({ message: 'Username contains disallowed language' });
     }

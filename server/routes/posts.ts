@@ -613,13 +613,13 @@ router.get('/posts', optionalAuth, async (req: AuthenticatedRequest, res: Respon
     if (searchTerm) {
       where.OR = [
         { id: searchTerm },
-        { slug: { contains: searchTerm, mode: 'insensitive' } },
-        { content: { contains: searchTerm, mode: 'insensitive' } },
-        { title: { contains: searchTerm, mode: 'insensitive' } },
+  { slug: { contains: searchTerm } },
+  { content: { contains: searchTerm } },
+  { title: { contains: searchTerm } },
         {
           user: {
             is: {
-              username: { contains: searchTerm, mode: 'insensitive' }
+              username: { contains: searchTerm }
             }
           }
         },
@@ -926,12 +926,10 @@ router.post('/posts', requireAuth, async (req: AuthenticatedRequest, res: Respon
       return res.status(400).json({ message: 'Post content is required' });
     }
 
-    // If post includes high-severity racist slurs or similar, block outright.
     if (containsHighSeverity(content)) {
       return res.status(400).json({ message: 'Post contains disallowed language' });
     }
 
-    // Less-strict profanity checks for posts: allow mild expletives but block slurs
     if (containsProfanityForPosts(content)) {
       return res.status(400).json({ message: 'Post contains disallowed language' });
     }
@@ -944,7 +942,6 @@ router.post('/posts', requireAuth, async (req: AuthenticatedRequest, res: Respon
 
     let slug = null;
     if (title) {
-      // Check title profanity with stricter policy for titles
       if (containsProfanityForPosts(title) || containsHighSeverity(title)) {
         return res.status(400).json({ message: 'Title contains disallowed language' });
       }
@@ -960,7 +957,6 @@ router.post('/posts', requireAuth, async (req: AuthenticatedRequest, res: Respon
       }
     }
 
-  // sanitizedContent already computed above
 
     const post = await prisma.post.create({
       data: {
@@ -1059,7 +1055,6 @@ router.post('/posts/:id/like', requireAuth, async (req: AuthenticatedRequest, re
         })
       ]);
 
-      // Revoke XP for the post owner when a like is removed. Idempotent via source key.
       try {
         if (post.userId && post.userId !== userId) {
           await revokeXp(post.userId, 2, 'unlike', { sourceType: 'post_like', sourceId: `${id}:${userId}` });
@@ -1083,7 +1078,6 @@ router.post('/posts/:id/like', requireAuth, async (req: AuthenticatedRequest, re
         })
       ]);
 
-      // Award XP to the post owner for receiving a like. Use idempotency key to avoid double-award.
       try {
         if (post.userId && post.userId !== userId) {
           await awardXp(post.userId, 2, 'like_received', { sourceType: 'post_like', sourceId: `${id}:${userId}` });
@@ -1357,7 +1351,6 @@ router.put('/posts/:id', requireAuth, async (req: AuthenticatedRequest, res: Res
 
     const nextCountryCode = existingPost.originCountryCode ?? resolvedCountryCode ?? null;
 
-    // Additional profanity checks on edit
     if (containsHighSeverity(content) || containsProfanityForPosts(content)) {
       return res.status(400).json({ error: 'Post contains disallowed language' });
     }

@@ -38,8 +38,8 @@ router.get('/admin/users', requireAuth, async (req: AuthenticatedRequest, res: R
 
     if (searchTerm) {
       where.OR = [
-        { username: { contains: searchTerm, mode: 'insensitive' } },
-        { email: { contains: searchTerm, mode: 'insensitive' } },
+  { username: { contains: searchTerm } },
+  { email: { contains: searchTerm } },
         { id: searchTerm }
       ];
     }
@@ -188,7 +188,6 @@ router.delete('/admin/post/:id', requireAuth, async (req: AuthenticatedRequest, 
 
     await prisma.like.deleteMany({ where: { postId: id } });
 
-    // Before deleting, find reports that referenced this post and award reporters if needed
     try {
       const reports = await prisma.report.findMany({ where: { postId: id }, include: { reporter: { select: { id: true } } } });
       for (const r of reports) {

@@ -6,16 +6,19 @@
     <link rel="manifest" href="/manifest.json">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Axioris</title>
-    
+
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Axioris - Social Network" />
-    <meta property="og:description" content="Connect, share, and engage with Axioris - A modern social network platform." />
+    <meta property="og:description" content="Connect, share, and engage with Axioris - a modern social network platform." />
+    <meta property="og:url" content="/" />
+    <meta property="og:image" content="/icon512_maskable.png" />
 
     <!-- Twitter -->
-    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Axioris - Social Network" />
-    <meta name="twitter:description" content="Connect, share, and engage with Axioris - A modern social network platform." />
+    <meta name="twitter:description" content="Connect, share, and engage with Axioris - a modern social network platform." />
+    <meta name="twitter:image" content="/icon512_maskable.png" />
     
     <script>
       (function() {
@@ -29,6 +32,21 @@
 
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7794981155815310"
      crossorigin="anonymous"></script>
+    
+    <!-- SEO Structure -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Axioris",
+      "url": "/",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "/search?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>

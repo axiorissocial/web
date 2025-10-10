@@ -158,16 +158,16 @@ router.get('/reports', requireAuth, async (req: AuthenticatedRequest, res: Respo
       const searchFilter = {
         OR: [
           { id: searchTerm },
-          { reason: { contains: searchTerm, mode: 'insensitive' } },
-          { description: { contains: searchTerm, mode: 'insensitive' } },
-          { reporter: { username: { contains: searchTerm, mode: 'insensitive' } } },
+          { reason: { contains: searchTerm } },
+          { description: { contains: searchTerm } },
+          { reporter: { username: { contains: searchTerm } } },
           { post: { id: searchTerm } },
-          { post: { title: { contains: searchTerm, mode: 'insensitive' } } },
-          { post: { content: { contains: searchTerm, mode: 'insensitive' } } },
-          { post: { user: { username: { contains: searchTerm, mode: 'insensitive' } } } },
+          { post: { title: { contains: searchTerm } } },
+          { post: { content: { contains: searchTerm } } },
+          { post: { user: { username: { contains: searchTerm } } } },
           { comment: { id: searchTerm } },
-          { comment: { content: { contains: searchTerm, mode: 'insensitive' } } },
-          { comment: { user: { username: { contains: searchTerm, mode: 'insensitive' } } } }
+          { comment: { content: { contains: searchTerm } } },
+          { comment: { user: { username: { contains: searchTerm } } } }
         ]
       };
 
@@ -273,18 +273,13 @@ router.patch('/reports/:id', requireAuth, async (req: AuthenticatedRequest, res:
       }
     });
 
-    // If the report was resolved and is a bug/feature request, award XP to the reporter.
     try {
       if (status === 'RESOLVED' && ['BUG', 'FEATURE_REQUEST'].includes((report.reason ?? '').toUpperCase())) {
-        // Base award for a validated report
         await awardXp(report.reporter.id, 50, 'report_validated', { sourceType: 'report', sourceId: report.id });
 
-        // If the resolved report also led to removal of content (post/comment deleted), award a small bonus
-        // Check if there is a linked post that is now missing
         if (report.postId) {
           const post = await prisma.post.findUnique({ where: { id: report.postId } });
           if (!post) {
-            // Post deleted as part of resolution
             await awardXp(report.reporter.id, 25, 'report_resulted_in_deletion', { sourceType: 'report_deletion', sourceId: report.id });
           }
         }

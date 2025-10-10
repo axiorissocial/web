@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import usePageMeta from '../utils/usePageMeta';
 import '../css/error.scss';
 import '../css/buttons.scss';
 import { Button } from 'react-bootstrap';
@@ -20,11 +21,9 @@ const ErrorPage: React.FC<ErrorPageProps> = ({
   logoSrc = '/logo.svg',
 }) => {
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
-  useEffect(() => {
-    document.title = t('errorPage.documentTitle', { code, app: t('app.name') });
-  }, [code, t, i18n.language]);
+  usePageMeta({ title: t('errorPage.documentTitle', { code, app: t('app.name') }), description: t('errorPage.defaultMessage') });
 
   useOGMeta({
     title: t('errorPage.documentTitle', { code, app: t('app.name') }),

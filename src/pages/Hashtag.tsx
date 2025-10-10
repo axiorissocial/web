@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import usePageMeta from '../utils/usePageMeta';
 import { useParams } from 'react-router-dom';
 import { Alert, Button, Spinner } from 'react-bootstrap';
 import Sidebar from '../components/singles/Navbar';
@@ -99,9 +100,10 @@ const HashtagPage: React.FC = () => {
   };
 
   useEffect(() => {
-    document.title = t('hashtags.page.documentTitle', { tag: `#${decodedTag}`, app: t('app.name') });
     fetchPosts(1, false);
   }, [decodedTag]);
+
+  usePageMeta({ title: t('hashtags.page.documentTitle', { tag: `#${decodedTag}`, app: t('app.name') }), description: t('hashtags.page.subtitle') });
 
   useOGMeta({
     title: t('hashtags.page.documentTitle', { tag: `#${decodedTag}`, app: t('app.name') }),

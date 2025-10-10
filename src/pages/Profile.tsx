@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import usePageMeta from '../utils/usePageMeta';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { Card, Button, Spinner, Tabs, Tab, Badge, Row, Col } from 'react-bootstrap';
 import { Calendar, GeoAlt, Link45deg, PersonPlus, PersonDash, Envelope, ChatSquareText, Plus, Info } from 'react-bootstrap-icons';
@@ -74,7 +75,6 @@ const ProfilePage: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Set OG metadata
   useOGMeta({
     title: profile 
       ? `${profile.profile?.displayName || profile.username} (@${profile.username})`
@@ -85,6 +85,11 @@ const ProfilePage: React.FC = () => {
     image: profile?.profile?.avatar,
     type: 'profile',
     url: window.location.href,
+  });
+
+  usePageMeta({
+    title: profile ? t('profilePage.documentTitle', { name: profile.profile?.displayName || profile.username, app: t('app.name') }) : undefined,
+    description: profile ? (profile.profile?.bio || profile.bio) : undefined,
   });
 
   const handleCreatePost = () => {
@@ -118,10 +123,7 @@ const ProfilePage: React.FC = () => {
       const data = await response.json();
       setProfile(data);
       setFollowing(data.isFollowing || false);
-      document.title = t('profilePage.documentTitle', {
-        name: data.profile?.displayName || data.username,
-        app: t('app.name')
-      });
+      usePageMeta({ title: t('profilePage.documentTitle', { name: data.profile?.displayName || data.username, app: t('app.name') }), description: data.profile?.bio || data.bio });
     } catch (err) {
       console.error('Error fetching profile for %s:', username, err);
       setError(t('profilePage.errors.loadFailed'));

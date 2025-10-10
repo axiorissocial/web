@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import usePageMeta from '../utils/usePageMeta';
 import { Form, InputGroup, Tabs, Tab, Card, Badge, Button, Spinner } from 'react-bootstrap';
 import { Search as SearchIcon, Person, ChatSquareText, PersonPlus, PersonDash } from 'react-bootstrap-icons';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Sidebar from '../components/singles/Navbar';
 import Feed from '../components/Feed';
@@ -30,8 +31,10 @@ interface User {
 }
 
 const SearchPage: React.FC = () => {
-  const { t, i18n } = useTranslation();
-  const [searchQuery, setSearchQuery] = useState('');
+  const { t } = useTranslation();
+  const location = useLocation();
+  const [searchInput, setSearchInput] = useState('');
+  const [appliedQuery, setAppliedQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'posts' | 'users'>('posts');
   const [users, setUsers] = useState<User[]>([]);
   const [userLoading, setUserLoading] = useState(false);
@@ -76,9 +79,7 @@ const SearchPage: React.FC = () => {
   const [userPage, setUserPage] = useState(1);
   const [hasMoreUsers, setHasMoreUsers] = useState(true);
 
-  useEffect(() => {
-    document.title = t('search.documentTitle', { app: t('app.name') });
-  }, [t, i18n.language]);
+  usePageMeta({ title: t('search.documentTitle', { app: t('app.name') }), description: t('search.documentTitle', { app: t('app.name') }) });
 
   useOGMeta({
     title: t('search.documentTitle', { app: t('app.name') }),
@@ -88,7 +89,7 @@ const SearchPage: React.FC = () => {
   });
 
   const searchUsers = async (query: string, pageNum = 1, reset = false) => {
-    if (!query.trim()) {
+    if (!query || !query.trim()) {
       setUsers([]);
       return;
     }
@@ -121,24 +122,43 @@ const SearchPage: React.FC = () => {
   };
 
   const handleSearch = (query: string) => {
-    setSearchQuery(query);
+    setSearchInput(query);
+  };
+
+  const handleSubmitSearch = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const q = searchInput || '';
+    setAppliedQuery(q);
+    try {
+      navigate(`${window.location.pathname}${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+    } catch (err) {}
+
     if (activeTab === 'users') {
-      searchUsers(query, 1, true);
+      searchUsers(q, 1, true);
     }
   };
 
   const handleTabChange = (tab: string | null) => {
     if (tab === 'posts' || tab === 'users') {
       setActiveTab(tab);
-      if (tab === 'users' && searchQuery) {
-        searchUsers(searchQuery, 1, true);
-      }
     }
   };
 
+  React.useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const q = params.get('q') || '';
+    setSearchInput(q);
+    setAppliedQuery(q);
+    if (q) {
+      if (activeTab === 'users') {
+        searchUsers(q, 1, true);
+      }
+    }
+  }, [location.search]);
+
   const handleLoadMoreUsers = () => {
-    if (hasMoreUsers && !userLoading && searchQuery) {
-      searchUsers(searchQuery, userPage + 1);
+    if (hasMoreUsers && !userLoading && appliedQuery) {
+      searchUsers(appliedQuery, userPage + 1);
     }
   };
 
@@ -251,21 +271,25 @@ const SearchPage: React.FC = () => {
           <p className="">{t('search.subheading')}</p>
           
           <div className="search-input-container">
-            <InputGroup size="lg">
-              <InputGroup.Text>
-                <SearchIcon />
-              </InputGroup.Text>
-              <Form.Control
-                type="text"
-                placeholder={t('search.placeholder')}
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-              />
-            </InputGroup>
+            <Form onSubmit={handleSubmitSearch}>
+              <InputGroup size="lg">
+                <InputGroup.Text>
+                  <SearchIcon />
+                </InputGroup.Text>
+                <Form.Control
+                  name="q"
+                  type="text"
+                  placeholder={t('search.placeholder')}
+                  value={searchInput}
+                  onChange={(e) => handleSearch(e.target.value)}
+                />
+                <Button type="submit" variant="primary">{t('search.actions.search')}</Button>
+              </InputGroup>
+            </Form>
           </div>
         </div>
 
-        {searchQuery && (
+  {appliedQuery && (
           <Tabs
             activeKey={activeTab}
             onSelect={handleTabChange}
@@ -273,7 +297,7 @@ const SearchPage: React.FC = () => {
           >
             <Tab eventKey="posts" title={t('search.tabs.posts')}>
               <div className="search-results">
-                <Feed searchQuery={searchQuery} />
+                <Feed searchQuery={appliedQuery} />
               </div>
             </Tab>
             
@@ -325,7 +349,7 @@ const SearchPage: React.FC = () => {
           </Tabs>
         )}
 
-        {!searchQuery && (
+        {!appliedQuery && (
           <div className="search-empty text-center py-5">
             <SearchIcon size={64} className="mb-3 " />
             <h3>{t('search.emptyState.title')}</h3>

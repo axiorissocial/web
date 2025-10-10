@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import usePageMeta from '../utils/usePageMeta';
 import { Form, Button, Alert, FloatingLabel } from 'react-bootstrap';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -25,14 +26,13 @@ const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { register, user, checkAuth } = useAuth();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
   useEffect(() => {
-    document.title = t('auth.register.documentTitle', { app: t('app.name') });
-    if (user) {
-      navigate('/');
-    }
-  }, [user, navigate, t, i18n.language]);
+    if (user) navigate('/');
+  }, [user, navigate]);
+
+  usePageMeta({ title: t('auth.register.documentTitle', { app: t('app.name') }), description: t('auth.register.documentTitle', { app: t('app.name') }) });
 
   useOGMeta({
     title: t('auth.register.documentTitle', { app: t('app.name') }),

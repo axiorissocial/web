@@ -45,7 +45,6 @@ export const initRealtime = (server: Server, sessionMiddleware: SessionMiddlewar
   wss = new WebSocketServer({ noServer: true });
 
   server.on('upgrade', (request, socket, head) => {
-    // accept both /ws and /api/ws paths
     if (!request.url?.startsWith('/ws') && !request.url?.startsWith('/api/ws')) {
       socket.destroy();
       return;

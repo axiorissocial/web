@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import usePageMeta from '../utils/usePageMeta';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Button, Form, Spinner, Alert } from 'react-bootstrap';
 import { ArrowLeft, ChatSquareText } from 'react-bootstrap-icons';
@@ -174,16 +175,11 @@ const PostPage: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    if (post) {
-      const title = post.title || t('postPage.meta.defaultTitle');
-      document.title = t('postPage.meta.documentTitle', { title, app: t('app.name') });
-    } else {
-      document.title = t('postPage.meta.defaultDocumentTitle', { app: t('app.name') });
-    }
-  }, [post, t]);
+  usePageMeta({
+    title: post ? t('postPage.meta.documentTitle', { title: post.title || t('postPage.meta.defaultTitle'), app: t('app.name') }) : t('postPage.meta.defaultDocumentTitle', { app: t('app.name') }),
+    description: post ? truncateText(stripFormatting(post.content), 160) : undefined,
+  });
 
-  // Set OG metadata
   useOGMeta({
     title: post?.title || t('postPage.meta.defaultTitle'),
     description: post ? truncateText(stripFormatting(post.content), 300) : t('postPage.meta.defaultDocumentTitle', { app: t('app.name') }),

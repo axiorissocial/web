@@ -1,25 +1,17 @@
 import leo from 'leo-profanity';
 
-// initialize default dictionary
 try {
-  // load English dictionary explicitly
-  // leo-profanity typings require a language parameter
-  // If the dictionary is already loaded this will be a no-op
   (leo as any).loadDictionary('en');
-} catch (err) {
-  // ignore - leo-profanity may already be initialized or run in environments where loading is unnecessary
-}
+} catch (err) {}
 
 const list = () => leo.list();
 
-// load high severity list from env or default empty
 const HIGH_SEVERITY_RAW = process.env.HIGH_SEVERITY_PROFANITY || '';
 const HIGH_SEVERITY_LIST = HIGH_SEVERITY_RAW.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 
 export const containsHighSeverity = (text?: string | null): boolean => {
   if (!text) return false;
   const lower = String(text).toLowerCase();
-  // check direct presence first
   for (const bad of HIGH_SEVERITY_LIST) {
     if (!bad) continue;
     if (lower.includes(bad)) return true;
@@ -44,8 +36,6 @@ export const containsProfanity = (text?: string | null): boolean => {
   }
 };
 
-// Strict check attempts to detect obfuscated/concatenated profanity by
-// normalizing and searching for known bad-words as substrings.
 export const containsProfanityStrict = (text?: string | null): boolean => {
   if (!text) return false;
   const lower = String(text).toLowerCase();
@@ -61,7 +51,6 @@ export const containsProfanityStrict = (text?: string | null): boolean => {
       if (compact.includes(cleanedBad)) return true;
     }
   } catch (err) {
-    // conservative fallback
     return false;
   }
 
@@ -83,21 +72,16 @@ export default {
   censor,
 };
 
-// Less strict check for posts: allow a small allowlist (e.g., f-word) but block high-severity terms
 export const containsProfanityForPosts = (text?: string | null): boolean => {
   if (!text) return false;
   const lower = String(text).toLowerCase();
 
-  // If any high-severity word present, block
   if (containsHighSeverity(lower)) return true;
 
-  // Build set of bad words matched in text
   const compact = lower.replace(/[^a-z0-9]+/g, ' ');
   const words = compact.split(/\s+/).filter(Boolean);
   const badSet = new Set(list().map(w => String(w).toLowerCase()));
 
-  // Allowed mild expletives for posts (original variations only)
-  // include base/original forms and common simple inflections
   const allowed = new Set([
     'fuck', 'fucks', 'fucked', 'fucking',
     'shit', 'shits', 'shitted', 'shitting',
@@ -112,7 +96,7 @@ export const containsProfanityForPosts = (text?: string | null): boolean => {
 
   for (const w of words) {
     if (badSet.has(w)) {
-      if (allowed.has(w)) continue; // allow f-word variants
+      if (allowed.has(w)) continue;
       return true;
     }
   }

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import usePageMeta from '../utils/usePageMeta';
 import { Button } from 'react-bootstrap';
 import { Plus } from 'react-bootstrap-icons';
 import { useNavigate } from 'react-router-dom';
@@ -17,8 +18,6 @@ const HomePage: React.FC = () => {
   const [isMobile, setIsMobile] = useState(window.innerHeight > window.innerWidth);
 
   useEffect(() => {
-    document.title = t('home.documentTitle', { app: t('app.name') });
-    
     const handleResize = () => setIsMobile(window.innerHeight > window.innerWidth);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -30,6 +29,8 @@ const HomePage: React.FC = () => {
     type: 'website',
     url: window.location.href,
   });
+
+  usePageMeta({ title: t('home.documentTitle', { app: t('app.name') }), description: t('home.subtitle') });
 
   const handleCreatePost = () => {
     navigate('/create-post');

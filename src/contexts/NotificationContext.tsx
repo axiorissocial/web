@@ -46,7 +46,6 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       }
 
       if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
-        // convert http(s) -> ws(s) and ensure path ends with /api/ws
         const url = normalized.replace(/^http/, 'ws').replace(/\/$/, '');
         return url.endsWith('/ws') || url.endsWith('/api/ws') ? url : `${url}/api/ws`;
       }
@@ -56,13 +55,10 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // Prefer explicit public host values when provided (Cloudflare tunnel public host)
     let host = (import.meta.env.VITE_PUBLIC_HOST as string | undefined)
       || (import.meta.env.VITE_HMR_HOST as string | undefined)
       || window.location.host;
 
-    // In dev, only append a port for localhost addresses. This prevents adding :3001 when the page is
-    // served via a tunnel (e.g. axioris.omgrod.me).
     if (import.meta.env.DEV) {
       const defaultPort = (import.meta.env.VITE_SERVER_PORT as string | undefined)
         || (import.meta.env.VITE_HMR_PORT as string | undefined)
@@ -76,7 +72,6 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       }
     }
 
-    // default to /api/ws because backend is served under /api
     return `${protocol}//${host.replace(/\/$/, '')}/api/ws`;
   };
 

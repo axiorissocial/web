@@ -40,11 +40,9 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ show, onHide, onPostUpdat
   const [uploadedMedia, setUploadedMedia] = useState<MediaFile[]>(post.media || []);
   const [uploading, setUploading] = useState(false);
 
-  // Track the previous show state to detect when modal opens
   const prevShowRef = useRef(show);
   
   useEffect(() => {
-    // Only reset the form state when the modal transitions from hidden to visible
     if (show && !prevShowRef.current) {
       setContent(post.content);
       setTitle(post.title || '');
