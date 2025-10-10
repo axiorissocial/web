@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../index.js';
 import { isSocialBot, generateHtmlWithMetaTags, stripHtmlAndFormat, truncateText } from '../utils/metaTags.js';
 
@@ -8,12 +8,12 @@ const router = Router();
  * SSR route for profile pages - serves HTML with proper meta tags for social media crawlers
  * Handles /profile/:username (with or without @ prefix)
  */
-router.get('/profile/:username', async (req: Request, res: Response) => {
+router.get('/profile/:username', async (req: Request, res: Response, next: NextFunction) => {
   const userAgent = req.get('User-Agent');
   
-  // If not a social bot, let the React app handle it
+  // If not a social bot, pass to next handler (React app in dev, or static files in production)
   if (!isSocialBot(userAgent)) {
-    return res.sendFile('index.html', { root: process.cwd() });
+    return next();
   }
 
   try {
@@ -43,8 +43,8 @@ router.get('/profile/:username', async (req: Request, res: Response) => {
     });
 
     if (!user) {
-      // User not found - serve default HTML
-      return res.sendFile('index.html', { root: process.cwd() });
+      // User not found - pass to next handler
+      return next();
     }
 
     // Determine display name
@@ -81,7 +81,7 @@ router.get('/profile/:username', async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('Error generating profile meta tags:', error);
-    res.sendFile('index.html', { root: process.cwd() });
+    next();
   }
 });
 
@@ -89,12 +89,12 @@ router.get('/profile/:username', async (req: Request, res: Response) => {
  * SSR route for post pages - serves HTML with proper meta tags for social media crawlers
  * Handles both /post/:id and /post/:slug routes
  */
-router.get('/post/:idOrSlug', async (req: Request, res: Response) => {
+router.get('/post/:idOrSlug', async (req: Request, res: Response, next: NextFunction) => {
   const userAgent = req.get('User-Agent');
   
-  // If not a social bot, let the React app handle it
+  // If not a social bot, pass to next handler (React app in dev, or static files in production)
   if (!isSocialBot(userAgent)) {
-    return res.sendFile('index.html', { root: process.cwd() });
+    return next();
   }
 
   try {
@@ -124,8 +124,8 @@ router.get('/post/:idOrSlug', async (req: Request, res: Response) => {
     });
 
     if (!post) {
-      // Post not found - serve default HTML
-      return res.sendFile('index.html', { root: process.cwd() });
+      // Post not found - pass to next handler
+      return next();
     }
 
     // Get the first media item (prefer images over videos)
@@ -172,7 +172,7 @@ router.get('/post/:idOrSlug', async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('Error generating post meta tags:', error);
-    res.sendFile('index.html', { root: process.cwd() });
+    next();
   }
 });
 
