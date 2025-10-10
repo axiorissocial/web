@@ -68,7 +68,7 @@ function AppRoutes() {
       <Route path="/profile/:username" element={<Profile />} />
       <Route path="/user/me" element={<Profile />} />
       <Route path="/post/:postId" element={<PostPage />} />
-  <Route path="/hashtags/:tag" element={<Hashtag />} />
+      <Route path="/hashtags/:tag" element={<Hashtag />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="/admin" element={<AdminPanel />} />
       <Route path="/account/login" element={<AccountLogin />} />
