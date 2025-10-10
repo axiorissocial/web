@@ -123,7 +123,6 @@ const ProfilePage: React.FC = () => {
       const data = await response.json();
       setProfile(data);
       setFollowing(data.isFollowing || false);
-      usePageMeta({ title: t('profilePage.documentTitle', { name: data.profile?.displayName || data.username, app: t('app.name') }), description: data.profile?.bio || data.bio });
     } catch (err) {
       console.error('Error fetching profile for %s:', username, err);
       setError(t('profilePage.errors.loadFailed'));
