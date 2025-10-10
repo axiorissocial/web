@@ -86,7 +86,12 @@ app.get('/api/csrf-token', (req: Request, res: Response) => {
   res.json({ csrfToken });
 });
 
-app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')));
+// Serve uploads with CORS headers to allow cross-origin access
+app.use('/uploads', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET');
+  next();
+}, express.static(path.join(process.cwd(), 'public', 'uploads')));
 
 app.use('/node_modules/@twemoji/svg', express.static(path.join(process.cwd(), 'node_modules', '@twemoji', 'svg')));
 
