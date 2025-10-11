@@ -10,7 +10,7 @@ import MentionTextarea from './MentionTextarea';
 import EmojiPicker from './EmojiPicker';
 import '../css/comment.scss';
 import { useTranslation } from 'react-i18next';
-import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
+import { getProfileGradientCss, getProfileGradientTextColor } from '../utils/profileGradients';
 import { formatCalendarDateTime, formatRelativeTime } from '../utils/time';
 
 interface CommentUser {

@@ -11,7 +11,7 @@ import DOMPurify from 'dompurify';
 import { parseEmoji } from '../utils/twemojiConfig';
 import { EMOJIS } from '../utils/emojis';
 import { useTranslation } from 'react-i18next';
-import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
+import { getProfileGradientCss, getProfileGradientTextColor } from '../utils/profileGradients';
 import { formatCalendarDateTime } from '../utils/time';
 
 interface User {

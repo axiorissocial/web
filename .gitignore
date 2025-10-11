@@ -24,7 +24,7 @@ dist-ssr
 *.sw?
 
 .env
-/src/generated/prisma
+/prisma/generated
 prisma/dev.db
 public/uploads
 sessions/

@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useOGMeta } from '../utils/ogMeta';
 import '../css/settings.scss';
 import { useTranslation } from 'react-i18next';
-import { profileGradients, getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
+import { profileGradients, getProfileGradientCss, getProfileGradientTextColor } from '../utils/profileGradients';
 
 interface ProfileData {
   displayName: string;

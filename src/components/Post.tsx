@@ -16,7 +16,7 @@ import '../css/post.scss';
 import '../css/mentions.scss';
 import { useTranslation } from 'react-i18next';
 import { createEmptyReactionsState } from '../utils/postReactions';
-import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
+import { getProfileGradientCss, getProfileGradientTextColor } from '../utils/profileGradients';
 import type { PostReactionsState, PostReactionEmoji } from '../utils/postReactions';
 import { formatCalendarDateTime, formatRelativeTime } from '../utils/time';
 

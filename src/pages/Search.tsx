@@ -9,7 +9,7 @@ import Feed from '../components/Feed';
 import { useAuth } from '../contexts/AuthContext';
 import { useOGMeta } from '../utils/ogMeta';
 import '../css/search.scss';
-import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
+import { getProfileGradientCss, getProfileGradientTextColor } from '../utils/profileGradients';
 
 interface User {
   id: string;

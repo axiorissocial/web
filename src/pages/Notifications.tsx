@@ -9,7 +9,7 @@ import { useOGMeta } from '../utils/ogMeta';
 import '../css/notifications.scss';
 import { useTranslation } from 'react-i18next';
 import { formatRelativeTime } from '../utils/time';
-import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
+import { getProfileGradientCss, getProfileGradientTextColor } from '../utils/profileGradients';
 
 interface NotificationUser {
   id: string;

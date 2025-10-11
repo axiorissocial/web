@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useOGMeta, truncateText } from '../utils/ogMeta';
 import '../css/profile.scss';
 import { useTranslation } from 'react-i18next';
-import { getProfileGradientCss, getProfileGradientTextColor } from '@shared/profileGradients';
+import { getProfileGradientCss, getProfileGradientTextColor } from '../utils/profileGradients';
 
 interface UserProfile {
   id: string;

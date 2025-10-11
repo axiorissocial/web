@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { PrismaClient } from '../src/generated/prisma/index.js';
+import { PrismaClient } from '../prisma/generated/index.js';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
