@@ -35,6 +35,11 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
+        '/public/uploads': {
+          target: apiUrl,
+          changeOrigin: true,
+          secure: false,
+        },
       },
       watch: {
         ignored: [],
