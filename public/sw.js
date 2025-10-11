@@ -1,4 +1,4 @@
-const CACHE_NAME = 'axioris-cache-v5';
+const CACHE_NAME = 'axioris-cache-v6';
 const urlsToCache = ['/logo.svg', '/fonts/roboto.woff2'];
 
 self.addEventListener('install', event => {
