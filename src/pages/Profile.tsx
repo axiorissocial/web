@@ -360,7 +360,7 @@ const ProfilePage: React.FC = () => {
                       <h1 className="display-name">
                         {displayName}
                         {profile.isAdmin && (
-                          <Badge bg="danger" className="admin-badge ms-2">ADMIN</Badge>
+                          <Badge bg="danger" className="admin-badge ms-2">{t('profilePage.adminBadge')}</Badge>
                         )}
                       </h1>
                       <p className="username">@{profile.username}</p>

@@ -197,8 +197,8 @@ const SearchPage: React.FC = () => {
                 <div className="user-details">
                   <div className="user-name">
                     {displayName}
-                    {user.isAdmin && (
-                      <Badge bg="danger" className="ms-2">ADMIN</Badge>
+                      {user.isAdmin && (
+                      <Badge bg="danger" className="ms-2">{t('profilePage.adminBadge')}</Badge>
                     )}
                   </div>
                   <div className="user-username">@{user.username}</div>

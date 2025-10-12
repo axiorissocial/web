@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Sidebar from '../components/singles/Navbar';
-import { Card, Form, Button, Tabs, Tab, Modal, InputGroup } from 'react-bootstrap';
+import { Card, Form, Button, Tabs, Tab, Modal, InputGroup, Spinner } from 'react-bootstrap';
 import InlineSpinner from '../components/ui/InlineSpinner';
 import AlertMessage from '../components/ui/AlertMessage';
 import LinkedAccountCard from '../components/ui/LinkedAccountCard';
@@ -518,8 +518,8 @@ const SettingsPage: React.FC = () => {
       }
 
       const data = await response.json();
-      setTwoFactorRecoveryCodes(data.recoveryCodes);
-      setTwoFactorSuccess('2FA enabled successfully! Save your recovery codes.');
+  setTwoFactorRecoveryCodes(data.recoveryCodes);
+  setTwoFactorSuccess(t('settings.twoFactor.feedback.enableSuccess'));
       setTwoFactorEnabled(true);
       setShowTwoFactorSetup(false);
       setShowRecoveryCodes(true);
@@ -558,7 +558,7 @@ const SettingsPage: React.FC = () => {
         throw new Error(errorData.error || 'Failed to disable 2FA');
       }
 
-      setTwoFactorSuccess('2FA has been disabled');
+  setTwoFactorSuccess(t('settings.twoFactor.feedback.disableSuccess'));
       setTwoFactorEnabled(false);
       setShowDisable2FA(false);
       setDisable2FAPassword('');
@@ -572,10 +572,10 @@ const SettingsPage: React.FC = () => {
   };
 
   const handleRegenerateRecoveryCodes = async () => {
-    const password = prompt('Enter your password to regenerate recovery codes:');
+  const password = prompt(t('settings.twoFactor.prompts.regeneratePassword'));
     if (!password) return;
 
-    const token = prompt('Enter your current 2FA code:');
+  const token = prompt(t('settings.twoFactor.prompts.enterToken'));
     if (!token) return;
 
     setTwoFactorLoading(true);
@@ -600,7 +600,7 @@ const SettingsPage: React.FC = () => {
       setTwoFactorRecoveryCodes(data.recoveryCodes);
       setShowRecoveryCodes(true);
       setRecoveryCodesRemaining(data.recoveryCodes.length);
-      setTwoFactorSuccess('Recovery codes regenerated successfully');
+  setTwoFactorSuccess(t('settings.twoFactor.feedback.regenerateSuccess'));
     } catch (error: any) {
       setTwoFactorError(error.message || 'Failed to regenerate recovery codes');
     } finally {
