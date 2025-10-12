@@ -1083,7 +1083,8 @@ const SettingsPage: React.FC = () => {
             className="settings-tabs mb-4"
           >
             <Tab eventKey="account" title={<><Gear className="me-2" />{t('settings.tabs.account')}</>}>
-              <Card className="settings-card">
+              <div className="settings-main-column">
+                <Card className="settings-card">
                 <Card.Header>
                   <h5 className="mb-0"><Shield className="me-2" />{t('settings.account.sectionTitle')}</h5>
                 </Card.Header>
@@ -1405,6 +1406,7 @@ const SettingsPage: React.FC = () => {
                   </div>
                 </Card.Body>
               </Card>
+              </div>
             </Tab>
             
             <Tab eventKey="profile" title={<><PersonCircle className="me-2" />{t('settings.tabs.profile')}</>}>

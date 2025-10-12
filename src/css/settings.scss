@@ -8,6 +8,49 @@
   margin: 0 auto;
 }
 
+/* Desktop two-column layout and vertical tabs */
+@media (min-width: 992px) {
+  .settings-container {
+    max-width: 1100px;
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+
+  .settings-tabs {
+    position: sticky;
+    top: 80px;
+    align-self: start;
+    .nav {
+      flex-direction: column;
+    }
+    .nav-link {
+      width: 100%;
+      margin-bottom: 8px;
+      text-align: left;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+  }
+
+  .settings-card {
+    margin-bottom: 18px;
+  }
+
+  /* group related cards into two-column grid inside the main column */
+  .settings-main-column {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    align-items: start;
+  }
+
+  .settings-main-column .settings-card.full-width {
+    grid-column: 1 / -1;
+  }
+}
+
 .settings-tabs {
   .nav-link {
     border: 1px solid var(--bs-border-color);
@@ -64,7 +107,8 @@
   }
   
   .card-body {
-    padding: 24px;
+    padding: 18px;
+    gap: 12px;
   }
 }
 
@@ -319,6 +363,28 @@
     background-color: var(--bs-secondary-bg) !important;
     border-color: var(--bs-border-color);
     color: var(--bs-secondary-color);
+  }
+}
+
+/* Slightly tighter mobile layout */
+@media (max-width: 991px) {
+  .settings-container {
+    padding: 0 12px;
+  }
+
+  .settings-card {
+    margin-bottom: 14px;
+  }
+
+  .avatar-section .avatar-preview,
+  .avatar-section .avatar-placeholder {
+    width: 64px;
+    height: 64px;
+  }
+
+  .banner-preview,
+  .banner-gradient-preview {
+    height: 120px;
   }
 }
 
