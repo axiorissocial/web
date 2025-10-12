@@ -1884,7 +1884,7 @@ const SettingsPage: React.FC = () => {
                 </Card.Body>
               </Card>
             </Tab>
-            <Tab eventKey="danger" title={<><i className="bi bi-exclamation-triangle-fill me-2 text-danger" />{t('settings.tabs.danger')}</>}>
+            <Tab eventKey="danger" tabClassName="danger-tab" title={<><i className="bi bi-exclamation-triangle-fill me-2 text-danger" />{t('settings.tabs.danger')}</>}>
               <Card className="settings-card danger-zone">
                 <Card.Header>
                   <h5 className="mb-0 text-danger">{t('settings.danger.title')}</h5>
