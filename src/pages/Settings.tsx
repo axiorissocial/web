@@ -61,10 +61,27 @@ const SettingsPage: React.FC = () => {
     confirm: false
   });
   
-  const [theme, setTheme] = useState(() => {
-    const savedTheme = localStorage.getItem('theme');
-    return savedTheme || 'dark';
-  });
+  // Determine initial theme: prefer localStorage, then document attribute (set by app),
+  // then system preference. Avoid forcing 'dark' when none exists so visiting
+  // Settings doesn't flip a previously set light theme.
+  const getInitialTheme = () => {
+    try {
+      const saved = localStorage.getItem('theme');
+      if (saved) return saved;
+    } catch (e) {
+      // ignore localStorage errors
+    }
+    // If the document already has a theme attribute (set elsewhere), use it
+    const docTheme = typeof document !== 'undefined' ? document.documentElement.getAttribute('data-theme') : null;
+    if (docTheme) return docTheme;
+    // Fall back to system preference
+    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+    return 'light';
+  };
+
+  const [theme, setTheme] = useState<string>(getInitialTheme);
   const [themeLoading, setThemeLoading] = useState(false);
   
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -142,19 +159,23 @@ const SettingsPage: React.FC = () => {
   const usernameInitial = user?.username?.charAt(0)?.toUpperCase() ?? '?';
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') || 'dark';
-    if (!localStorage.getItem('theme')) {
-      localStorage.setItem('theme', 'dark');
+    // Ensure document reflects current theme and persist only if missing.
+    try {
+      if (!localStorage.getItem('theme')) {
+        localStorage.setItem('theme', theme);
+      }
+    } catch (e) {
+      // ignore localStorage write errors
     }
-    setTheme(savedTheme);
-    document.documentElement.setAttribute('data-theme', savedTheme);
-    
+    document.documentElement.setAttribute('data-theme', theme);
+
     if (user) {
       loadUserData();
       loadUserSettings();
       loadGithubAccount();
       loadOauthAccounts();
     }
+    // We intentionally don't call setTheme here — initial state already set.
   }, [user]);
 
   useEffect(() => {
