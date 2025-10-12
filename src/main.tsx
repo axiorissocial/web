@@ -38,6 +38,14 @@ registerServiceWorker({
 function AppRoutes() {
   const navigate = useNavigate();
 
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      for (const reg of registrations) {
+        reg.unregister();
+      }
+    });
+  }
+
   useEffect(() => {
     const isMobile = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(
       navigator.userAgent

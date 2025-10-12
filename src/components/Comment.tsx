@@ -10,6 +10,7 @@ import MentionTextarea from './MentionTextarea';
 import EmojiPicker from './EmojiPicker';
 import '../css/comment.scss';
 import { useTranslation } from 'react-i18next';
+import { mediaUrl } from '../utils/urls';
 import { getProfileGradientCss, getProfileGradientTextColor } from '../utils/profileGradients';
 import { formatCalendarDateTime, formatRelativeTime } from '../utils/time';
 
@@ -226,10 +227,11 @@ const CommentComponent: React.FC<CommentProps> = ({
     }
 
     if (avatar.startsWith('uploads/')) {
-      return `/${avatar}`;
+      // use mediaUrl so builds that set VITE_API_URL will resolve correctly
+      return mediaUrl(`/${avatar}`);
     }
 
-    return `/uploads/avatars/${avatar}`;
+    return mediaUrl(`/uploads/avatars/${avatar}`);
   };
 
   const handleReplySubmit = async (e: React.FormEvent) => {

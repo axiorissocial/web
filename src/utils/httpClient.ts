@@ -58,7 +58,9 @@ async function fetchCsrfToken(originalFetch: typeof fetch): Promise<string> {
   }
 
   if (!cache.promise) {
-    cache.promise = originalFetch('/api/csrf-token', {
+    // dynamically import urls helper to avoid circular/static import issues in some build setups
+    const { apiUrl } = await import('./urls');
+    cache.promise = originalFetch(apiUrl('/api/csrf-token'), {
       credentials: 'include',
       headers: { Accept: 'application/json' },
     })
@@ -109,7 +111,18 @@ export function installHttpClientInterceptors(): void {
     }
 
     try {
-      const response = await originalFetch(input as RequestInfo, options);
+        // If input is a string path that starts with /api and an API base is configured, prefix it
+        let fetchInput = input as RequestInfo;
+        if (typeof input === 'string' && input.startsWith('/api')) {
+          try {
+            const { apiUrl } = await import('./urls');
+            fetchInput = apiUrl(input as string);
+          } catch (e) {
+            // ignore and use input as-is
+          }
+        }
+
+        const response = await originalFetch(fetchInput as RequestInfo, options);
       if (response.status === 403) {
         cache.token = null;
       }
