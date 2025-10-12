@@ -46,6 +46,9 @@ interface FeedProps {
 
 const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
   const [posts, setPosts] = useState<PostData[]>([]);
+  // number of posts to reveal at a time on the client
+  const PAGE_SIZE = 15;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState(true);
   const [errorKey, setErrorKey] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -134,8 +137,18 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
   };
 
   const handleLoadMore = () => {
+    // First reveal more posts if we already have them locally
+    const nextVisible = visibleCount + PAGE_SIZE;
+    if (nextVisible <= posts.length) {
+      setVisibleCount(nextVisible);
+      return;
+    }
+
+    // Otherwise, fetch the next server page then reveal
     if (hasMore && !loadingMore) {
-      fetchPosts(page + 1);
+      fetchPosts(page + 1).then(() => {
+        setVisibleCount(prev => Math.min(prev + PAGE_SIZE, posts.length));
+      });
     }
   };
 
@@ -198,7 +211,7 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
 
   return (
     <div className="feed-container">
-      {posts.map(post => (
+      {posts.slice(0, visibleCount).map(post => (
         <Post
           key={post.id}
           post={post}
@@ -209,7 +222,7 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
         />
       ))}
       
-      {hasMore && (
+      {(visibleCount < posts.length || hasMore) && (
         <div className="load-more-container">
           <Button
             variant="outline-primary"
@@ -223,7 +236,8 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
                 {t('feed.actions.loadingMore')}
               </>
             ) : (
-              t('feed.actions.loadMore')
+              // show a localized "Show more" label. fall back to existing key if present
+              t('feed.actions.showMore', { defaultValue: t('feed.actions.loadMore') })
             )}
           </Button>
         </div>

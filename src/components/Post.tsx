@@ -122,9 +122,30 @@ const Post: React.FC<PostProps> = ({ post, onLikeToggle, onReactionChange, onDel
 
   const handlePostClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
+
+    // If any modal originating from this component is open, don't navigate.
+    // This guards against click-through where a modal may be visually above
+    // the post but underlying click handlers still fire.
+    if (showReportModal || showDeleteModal || showEditModal || showMediaModal) {
+      return;
+    }
+
+    // Also check for Bootstrap's global modal indicators as a defensive fallback
+    // in case a modal is rendered elsewhere. If the body has the modal-open
+    // class or there's any visible modal in the DOM, prevent navigation.
+    try {
+      if (typeof document !== 'undefined') {
+        if (document.body.classList.contains('modal-open')) return;
+        if (document.querySelector('.modal.show')) return;
+      }
+    } catch (err) {
+      // ignore DOM access errors in non-browser environments
+    }
+
     if (target.closest('button') || target.closest('a') || target.closest('.user-info') || target.closest('.post-media')) {
       return;
     }
+
     navigate(`/post/${post.id}`);
   };
 

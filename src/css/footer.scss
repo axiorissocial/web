@@ -1,0 +1,74 @@
+@use "sass:color";
+
+.app-footer {
+  background-color: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  color: var(--text-primary);
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1.5rem 0;
+  /* Match main's left margin when the sidebar is visible */
+  margin-left: 20vw;
+  width: calc(100% - 20vw);
+  position: relative;
+
+  .footer-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+  }
+
+  .footer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1.25rem;
+    align-items: start;
+  }
+
+  .footer-category-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+  }
+
+  .footer-links a {
+    color: var(--text-muted);
+    text-decoration: none;
+    display: inline-block;
+    padding: 0.15rem 0;
+  }
+
+  .footer-links a:hover {
+    color: var(--primary-color);
+    text-decoration: underline;
+  }
+
+  .footer-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .footer-copy { color: var(--text-muted); }
+
+  .footer-actions a { margin-left: 1rem; color: var(--text-muted); }
+
+  // Mobile / portrait: when the footer becomes too narrow, stack categories
+  @media (orientation: portrait), (max-width: 640px) {
+    /* Footer should occupy full width on mobile and stack categories top->bottom
+       leftmost categories will appear first (top), rightmost last (bottom). */
+    margin-left: 0;
+    width: 100%;
+
+    .footer-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .footer-bottom { flex-direction: column; align-items: flex-start; }
+  }
+}
