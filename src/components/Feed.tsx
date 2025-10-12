@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button, Spinner, Alert } from 'react-bootstrap';
 import { ChatSquareText, Plus } from 'react-bootstrap-icons';
 import { useNavigate } from 'react-router-dom';
@@ -46,6 +46,8 @@ interface FeedProps {
 
 const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
   const [posts, setPosts] = useState<PostData[]>([]);
+  const postsRef = useRef<PostData[]>(posts);
+  useEffect(() => { postsRef.current = posts; }, [posts]);
   // number of posts to reveal at a time on the client
   const PAGE_SIZE = 15;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -81,22 +83,30 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
       }
 
       const data = await response.json();
-      
+
+      let newTotal = 0;
       if (reset || pageNum === 1) {
         setPosts(data.posts);
+        newTotal = data.posts.length;
       } else {
-        setPosts(prev => [...prev, ...data.posts]);
+        // use postsRef to calculate previous length since state updates are async
+        const prev = postsRef.current || [];
+        setPosts(prevState => [...prevState, ...data.posts]);
+        newTotal = prev.length + (data.posts ? data.posts.length : 0);
       }
 
       setHasMore(data.pagination.hasNextPage);
       setPage(pageNum);
       setErrorKey(null);
+
+      return { postsCount: newTotal, data };
     } catch (err) {
       if (err instanceof Error && err.message.startsWith('feed.')) {
         setErrorKey(err.message);
       } else {
         setErrorKey('feed.errors.generic');
       }
+      return null;
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -136,7 +146,7 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
     setPosts(prev => prev.filter(post => post.id !== postId));
   };
 
-  const handleLoadMore = () => {
+  const handleLoadMore = async () => {
     // First reveal more posts if we already have them locally
     const nextVisible = visibleCount + PAGE_SIZE;
     if (nextVisible <= posts.length) {
@@ -146,9 +156,9 @@ const Feed: React.FC<FeedProps> = ({ searchQuery, userId, onPostCreated }) => {
 
     // Otherwise, fetch the next server page then reveal
     if (hasMore && !loadingMore) {
-      fetchPosts(page + 1).then(() => {
-        setVisibleCount(prev => Math.min(prev + PAGE_SIZE, posts.length));
-      });
+      const result = await fetchPosts(page + 1);
+      const totalNow = result?.postsCount ?? (postsRef.current ? postsRef.current.length : posts.length);
+      setVisibleCount(prev => Math.min(prev + PAGE_SIZE, totalNow));
     }
   };
 
