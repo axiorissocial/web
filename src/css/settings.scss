@@ -4,13 +4,8 @@
 }
 
 .settings-container {
-  max-width: 900px;
-  margin: 0 auto;
-}
-
-/* Apply layout improvements globally */
-.settings-container {
   max-width: 1100px;
+  margin: 0 auto;
 }
 
 /* Tabs: horizontal scrollable nav on top, content below */
@@ -19,95 +14,76 @@
   grid-template-columns: 1fr;
   gap: 16px;
 
-  /* Nav becomes a horizontal row that can scroll within itself */
-  .nav {
-    display: flex;
-    flex-direction: row;
-    gap: 8px;
+  /* FIXED: enforce horizontal nav layout */
+  > .nav {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
     align-items: center;
-    overflow-x: auto;
+    justify-content: flex-start;
+    gap: 8px;
+    overflow-x: auto !important;
+    overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
-    white-space: nowrap;
+    white-space: nowrap !important;
     padding: 6px 4px;
     position: sticky;
     top: 80px;
-    z-index: 5;
+    z-index: 10;
+    background: var(--bs-body-bg);
+    border-bottom: 1px solid var(--bs-border-color);
   }
 
   .nav-link {
-    flex: 0 0 auto; /* don't stretch; preserve natural width */
-    white-space: nowrap;
-    text-align: center;
-    border-radius: 8px;
-    padding: 10px 14px;
-  }
-
-  /* The tab content area sits below the nav */
-  .tab-content {
-    align-self: start;
-  }
-
-  /* Each tab pane lays out cards in two columns */
-  .tab-pane {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 18px;
-    align-items: start;
-    min-width: 0; /* prevent overflow from wide children */
-  }
-
-  /* Cards that should be full-width (danger zone, big lists) */
-  .tab-pane .settings-card.danger-zone,
-  .tab-pane .settings-card.full-width {
-    grid-column: 1 / -1;
-  }
-
-  /* If a tab pane contains only one card, make it span both columns */
-  .tab-pane > .settings-card:only-child {
-    grid-column: 1 / -1;
-  }
-
-  .settings-card {
-    margin-bottom: 18px;
-  }
-}
-
-.settings-tabs {
-  .nav-link {
+    flex: 0 0 auto;
     border: 1px solid var(--bs-border-color);
     border-bottom: none;
     background: var(--bs-body-bg);
     color: var(--bs-body-color);
+    border-radius: 8px 8px 0 0;
+    padding: 10px 14px;
     transition: all 0.2s ease;
+    white-space: nowrap;
     
     &.active {
       background: var(--bs-primary);
-      color: white;
+      color: #fff;
       border-color: var(--bs-primary);
     }
-    
+
     &:hover:not(.active) {
       background: var(--bs-secondary-bg);
       color: var(--bs-body-color);
     }
   }
 
-  /* Force horizontal, non-wrapping nav across all sizes */
-  > .nav,
-  & .nav {
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    gap: 8px;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-    white-space: nowrap !important;
-    padding: 6px 4px;
+  /* Tab content below nav */
+  .tab-content {
+    align-self: start;
   }
 
-  & .nav-link {
-    flex: 0 0 auto !important;
-    white-space: nowrap !important;
+  /* Two-column grid for cards */
+  .tab-pane {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    align-items: start;
+    min-width: 0;
+  }
+
+  /* Cards that span full width */
+  .tab-pane .settings-card.danger-zone,
+  .tab-pane .settings-card.full-width {
+    grid-column: 1 / -1;
+  }
+
+  /* Single-card tab spans full width */
+  .tab-pane > .settings-card:only-child {
+    grid-column: 1 / -1;
+  }
+
+  .settings-card {
+    margin-bottom: 18px;
   }
 }
 
@@ -121,7 +97,6 @@
   
   [data-theme="dark"] & {
     box-shadow: 0 2px 8px rgba(255, 255, 255, 0.05);
-    
     &:hover {
       box-shadow: 0 4px 16px rgba(255, 255, 255, 0.1);
     }
@@ -405,7 +380,7 @@
   }
 }
 
-/* Slightly tighter mobile layout */
+/* Mobile tweaks */
 @media (max-width: 991px) {
   .settings-container {
     padding: 0 12px;
@@ -552,17 +527,15 @@
 }
 
 @media (max-width: 480px) {
-  .settings-tabs {
-    .nav-link {
-      font-size: 14px;
-      padding: 8px 12px;
-    }
+  .settings-tabs .nav-link {
+    font-size: 14px;
+    padding: 8px 12px;
   }
-  
+
   .theme-options {
     grid-template-columns: 1fr;
   }
-  
+
   .settings-card .card-body {
     padding: 16px;
   }
@@ -576,7 +549,6 @@
 [data-theme="dark"] {
   .settings-card {
     box-shadow: 0 2px 8px rgba(255, 255, 255, 0.05);
-    
     &:hover {
       box-shadow: 0 4px 16px rgba(255, 255, 255, 0.1);
     }
