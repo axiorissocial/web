@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Card, Badge, Button, Spinner, Alert, Modal, ButtonGroup } from 'react-bootstrap';
+import { Card, Badge, Button, Spinner, Modal, ButtonGroup } from 'react-bootstrap';
+import AlertMessage from '../components/ui/AlertMessage';
 import { Heart, ChatSquareText, PersonPlus, Reply, HeartFill, Archive, Trash, ArrowCounterclockwise } from 'react-bootstrap-icons';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/singles/Navbar';
@@ -442,7 +443,7 @@ const NotificationsPage: React.FC = () => {
       <div className="app-container">
         <Sidebar activeId="notifications" />
         <main className="flex-grow-1 d-flex justify-content-center align-items-center">
-          <Alert variant="info">{t('notificationsCenter.authRequired')}</Alert>
+          <AlertMessage variant="info">{t('notificationsCenter.authRequired')}</AlertMessage>
         </main>
       </div>
     );
@@ -504,7 +505,7 @@ const NotificationsPage: React.FC = () => {
             <div className="mt-2">{t('notificationsCenter.loading')}</div>
           </div>
         ) : error ? (
-          <Alert variant="danger">{error}</Alert>
+          <AlertMessage variant="danger">{error}</AlertMessage>
         ) : notifications.length === 0 ? (
           <Card className="text-center py-5">
             <Card.Body>

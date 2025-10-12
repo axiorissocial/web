@@ -33,7 +33,9 @@
     flex: 0 0 auto !important;
     white-space: nowrap !important;
     border: 1px solid var(--bs-border-color);
-    border-bottom: none;
+    /* Make tabs visually sit on the bottom border: show a 1px bottom so they appear flush
+       with the tab underline. We'll offset active state to hide the bottom border. */
+    border-bottom: 1px solid var(--bs-border-color);
     border-radius: 8px 8px 0 0;
     padding: 8px 14px;
     background: var(--bs-body-bg);
@@ -41,10 +43,19 @@
     transition: all 0.2s ease;
     text-align: center;
 
-    &.active {
+  &.active {
+      /* Active tab should overlap the bottom border to appear connected */
       background: var(--bs-primary);
       color: #fff;
       border-color: var(--bs-primary);
+      margin-bottom: -1px; /* pull down to overlap underline */
+      z-index: 3;
+    }
+
+    /* Non-active tabs should visually sit flush with the underline */
+    &:not(.active) {
+      margin-bottom: 0;
+      z-index: 1;
     }
 
     &:hover:not(.active) {
@@ -76,6 +87,12 @@
 }
 
 .settings-tabs .nav-link.danger-tab svg,
+.settings-tabs .nav-link.danger-tab {
+  color: var(--bs-danger) !important;
+  border-color: rgba(var(--bs-danger-rgb), 0.15) !important;
+}
+
+.settings-tabs .nav-link.danger-tab svg,
 .settings-tabs .nav-link.danger-tab i {
   color: var(--bs-danger) !important;
 }
@@ -84,13 +101,18 @@
   background: rgba(var(--bs-danger-rgb), 0.9) !important;
   color: #fff !important;
   border-color: var(--bs-danger) !important;
+  margin-bottom: -1px; /* match active offset so danger tab aligns when active */
+  z-index: 3;
+}
+
+.settings-tabs .nav-link.danger-tab.active i,
+.settings-tabs .nav-link.danger-tab.active svg {
+  color: #fff !important; /* make icon white when the tab is active */
 }
 
 .settings-tabs .nav-link.danger-tab:focus {
   box-shadow: 0 0 0 0.2rem rgba(var(--bs-danger-rgb), 0.2) !important;
 }
-
-/* Mobile adjustments */
 @media (max-width: 600px) {
   .settings-tabs {
     .nav-item {

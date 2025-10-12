@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import Sidebar from '../components/singles/Navbar';
-import { Card, Form, Button, Tabs, Tab, Alert, Spinner, Modal, InputGroup } from 'react-bootstrap';
+import { Card, Form, Button, Tabs, Tab, Modal, InputGroup } from 'react-bootstrap';
+import InlineSpinner from '../components/ui/InlineSpinner';
+import AlertMessage from '../components/ui/AlertMessage';
+import LinkedAccountCard from '../components/ui/LinkedAccountCard';
+import ConfirmModal from '../components/ui/ConfirmModal';
+import SettingsCard from '../components/ui/SettingsCard';
+import AvatarSelector from '../components/ui/AvatarSelector';
 import { Eye, EyeSlash, PersonCircle, Gear, Palette, Shield, Upload, Bell, Image as ImageIcon } from 'react-bootstrap-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -1083,7 +1089,7 @@ const SettingsPage: React.FC = () => {
         <Sidebar activeId="settings" />
         <main className="settings-main flex-grow-1 p-4 d-flex justify-content-center align-items-center">
           <div className="text-center">
-            <Spinner animation="border" />
+            <InlineSpinner ariaLabel={t('common.loading')} />
             <div className="mt-2">{t('common.loading')}</div>
           </div>
         </main>
@@ -1105,13 +1111,9 @@ const SettingsPage: React.FC = () => {
           >
             <Tab eventKey="account" title={<><Gear className="me-2" />{t('settings.tabs.account')}</>}>
               <div className="settings-main-column">
-                <Card className="settings-card">
-                <Card.Header>
-                  <h5 className="mb-0"><Shield className="me-2" />{t('settings.account.sectionTitle')}</h5>
-                </Card.Header>
-                <Card.Body>
-                  {accountError && <Alert variant="danger">{accountError}</Alert>}
-                  {accountSuccess && <Alert variant="success">{accountSuccess}</Alert>}
+                <SettingsCard title={t('settings.account.sectionTitle')} icon={<Shield className="me-2" />}>
+                  {accountError && <AlertMessage variant="danger">{accountError}</AlertMessage>}
+                  {accountSuccess && <AlertMessage variant="success">{accountSuccess}</AlertMessage>}
                   
                   <Form onSubmit={handleAccountSubmit}>
                     <Form.Group className="mb-3" controlId="username">
@@ -1141,11 +1143,11 @@ const SettingsPage: React.FC = () => {
                     <h6 className="mb-3">{t('settings.account.changePassword')}</h6>
                     
                     {githubAccount && !hasSetPassword && (
-                      <Alert variant="info" className="mb-3">
+                      <AlertMessage variant="info" className="mb-3">
                         <small>
                           {t('settings.account.oauthFirstPasswordInfo')}
                         </small>
-                      </Alert>
+                      </AlertMessage>
                     )}
                     
                     {(!githubAccount || hasSetPassword) && (
@@ -1211,7 +1213,7 @@ const SettingsPage: React.FC = () => {
                     >
                       {accountLoading ? (
                         <>
-                          <Spinner size="sm" className="me-2" />
+                          <InlineSpinner size="sm" className="me-2" />
                           {t('common.statuses.saving')}
                         </>
                       ) : (
@@ -1226,71 +1228,23 @@ const SettingsPage: React.FC = () => {
                     <h6 className="mb-3">{t('settings.linkedAccounts.title')}</h6>
                     <p className="text-muted small mb-4">{t('settings.linkedAccounts.description')}</p>
                     
-                    <fieldset className="border rounded p-3 mb-3">
-                      <legend className="fw-semibold h6 px-2">{t('settings.linkedAccounts.github.title')}</legend>
-                      
-                      {githubError && <Alert variant="danger">{githubError}</Alert>}
-                      {githubSuccess && <Alert variant="success">{githubSuccess}</Alert>}
-                      
-                      {githubAccount ? (
-                        <div className="d-flex align-items-center justify-content-between">
-                          <div className="d-flex align-items-center">
-                            <img 
-                              src={githubAccount.avatarUrl} 
-                              alt={githubAccount.username}
-                              className="rounded-circle me-3"
-                              style={{ width: '40px', height: '40px' }}
-                            />
-                            <div>
-                              <div className="fw-semibold">{githubAccount.displayName || githubAccount.username}</div>
-                              <div className="text-muted small">@{githubAccount.username}</div>
-                            </div>
-                          </div>
-                          <Button 
-                            variant="outline-danger" 
-                            size="sm"
-                            onClick={handleGithubUnlink}
-                            disabled={githubLoading}
-                          >
-                            {githubLoading ? (
-                              <>
-                                <Spinner size="sm" className="me-2" />
-                                {t('settings.linkedAccounts.github.unlinking')}
-                              </>
-                            ) : (
-                              t('settings.linkedAccounts.github.unlink')
-                            )}
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="d-flex align-items-center justify-content-between">
-                          <div>
-                            <div className="fw-semibold">{t('settings.linkedAccounts.github.notLinked')}</div>
-                            <div className="text-muted small">{t('settings.linkedAccounts.github.linkDescription')}</div>
-                          </div>
-                          <Button 
-                            variant="outline-primary" 
-                            size="sm"
-                            onClick={handleGithubLink}
-                            disabled={githubLoading}
-                          >
-                            {githubLoading ? (
-                              <>
-                                <Spinner size="sm" className="me-2" />
-                                {t('settings.linkedAccounts.github.linking')}
-                              </>
-                            ) : (
-                              t('settings.linkedAccounts.github.link')
-                            )}
-                          </Button>
-                        </div>
-                      )}
-                    </fieldset>
+                    <LinkedAccountCard
+                      providerName={t('settings.linkedAccounts.github.title')}
+                      connected={!!githubAccount}
+                      avatarUrl={githubAccount?.avatarUrl}
+                      displayName={githubAccount?.displayName}
+                      username={githubAccount?.username}
+                      loading={githubLoading}
+                      onLink={handleGithubLink}
+                      onUnlink={handleGithubUnlink}
+                    />
+                    {githubError && <AlertMessage variant="danger">{githubError}</AlertMessage>}
+                    {githubSuccess && <AlertMessage variant="success">{githubSuccess}</AlertMessage>}
                     
                       {/* <fieldset className="border rounded p-3 mb-3">
                         <legend className="fw-semibold h6 px-2">{t('settings.linkedAccounts.google.title')}</legend>
-                        {githubError && <Alert variant="danger">{githubError}</Alert>}
-                        {githubSuccess && <Alert variant="success">{githubSuccess}</Alert>}
+                        {githubError && <AlertMessage variant="danger">{githubError}</AlertMessage>}
+                        {githubSuccess && <AlertMessage variant="success">{githubSuccess}</AlertMessage>}
                         {googleAccount ? (
                           <div className="d-flex align-items-center justify-content-between">
                             <div className="d-flex align-items-center">
@@ -1363,8 +1317,8 @@ const SettingsPage: React.FC = () => {
                     </h6>
                     <p className="text-muted small mb-4">{t('settings.twoFactor.description')}</p>
                     
-                    {twoFactorError && <Alert variant="danger" dismissible onClose={() => setTwoFactorError('')}>{twoFactorError}</Alert>}
-                    {twoFactorSuccess && <Alert variant="success" dismissible onClose={() => setTwoFactorSuccess('')}>{twoFactorSuccess}</Alert>}
+                    {twoFactorError && <AlertMessage variant="danger" dismissible onClose={() => setTwoFactorError('')}>{twoFactorError}</AlertMessage>}
+                    {twoFactorSuccess && <AlertMessage variant="success" dismissible onClose={() => setTwoFactorSuccess('')}>{twoFactorSuccess}</AlertMessage>}
                     
                     {twoFactorEnabled ? (
                       <div className="border rounded p-3 mb-3 bg-success bg-opacity-10">
@@ -1414,7 +1368,7 @@ const SettingsPage: React.FC = () => {
                           >
                             {twoFactorLoading ? (
                               <>
-                                <Spinner size="sm" className="me-2" />
+                                <InlineSpinner size="sm" className="me-2" />
                                 {t('common.statuses.loading')}
                               </>
                             ) : (
@@ -1425,119 +1379,27 @@ const SettingsPage: React.FC = () => {
                       </div>
                     )}
                   </div>
-                </Card.Body>
-              </Card>
+                </SettingsCard>
               </div>
             </Tab>
             
             <Tab eventKey="profile" title={<><PersonCircle className="me-2" />{t('settings.tabs.profile')}</>}>
-              <Card className="settings-card">
-                <Card.Header>
-                  <h5 className="mb-0"><PersonCircle className="me-2" />{t('settings.profile.sectionTitle')}</h5>
-                </Card.Header>
-                <Card.Body>
-                  {profileError && <Alert variant="danger">{profileError}</Alert>}
-                  {profileSuccess && <Alert variant="success">{profileSuccess}</Alert>}
+              <SettingsCard title={t('settings.profile.sectionTitle')} icon={<PersonCircle className="me-2" />}>
+                  {profileError && <AlertMessage variant="danger">{profileError}</AlertMessage>}
+                  {profileSuccess && <AlertMessage variant="success">{profileSuccess}</AlertMessage>}
                   
-                  <div className="avatar-section mb-4">
-                    <h6 className="mb-3">{t('settings.profile.picture.title')}</h6>
-                    <div className="d-flex flex-column flex-md-row align-items-start gap-3">
-                      <div className="current-avatar">
-                        {avatarPreview ? (
-                          <img src={avatarPreview} alt={t('settings.profile.picture.alt')} className="avatar-preview" />
-                        ) : (
-                          <div
-                            className={`avatar-placeholder${selectedAvatarGradient ? ' gradient' : ''}`}
-                            style={selectedAvatarGradient ? { background: getProfileGradientCss(selectedAvatarGradient), color: getProfileGradientTextColor(selectedAvatarGradient) } : undefined}
-                          >
-                            {usernameInitial}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-grow-1 avatar-controls">
-                        <Form.Control 
-                          type="file" 
-                          accept="image/*" 
-                          onChange={handleAvatarFileChange}
-                          className="mb-2"
-                        />
-                        <div className="d-flex flex-wrap gap-2">
-                          {avatarFile && (
-                            <Button 
-                              variant="primary" 
-                              size="sm" 
-                              onClick={handleAvatarUpload}
-                              disabled={avatarLoading}
-                            >
-                              {avatarLoading ? (
-                                <>
-                                  <Spinner size="sm" className="me-1" />
-                                  {t('settings.profile.statuses.uploading')}
-                                </>
-                              ) : (
-                                <>
-                                  <Upload className="me-1" />
-                                  {t('settings.profile.picture.upload')}
-                                </>
-                              )}
-                            </Button>
-                          )}
-                          {avatarPreview && (
-                            <Button 
-                              variant="outline-danger" 
-                              size="sm"
-                              onClick={() => setShowDeleteConfirm(true)}
-                              disabled={avatarLoading}
-                            >
-                              {t('settings.profile.picture.remove')}
-                            </Button>
-                          )}
-                        </div>
-                        <p className="text-muted mt-2 mb-2">
-                          {t('settings.profile.picture.description')}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="gradient-selector mt-3">
-                      <h6 className="mb-2">{t('settings.profile.picture.gradientTitle')}</h6>
-                      <div className="gradient-grid">
-                        <button
-                          type="button"
-                          className={`gradient-option ${!selectedAvatarGradient ? 'selected' : ''}`}
-                          onClick={() => handleAvatarGradientSelect(null)}
-                          disabled={gradientLoading.avatar}
-                          aria-pressed={!selectedAvatarGradient}
-                        >
-                          <span className="gradient-swatch gradient-swatch-none">Ø</span>
-                          <span className="gradient-label">{t('settings.profile.gradients.none')}</span>
-                        </button>
-                        {profileGradients.map((gradient) => {
-                          const isSelected = selectedAvatarGradient === gradient.id;
-                          const gradientLabel = t(`settings.profile.gradients.options.${gradient.id}`, {
-                            defaultValue: gradient.label
-                          });
-                          return (
-                            <button
-                              key={`avatar-${gradient.id}`}
-                              type="button"
-                              className={`gradient-option ${isSelected ? 'selected' : ''}`}
-                              onClick={() => handleAvatarGradientSelect(gradient.id)}
-                              disabled={gradientLoading.avatar}
-                              aria-pressed={isSelected}
-                            >
-                              <span
-                                className="gradient-swatch"
-                                style={{ background: getProfileGradientCss(gradient.id), color: getProfileGradientTextColor(gradient.id) }}
-                              >
-                                {usernameInitial}
-                              </span>
-                              <span className="gradient-label">{gradientLabel}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
+                  <AvatarSelector
+                    avatarPreview={avatarPreview}
+                    selectedGradient={selectedAvatarGradient}
+                    usernameInitial={usernameInitial}
+                    gradients={profileGradients.map(g => ({ id: g.id, label: t(`settings.profile.gradients.options.${g.id}`, { defaultValue: g.label }) }))}
+                    gradientLoading={gradientLoading}
+                    avatarLoading={avatarLoading}
+                    onFileChange={handleAvatarFileChange}
+                    onUpload={handleAvatarUpload}
+                    onRemove={() => setShowDeleteConfirm(true)}
+                    onSelectGradient={handleAvatarGradientSelect}
+                  />
 
                   <div className="banner-section mb-4">
                     <h6 className="mb-3">{t('settings.profile.banner.title')}</h6>
@@ -1573,7 +1435,7 @@ const SettingsPage: React.FC = () => {
                           >
                             {bannerLoading ? (
                               <>
-                                <Spinner size="sm" className="me-1" />
+                                <InlineSpinner size="sm" className="me-1" />
                                 {t('settings.profile.statuses.uploading')}
                               </>
                             ) : (
@@ -1699,7 +1561,7 @@ const SettingsPage: React.FC = () => {
                     <Button type="submit" variant="primary" disabled={profileLoading}>
                       {profileLoading ? (
                         <>
-                          <Spinner size="sm" className="me-2" />
+                          <InlineSpinner size="sm" className="me-2" />
                           {t('common.statuses.saving')}
                         </>
                       ) : (
@@ -1707,8 +1569,7 @@ const SettingsPage: React.FC = () => {
                       )}
                     </Button>
                   </Form>
-                </Card.Body>
-              </Card>
+              </SettingsCard>
             </Tab>
             
             <Tab eventKey="appearance" title={<><Palette className="me-2" />{t('settings.tabs.appearance')}</>}>
@@ -1717,8 +1578,8 @@ const SettingsPage: React.FC = () => {
                   <h5 className="mb-0"><Palette className="me-2" />{t('settings.appearance.sectionTitle')}</h5>
                 </Card.Header>
                 <Card.Body>
-                  {languageError && <Alert variant="danger">{languageError}</Alert>}
-                  {languageSuccess && <Alert variant="success">{languageSuccess}</Alert>}
+                  {languageError && <AlertMessage variant="danger">{languageError}</AlertMessage>}
+                  {languageSuccess && <AlertMessage variant="success">{languageSuccess}</AlertMessage>}
 
                   <Form onSubmit={handleLanguageSubmit} className="mb-4">
                     <Form.Group className="mb-3" controlId="language">
@@ -1750,7 +1611,7 @@ const SettingsPage: React.FC = () => {
                       >
                         {languageLoading ? (
                           <>
-                            <Spinner size="sm" className="me-2" />
+                            <InlineSpinner size="sm" className="me-2" />
                             {t('common.statuses.saving')}
                           </>
                         ) : (
@@ -1789,7 +1650,7 @@ const SettingsPage: React.FC = () => {
                       
                       {themeLoading && (
                         <div className="text-center mt-3">
-                          <Spinner size="sm" className="me-2" />
+                          <InlineSpinner size="sm" className="me-2" />
                           {t('settings.appearance.status.applying')}
                         </div>
                       )}
@@ -1805,8 +1666,8 @@ const SettingsPage: React.FC = () => {
                   <h5 className="mb-0"><Bell className="me-2" />{t('settings.notifications.sectionTitle')}</h5>
                 </Card.Header>
                 <Card.Body>
-                  {notificationError && <Alert variant="danger">{notificationError}</Alert>}
-                  {notificationSuccess && <Alert variant="success">{notificationSuccess}</Alert>}
+                  {notificationError && <AlertMessage variant="danger">{notificationError}</AlertMessage>}
+                  {notificationSuccess && <AlertMessage variant="success">{notificationSuccess}</AlertMessage>}
                   
                   <Form onSubmit={handleNotificationSubmit}>
                     <p className="text-muted mb-4">
@@ -1957,10 +1818,10 @@ const SettingsPage: React.FC = () => {
           </Modal.Header>
           <Modal.Body>
             <div className="mb-3">
-              <Alert variant="danger" className="mb-3">
+              <AlertMessage variant="danger" className="mb-3">
                 <i className="bi bi-exclamation-triangle-fill me-2"></i>
                 <strong>{t('settings.danger.modal.warningTitle')}</strong> {t('settings.danger.modal.warningDescription')}
-              </Alert>
+              </AlertMessage>
               
               <p className="text-muted mb-3">
                 {t('settings.danger.modal.prompt')}
@@ -2083,7 +1944,7 @@ const SettingsPage: React.FC = () => {
                 <Button type="submit" variant="primary" disabled={twoFactorLoading || twoFactorToken.length !== 6}>
                   {twoFactorLoading ? (
                     <>
-                      <Spinner size="sm" className="me-2" />
+                      <InlineSpinner size="sm" className="me-2" />
                       {t('common.statuses.saving')}
                     </>
                   ) : (
@@ -2101,9 +1962,9 @@ const SettingsPage: React.FC = () => {
             <Modal.Title>{t('settings.twoFactor.recoveryCodes.title')}</Modal.Title>
           </Modal.Header>
           <Modal.Body>
-            <Alert variant="warning" className="mb-3">
+            <AlertMessage variant="warning" className="mb-3">
               <small>{t('settings.twoFactor.recoveryCodes.warning')}</small>
-            </Alert>
+            </AlertMessage>
             
             <div className="bg-light p-3 rounded mb-3">
               <div className="row g-2">
@@ -2142,9 +2003,9 @@ const SettingsPage: React.FC = () => {
             <Modal.Title>{t('settings.twoFactor.disable.title')}</Modal.Title>
           </Modal.Header>
           <Modal.Body>
-            <Alert variant="warning" className="mb-3">
+            <AlertMessage variant="warning" className="mb-3">
               <small>{t('settings.twoFactor.disable.warning')}</small>
-            </Alert>
+            </AlertMessage>
             
             <Form onSubmit={handleDisable2FA}>
               <Form.Group className="mb-3">
@@ -2184,7 +2045,7 @@ const SettingsPage: React.FC = () => {
                 <Button type="submit" variant="danger" disabled={twoFactorLoading || !disable2FAPassword}>
                   {twoFactorLoading ? (
                     <>
-                      <Spinner size="sm" className="me-2" />
+                      <InlineSpinner size="sm" className="me-2" />
                       {t('common.statuses.processing')}
                     </>
                   ) : (

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import usePageMeta from '../utils/usePageMeta';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Button, Form, Spinner, Alert } from 'react-bootstrap';
+import { Card, Button, Form, Spinner } from 'react-bootstrap';
+import AlertMessage from '../components/ui/AlertMessage';
 import { ArrowLeft, ChatSquareText } from 'react-bootstrap-icons';
 import Sidebar from '../components/singles/Navbar';
 import Post from '../components/Post';
@@ -249,9 +250,9 @@ const PostPage: React.FC = () => {
       <div className="app-container d-flex">
         <Sidebar activeId="home" />
         <main className="flex-grow-1 p-4">
-          <Alert variant="danger" className="text-center">
+          <AlertMessage variant="danger" className="text-center">
             {error || t('postPage.errors.notFound')}
-          </Alert>
+          </AlertMessage>
           <div className="text-center">
             <Button variant="primary" onClick={() => navigate('/')}>
               <ArrowLeft className="me-2" />
