@@ -1884,41 +1884,42 @@ const SettingsPage: React.FC = () => {
                 </Card.Body>
               </Card>
             </Tab>
+            <Tab eventKey="danger" title={<><i className="bi bi-exclamation-triangle-fill me-2 text-danger" />{t('settings.tabs.danger')}</>}>
+              <Card className="settings-card danger-zone">
+                <Card.Header>
+                  <h5 className="mb-0 text-danger">{t('settings.danger.title')}</h5>
+                </Card.Header>
+                <Card.Body>
+                  <div className="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                      <h6 className="mb-1">{t('settings.danger.signOut.title')}</h6>
+                      <p className="text-muted mb-0">{t('settings.danger.signOut.description')}</p>
+                    </div>
+                    <Button variant="danger" onClick={handleLogout}>
+                      {t('settings.danger.signOut.cta')}
+                    </Button>
+                  </div>
+                  
+                  <hr className="my-3" />
+                  
+                  <div className="d-flex justify-content-between align-items-center">
+                    <div>
+                      <h6 className="mb-1 text-danger">{t('settings.danger.delete.title')}</h6>
+                      <p className="text-muted mb-0">
+                        {t('settings.danger.delete.description')}
+                      </p>
+                    </div>
+                    <Button 
+                      variant="outline-danger" 
+                      onClick={() => setShowDeleteAccount(true)}
+                    >
+                      {t('settings.danger.delete.cta')}
+                    </Button>
+                  </div>
+                </Card.Body>
+              </Card>
+            </Tab>
           </Tabs>
-          
-          <Card className="settings-card danger-zone">
-            <Card.Header>
-              <h5 className="mb-0 text-danger">{t('settings.danger.title')}</h5>
-            </Card.Header>
-            <Card.Body>
-              <div className="d-flex justify-content-between align-items-center mb-3">
-                <div>
-                  <h6 className="mb-1">{t('settings.danger.signOut.title')}</h6>
-                  <p className="text-muted mb-0">{t('settings.danger.signOut.description')}</p>
-                </div>
-                <Button variant="danger" onClick={handleLogout}>
-                  {t('settings.danger.signOut.cta')}
-                </Button>
-              </div>
-              
-              <hr className="my-3" />
-              
-              <div className="d-flex justify-content-between align-items-center">
-                <div>
-                  <h6 className="mb-1 text-danger">{t('settings.danger.delete.title')}</h6>
-                  <p className="text-muted mb-0">
-                    {t('settings.danger.delete.description')}
-                  </p>
-                </div>
-                <Button 
-                  variant="outline-danger" 
-                  onClick={() => setShowDeleteAccount(true)}
-                >
-                  {t('settings.danger.delete.cta')}
-                </Button>
-              </div>
-            </Card.Body>
-          </Card>
         </div>
         
         <Modal 

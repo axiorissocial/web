@@ -91,6 +91,24 @@
       color: var(--bs-body-color);
     }
   }
+
+  /* Force horizontal, non-wrapping nav across all sizes */
+  > .nav,
+  & .nav {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 8px;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap !important;
+    padding: 6px 4px;
+  }
+
+  & .nav-link {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+  }
 }
 
 .settings-card {
