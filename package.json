@@ -19,7 +19,7 @@
     "@twemoji/svg": "^15.0.0",
     "bootstrap": "^5.3.8",
     "bootstrap-icons": "^1.13.1",
-    "dompurify": "^3.2.7",
+    "dompurify": "^3.3.0",
     "hls.js": "^1.6.0",
     "i18next": "^25.5.3",
     "i18next-browser-languagedetector": "^8.2.0",
