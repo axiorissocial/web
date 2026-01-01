@@ -52,6 +52,18 @@ yarn start
 
 The frontend will be available at `http://localhost:5173` (or your configured port).
 
+## Production Deployment
+
+⚠️ **Important**: Never run the Vite dev server in production. Always build and serve static files.
+
+See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for complete deployment instructions including:
+- Building for production
+- Server configuration (Nginx, Apache)
+- Deployment to static hosting (Netlify, Vercel, Cloudflare Pages)
+- Troubleshooting MIME type and routing issues
+
+**Having MIME type errors in production?** See **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)**
+
 ### Useful Scripts
 
 | Script | Description |

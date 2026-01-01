@@ -1,0 +1,9 @@
+# SPA fallback - redirect all requests to index.html for client-side routing
+# except for files that actually exist
+/*    /index.html    200
+
+# API routes should be proxied to the backend (if using Netlify/Vercel)
+# Uncomment and configure if needed:
+# /api/*  http://localhost:3001/api/:splat  200
+# /uploads/*  http://localhost:3001/uploads/:splat  200
+# /sitemap.xml  http://localhost:3001/sitemap.xml  200
