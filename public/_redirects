@@ -1,0 +1,14 @@
+# SPA fallback - redirect all requests to index.html for client-side routing
+# except for files that actually exist
+/*    /index.html    200
+
+# API Proxy Configuration
+# For Netlify/Cloudflare Pages, if you want to proxy API requests, uncomment and configure:
+# Replace YOUR_BACKEND_URL with your actual backend URL (e.g., https://api.yourdomain.com)
+# 
+# /api/*  YOUR_BACKEND_URL/api/:splat  200
+# /uploads/*  YOUR_BACKEND_URL/uploads/:splat  200
+# /sitemap.xml  YOUR_BACKEND_URL/sitemap.xml  200
+#
+# Alternatively, set VITE_API_URL during build to make frontend call backend directly:
+# VITE_API_URL=https://api.yourdomain.com yarn build
