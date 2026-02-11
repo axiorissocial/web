@@ -7,11 +7,14 @@
   font-style: normal;
 }
 
+html,
 body {
   margin: 0;
+  padding: 0;
   background-color: var(--bg-primary);
   color: var(--text-primary);
   font-family: Roboto;
+  width: 100%;
 }
 
 .app-container {
@@ -26,17 +29,20 @@ main {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   overflow-y: auto;
+  width: auto;
+  max-width: 100%;
 }
 
 @media (orientation: portrait) {
   .app-container {
     flex-direction: column;
+    padding-left: 0;
   }
   
   main {
     padding: 1rem;
     padding-bottom: 80px;
-    height: calc(100vh - 60px);
+    height: auto;
     overflow-y: auto;
   }
 }

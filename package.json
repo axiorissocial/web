@@ -8,7 +8,9 @@
     "dev": "vite",
     "dev:host": "vite --host",
     "build": "vite build",
+    "build:prod": "vite build --mode production",
     "preview": "vite preview",
+    "preview:prod": "vite preview --mode production",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },

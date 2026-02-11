@@ -25,7 +25,6 @@ import Error from './pages/Error';
 import Hashtag from './pages/Hashtag';
 
 import { registerServiceWorker } from './serviceWorkerRegistration';
-import Footer from './components/Footer';
 
 registerServiceWorker({
   onUpdate: registration => {
@@ -94,10 +93,7 @@ createRoot(document.getElementById('root')!).render(
       <I18nextProvider i18n={i18n}>
         <AuthProvider>
           <NotificationProvider>
-            <div className="app-container">
-              <AppRoutes />
-              <Footer />
-            </div>
+            <AppRoutes />
           </NotificationProvider>
         </AuthProvider>
       </I18nextProvider>
