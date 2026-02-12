@@ -35,7 +35,7 @@ registerServiceWorker({
   }
 });
 
-function AppRoutes() {
+export function AppRoutes() {
   const navigate = useNavigate();
 
   if ('serviceWorker' in navigator) {
