@@ -131,7 +131,7 @@ const SearchPage: React.FC = () => {
     setAppliedQuery(q);
     try {
       navigate(`${window.location.pathname}${q ? `?q=${encodeURIComponent(q)}` : ''}`);
-    } catch (err) {}
+    } catch {}
 
     if (activeTab === 'users') {
       searchUsers(q, 1, true);

@@ -17,6 +17,40 @@ export default defineConfig(({ mode }) => {
         '@src': path.resolve(__dirname, 'src'),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+            'vendor-bootstrap': ['bootstrap', 'react-bootstrap'],
+            'vendor-i18n': ['i18next', 'react-i18next', 'i18next-browser-languagedetector', 'i18next-http-backend'],
+            'vendor-icons': ['react-bootstrap-icons', '@fortawesome/react-fontawesome', '@fortawesome/fontawesome-svg-core', '@fortawesome/free-brands-svg-icons'],
+            'vendor-utils': ['dompurify', 'marked', 'leo-profanity', 'qrcode', 'twemoji', 'hls.js'],
+            'vendor-ui': ['sass'],
+          },
+          chunkFileNames: 'chunks/[name]-[hash].js',
+          entryFileNames: 'entries/[name]-[hash].js',
+          assetFileNames: (assetInfo) => {
+            const info = assetInfo.name.split('.')
+            const ext = info[info.length - 1]
+            if (/png|jpe?g|gif|tiff|bmp|ico/i.test(ext)) {
+              return `assets/images/[name]-[hash][extname]`
+            } else if (/woff|woff2|ttf|otf|eot/i.test(ext)) {
+              return `assets/fonts/[name]-[hash][extname]`
+            } else if (ext === 'css') {
+              return `assets/css/[name]-[hash][extname]`
+            }
+            return `assets/[name]-[hash][extname]`
+          },
+        },
+      },
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          drop_console: true,
+        },
+      },
+    },
     server: {
       host: true,
       hmr: {

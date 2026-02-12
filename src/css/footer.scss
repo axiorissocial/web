@@ -4,13 +4,12 @@
   background-color: var(--bg-secondary);
   border-top: 1px solid var(--border-color);
   color: var(--text-primary);
-  width: 100%;
+  width: calc(100% - 20vw);
   box-sizing: border-box;
   padding: 1.5rem 0;
-  /* Match main's left margin when the sidebar is visible */
-  margin-left: 20vw;
-  width: calc(100% - 20vw);
   position: relative;
+  margin-top: auto;
+  padding-left: 20vw;
 
   .footer-inner {
     max-width: 1200px;
@@ -60,7 +59,7 @@
   @media (orientation: portrait), (max-width: 640px) {
     /* Footer should occupy full width on mobile and stack categories top->bottom
        leftmost categories will appear first (top), rightmost last (bottom). */
-    margin-left: 0;
+    padding-left: 0;
     width: 100%;
 
     .footer-grid {
